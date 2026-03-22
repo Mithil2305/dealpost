@@ -1,0 +1,52 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600&family=Syne:wght@600;700;800&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	* {
+		@apply box-border;
+	}
+
+	body {
+		@apply m-0 bg-brand-bg font-body text-brand-dark antialiased;
+	}
+
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		@apply font-display tracking-tight;
+	}
+
+	button,
+	input,
+	select,
+	textarea {
+		@apply font-body;
+	}
+}
+
+@layer components {
+	.container-shell {
+		@apply mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8;
+	}
+
+	.btn-primary {
+		@apply inline-flex items-center justify-center rounded-full bg-brand-yellow px-5 py-2.5 text-xs font-bold tracking-[0.16em] text-brand-dark uppercase transition hover:brightness-95;
+	}
+
+	.btn-secondary {
+		@apply inline-flex items-center justify-center rounded-full bg-brand-dark px-5 py-2.5 text-xs font-bold tracking-[0.14em] text-white uppercase transition hover:bg-black;
+	}
+
+	.deal-card {
+		@apply rounded-3xl border border-brand-border bg-white shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_30px_-16px_rgba(0,0,0,0.3)];
+	}
+
+	.input-shell {
+		@apply h-12 w-full rounded-xl border border-transparent bg-brand-bg px-4 text-sm outline-none transition focus:border-brand-yellow focus:ring-2 focus:ring-brand-yellow/35;
+	}
+}
