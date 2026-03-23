@@ -1,6 +1,11 @@
 import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { encryptMessage, decryptMessage } from "../utils/encryption.js";
 
+// ---------------------------------------------------------------------------
+// POST /api/messages  — quick "contact seller" from ProductDetail page
+// Creates/finds a conversation and sends the first message, encrypted.
+// ---------------------------------------------------------------------------
 export const quickMessage = asyncHandler(async (req, res) => {
 	const { listingId, sellerId, text } = req.body;
 
@@ -8,6 +13,17 @@ export const quickMessage = asyncHandler(async (req, res) => {
 		return res
 			.status(400)
 			.json({ message: "listingId, sellerId, and text are required" });
+	}
+
+	if (!text.trim()) {
+		return res.status(400).json({ message: "Message text cannot be empty" });
+	}
+
+	// Prevent messaging yourself
+	if (Number(sellerId) === Number(req.user.id)) {
+		return res
+			.status(400)
+			.json({ message: "You cannot message yourself" });
 	}
 
 	const [conversation] = await models.Conversation.findOrCreate({
@@ -23,10 +39,13 @@ export const quickMessage = asyncHandler(async (req, res) => {
 		},
 	});
 
+	// Encrypt before storing
+	const encryptedText = encryptMessage(text.trim());
+
 	const message = await models.Message.create({
 		conversationId: conversation.id,
 		senderId: req.user.id,
-		text,
+		text: encryptedText,
 	});
 
 	conversation.lastMessageId = message.id;
@@ -42,8 +61,14 @@ export const quickMessage = asyncHandler(async (req, res) => {
 		],
 	});
 
+	// Return decrypted text to the client
+	const plain = typeof populated.toJSON === "function"
+		? populated.toJSON()
+		: { ...populated };
+	plain.text = decryptMessage(plain.text);
+
 	res.status(201).json({
 		conversationId: conversation.id,
-		message: populated,
+		message: plain,
 	});
 });

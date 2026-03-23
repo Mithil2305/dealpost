@@ -1,7 +1,20 @@
 import { Op } from "sequelize";
 import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { encryptMessage, decryptMessage } from "../utils/encryption.js";
 
+// ---------------------------------------------------------------------------
+// Helper: decrypt a message row and return a plain object with text decrypted
+// ---------------------------------------------------------------------------
+function decryptMessageRow(msg) {
+	const plain = typeof msg.toJSON === "function" ? msg.toJSON() : { ...msg };
+	plain.text = decryptMessage(plain.text);
+	return plain;
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/conversations  — list all conversations for the current user
+// ---------------------------------------------------------------------------
 export const getMyConversations = asyncHandler(async (req, res) => {
 	const conversations = await models.Conversation.findAll({
 		where: {
@@ -43,6 +56,10 @@ export const getMyConversations = asyncHandler(async (req, res) => {
 
 	const normalized = conversations.map((conv) => {
 		const json = conv.toJSON();
+		// Decrypt the last message preview
+		if (json.messages?.[0]) {
+			json.messages[0] = decryptMessageRow(json.messages[0]);
+		}
 		json.lastMessage = json.messages?.[0] || null;
 		return json;
 	});
@@ -50,6 +67,9 @@ export const getMyConversations = asyncHandler(async (req, res) => {
 	res.json({ conversations: normalized });
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/conversations  — start or retrieve an existing conversation
+// ---------------------------------------------------------------------------
 export const startConversation = asyncHandler(async (req, res) => {
 	const { recipientId, listingId } = req.body;
 
@@ -78,6 +98,9 @@ export const startConversation = asyncHandler(async (req, res) => {
 	res.json({ conversation });
 });
 
+// ---------------------------------------------------------------------------
+// GET /api/conversations/:id/messages  — fetch all messages (decrypted)
+// ---------------------------------------------------------------------------
 export const getMessages = asyncHandler(async (req, res) => {
 	const conversation = await models.Conversation.findByPk(req.params.id);
 
@@ -105,9 +128,15 @@ export const getMessages = asyncHandler(async (req, res) => {
 		order: [["createdAt", "ASC"]],
 	});
 
-	res.json({ messages });
+	// Decrypt every message before sending to client
+	const decrypted = messages.map(decryptMessageRow);
+
+	res.json({ messages: decrypted });
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/conversations/:id/messages  — send a message (encrypted at rest)
+// ---------------------------------------------------------------------------
 export const sendMessage = asyncHandler(async (req, res) => {
 	const conversation = await models.Conversation.findByPk(req.params.id);
 	if (!conversation) {
@@ -123,14 +152,17 @@ export const sendMessage = asyncHandler(async (req, res) => {
 	}
 
 	const { text } = req.body;
-	if (!text) {
+	if (!text || !text.trim()) {
 		return res.status(400).json({ message: "Message text is required" });
 	}
+
+	// Encrypt before writing to DB
+	const encryptedText = encryptMessage(text.trim());
 
 	const message = await models.Message.create({
 		conversationId: conversation.id,
 		senderId: req.user.id,
-		text,
+		text: encryptedText,
 	});
 
 	conversation.lastMessageId = message.id;
@@ -146,5 +178,8 @@ export const sendMessage = asyncHandler(async (req, res) => {
 		],
 	});
 
-	res.status(201).json({ message: populated });
+	// Return decrypted text to the sender
+	const responseMsg = decryptMessageRow(populated);
+
+	res.status(201).json({ message: responseMsg });
 });
