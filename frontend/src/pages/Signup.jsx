@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/useAuth";
+import { saveBusinessProfile } from "../utils/businessProfiles";
 
 const GoogleIcon = () => (
 	<svg viewBox="0 0 48 48" className="h-5 w-5">
@@ -41,6 +42,10 @@ export default function Signup() {
 		name: "",
 		email: "",
 		password: "",
+		accountType: "personal",
+		businessName: "",
+		gstOrMsme: "",
+		location: "",
 	});
 
 	const onChange = (event) => {
@@ -56,12 +61,48 @@ export default function Signup() {
 			return toast.error("A valid email is required");
 		if (form.password.length < 6)
 			return toast.error("Password must be at least 6 characters");
+		if (form.accountType === "business") {
+			if (!form.businessName.trim())
+				return toast.error("Business name is required");
+			if (!form.gstOrMsme.trim())
+				return toast.error("GST/MSME number is required");
+			if (!form.location.trim())
+				return toast.error("Business location is required");
+		}
 
 		try {
 			setSubmitting(true);
-			await signup(form);
+			const payload = {
+				name: form.name,
+				email: form.email,
+				password: form.password,
+				accountType: form.accountType,
+			};
+
+			if (form.accountType === "business") {
+				payload.business = {
+					name: form.businessName,
+					gstOrMsme: form.gstOrMsme,
+					location: form.location,
+				};
+			}
+
+			const result = await signup(payload);
+
+			if (form.accountType === "business") {
+				saveBusinessProfile({
+					id: result?.user?._id || result?.user?.id || form.email,
+					ownerName: form.name,
+					email: form.email,
+					businessName: form.businessName,
+					gstOrMsme: form.gstOrMsme,
+					location: form.location,
+					createdAt: new Date().toISOString(),
+				});
+			}
+
 			toast.success("Welcome to Deal.Post");
-			navigate("/");
+			navigate(form.accountType === "business" ? "/business-listings" : "/");
 		} catch (error) {
 			toast.error(error?.response?.data?.message || "Unable to create account");
 		} finally {
@@ -181,6 +222,46 @@ export default function Signup() {
 							<form className="space-y-5" onSubmit={onSubmit}>
 								<div>
 									<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
+										Profile Type
+									</label>
+									<div className="grid grid-cols-2 gap-2 rounded-xl bg-[#F1F1F1] p-1">
+										<button
+											type="button"
+											onClick={() =>
+												setForm((prev) => ({
+													...prev,
+													accountType: "personal",
+												}))
+											}
+											className={`h-10 rounded-lg text-sm font-semibold transition ${
+												form.accountType === "personal"
+													? "bg-white text-black shadow-sm"
+													: "text-[#666666]"
+											}`}
+										>
+											Personal
+										</button>
+										<button
+											type="button"
+											onClick={() =>
+												setForm((prev) => ({
+													...prev,
+													accountType: "business",
+												}))
+											}
+											className={`h-10 rounded-lg text-sm font-semibold transition ${
+												form.accountType === "business"
+													? "bg-white text-black shadow-sm"
+													: "text-[#666666]"
+											}`}
+										>
+											Business
+										</button>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
 										Full Name
 									</label>
 									<input
@@ -228,6 +309,49 @@ export default function Signup() {
 										</button>
 									</div>
 								</div>
+
+								{form.accountType === "business" && (
+									<>
+										<div>
+											<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
+												Business Name
+											</label>
+											<input
+												name="businessName"
+												value={form.businessName}
+												onChange={onChange}
+												className="w-full bg-[#F1F1F1] rounded-xl h-12 px-4 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
+												placeholder="Acme Store"
+											/>
+										</div>
+
+										<div>
+											<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
+												GST / MSME No.
+											</label>
+											<input
+												name="gstOrMsme"
+												value={form.gstOrMsme}
+												onChange={onChange}
+												className="w-full bg-[#F1F1F1] rounded-xl h-12 px-4 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
+												placeholder="27ABCDE1234F1Z5"
+											/>
+										</div>
+
+										<div>
+											<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
+												Location
+											</label>
+											<input
+												name="location"
+												value={form.location}
+												onChange={onChange}
+												className="w-full bg-[#F1F1F1] rounded-xl h-12 px-4 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
+												placeholder="Chennai"
+											/>
+										</div>
+									</>
+								)}
 
 								<button
 									disabled={submitting}

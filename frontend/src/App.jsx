@@ -5,6 +5,7 @@ import Signup from "./pages/Signup.jsx";
 import ProductDetail from "./pages/ProductDetail.jsx";
 import Explore from "./pages/Explore.jsx";
 import Categories from "./pages/Categories.jsx";
+import BusinessListings from "./pages/BusinessListings.jsx";
 import PostAd from "./pages/PostAd.jsx";
 import MyAds from "./pages/MyAds.jsx";
 import Profile from "./pages/Profile.jsx";
@@ -61,6 +62,7 @@ function App() {
 			<Route path="/listing/:id" element={<ProductDetail />} />
 			<Route path="/explore" element={<Explore />} />
 			<Route path="/categories" element={<Categories />} />
+			<Route path="/business-listings" element={<BusinessListings />} />
 			<Route
 				path="/post-ad"
 				element={

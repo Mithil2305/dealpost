@@ -68,6 +68,14 @@ export default function Navbar({ search = "", onSearchChange }) {
 
 					<button
 						type="button"
+						onClick={() => navigate("/business-listings")}
+						className="hidden rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition hover:border-[#FFD600] hover:text-black lg:inline-flex"
+					>
+						Businesses
+					</button>
+
+					<button
+						type="button"
 						onClick={() => navigate("/post-ad")}
 						className="hidden rounded-full bg-[#FFF5D1] px-5 py-2 text-sm font-bold text-[#5C4D00] transition hover:bg-[#FFEAA3] sm:inline-flex"
 					>
