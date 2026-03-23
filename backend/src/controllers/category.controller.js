@@ -1,37 +1,23 @@
 import { models } from "../config/db.js";
+import { DEFAULT_CATEGORIES } from "../constants/defaultCategories.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { slugify } from "../utils/slugify.js";
-
-const DEFAULT_CATEGORIES = [
-	"Electronics",
-	"Fashion & Beauty",
-	"Vehicles",
-	"Property",
-	"Sports",
-	"Food & Drinks",
-	"Health & Wellness",
-	"Pet Supplies",
-	"Services",
-	"Home & Lifestyle",
-];
 
 // ---------------------------------------------------------------------------
 // GET /api/categories  — returns all categories, auto-seeds if empty
 // ---------------------------------------------------------------------------
 export const getCategories = asyncHandler(async (req, res) => {
-	let categories = await models.Category.findAll({
+	const rows = DEFAULT_CATEGORIES.map((name) => ({
+		name,
+		slug: slugify(name),
+	}));
+
+	// Keep baseline categories in sync even for existing databases.
+	await models.Category.bulkCreate(rows, { ignoreDuplicates: true });
+
+	const categories = await models.Category.findAll({
 		order: [["name", "ASC"]],
 	});
-
-	// Auto-seed on first run if table is empty
-	if (!categories.length) {
-		const rows = DEFAULT_CATEGORIES.map((name) => ({
-			name,
-			slug: slugify(name),
-		}));
-		await models.Category.bulkCreate(rows, { ignoreDuplicates: true });
-		categories = await models.Category.findAll({ order: [["name", "ASC"]] });
-	}
 
 	res.json({ categories });
 });

@@ -10,14 +10,13 @@ import {
 	Store,
 	Tag,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { pickArray } from "../utils/api";
-import { getBusinessProfiles } from "../utils/businessProfiles";
 
 export default function BusinessListings() {
 	const [remoteStores, setRemoteStores] = useState([]);
@@ -58,8 +57,7 @@ export default function BusinessListings() {
 	}, []);
 
 	const stores = useMemo(() => {
-		const localStores = getBusinessProfiles();
-		const merged = [...localStores, ...remoteStores];
+		const merged = [...remoteStores];
 		const unique = [];
 		const seen = new Set();
 
@@ -81,31 +79,38 @@ export default function BusinessListings() {
 		return unique;
 	}, [remoteStores]);
 
-	const getStoreListings = (store) => {
-		const businessName = String(
-			store?.businessName || store?.name || "",
-		).toLowerCase();
-		const ownerEmail = String(store?.email || "").toLowerCase();
-
-		return listings.filter((item) => {
-			const listingBusiness = String(
-				item?.business?.name || item?.businessName || item?.storeName || "",
+	const getStoreListings = useCallback(
+		(store) => {
+			const businessName = String(
+				store?.businessName || store?.name || "",
 			).toLowerCase();
-			const sellerEmail = String(
-				item?.seller?.email || item?.owner?.email || "",
-			).toLowerCase();
+			const ownerEmail = String(store?.email || "").toLowerCase();
 
-			if (businessName && listingBusiness && listingBusiness === businessName) {
-				return true;
-			}
+			return listings.filter((item) => {
+				const listingBusiness = String(
+					item?.business?.name || item?.businessName || item?.storeName || "",
+				).toLowerCase();
+				const sellerEmail = String(
+					item?.seller?.email || item?.owner?.email || "",
+				).toLowerCase();
 
-			if (ownerEmail && sellerEmail && ownerEmail === sellerEmail) {
-				return true;
-			}
+				if (
+					businessName &&
+					listingBusiness &&
+					listingBusiness === businessName
+				) {
+					return true;
+				}
 
-			return false;
-		});
-	};
+				if (ownerEmail && sellerEmail && ownerEmail === sellerEmail) {
+					return true;
+				}
+
+				return false;
+			});
+		},
+		[listings],
+	);
 
 	const storesWithMeta = useMemo(() => {
 		return stores.map((store) => {
@@ -125,7 +130,7 @@ export default function BusinessListings() {
 				totalValue,
 			};
 		});
-	}, [stores, listings]);
+	}, [getStoreListings, stores]);
 
 	const locations = useMemo(() => {
 		const unique = new Set(

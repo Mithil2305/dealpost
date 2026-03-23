@@ -4,7 +4,6 @@ import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/useAuth";
-import { saveBusinessProfile } from "../utils/businessProfiles";
 
 const GoogleIcon = () => (
 	<svg viewBox="0 0 48 48" className="h-5 w-5">
@@ -89,16 +88,8 @@ export default function Signup() {
 
 			const result = await signup(payload);
 
-			if (form.accountType === "business") {
-				saveBusinessProfile({
-					id: result?.user?._id || result?.user?.id || form.email,
-					ownerName: form.name,
-					email: form.email,
-					businessName: form.businessName,
-					gstOrMsme: form.gstOrMsme,
-					location: form.location,
-					createdAt: new Date().toISOString(),
-				});
+			if (!result?.user) {
+				throw new Error("Missing user profile in signup response");
 			}
 
 			toast.success("Welcome to Deal.Post");

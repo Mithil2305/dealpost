@@ -6,117 +6,112 @@ import {
 	Search,
 	Send,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
+import api from "../api/axios";
 import Footer from "../components/Footer";
+import { useAuth } from "../context/useAuth";
 
 import Navbar from "../components/Navbar";
 
-// High-fidelity Mock Data matching the image
-const MOCK_CONVERSATIONS = [
-	{
-		id: "c1",
-		user: {
-			name: "Liam",
-			avatar: "https://randomuser.me/api/portraits/men/32.jpg",
-			online: true,
-		},
-		lastMessage: "Sure, I can do $250. When can...",
-		time: "10:32 AM",
-		unread: false,
-	},
-	{
-		id: "c2",
-		user: {
-			name: "Emma",
-			avatar: "https://randomuser.me/api/portraits/women/44.jpg",
-			online: false,
-		},
-		lastMessage: "Is the vintage camera still a...",
-		time: "09:15 AM",
-		unread: true,
-	},
-	{
-		id: "c3",
-		user: {
-			name: "Noah",
-			avatar: "https://randomuser.me/api/portraits/men/22.jpg",
-			online: false,
-		},
-		lastMessage: "Thanks for the quick response!",
-		time: "Yesterday",
-		unread: false,
-	},
-	{
-		id: "c4",
-		user: {
-			name: "Olivia",
-			avatar: "https://randomuser.me/api/portraits/women/68.jpg",
-			online: true,
-		},
-		lastMessage: "I'll think about it and let you kn...",
-		time: "Yesterday",
-		unread: false,
-	},
-	{
-		id: "c5",
-		user: {
-			name: "William",
-			avatar: "https://randomuser.me/api/portraits/men/46.jpg",
-			online: false,
-		},
-		lastMessage: "Can you share more pictures of...",
-		time: "Monday",
-		unread: false,
-	},
-];
-
-const MOCK_MESSAGES = [
-	{
-		id: "m1",
-		senderId: "c1", // Liam
-		text: "Hi, I'm interested in the Sony WH-1000XM5. Is the price negotiable?",
-		time: "10:30 AM",
-		isAdEmbed: true,
-		adDetails: {
-			title: "Sony WH-1000XM5",
-			price: "$299",
-			image:
-				"https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&q=80&w=200",
-		},
-	},
-	{
-		id: "m2",
-		senderId: "me",
-		text: "Hello! Yes, I'm open to slight negotiations. What were you thinking?",
-		time: "10:31 AM",
-	},
-	{
-		id: "m3",
-		senderId: "c1", // Liam
-		text: "Would you take $250 for it?",
-		time: "10:31 AM",
-	},
-	{
-		id: "m4",
-		senderId: "me",
-		text: "Sure, I can do $250. When can you pick it up?",
-		time: "10:32 AM",
-	},
-];
+const formatTime = (value) => {
+	if (!value) return "";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return "";
+	return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
 
 export default function Messages() {
-	const [activeConversationId, setActiveConversationId] = useState(
-		MOCK_CONVERSATIONS[0].id,
-	);
+	const { user } = useAuth();
+	const [conversations, setConversations] = useState([]);
+	const [messages, setMessages] = useState([]);
+	const [loadingConversations, setLoadingConversations] = useState(true);
+	const [loadingMessages, setLoadingMessages] = useState(false);
+	const [sending, setSending] = useState(false);
+	const [activeConversationId, setActiveConversationId] = useState(null);
 	const [search, setSearch] = useState("");
 	const [text, setText] = useState("");
 
 	// For mobile responsiveness: toggles between list view and chat view
 	const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
-	const activeConversation = MOCK_CONVERSATIONS.find(
-		(c) => c.id === activeConversationId,
+	useEffect(() => {
+		const fetchConversations = async () => {
+			try {
+				setLoadingConversations(true);
+				const { data } = await api.get("/conversations");
+				const rows = Array.isArray(data?.conversations)
+					? data.conversations
+					: [];
+				setConversations(rows);
+				setActiveConversationId((prev) => prev || rows[0]?.id || null);
+			} catch {
+				toast.error("Unable to load conversations");
+			} finally {
+				setLoadingConversations(false);
+			}
+		};
+
+		fetchConversations();
+	}, []);
+
+	useEffect(() => {
+		const fetchMessages = async () => {
+			if (!activeConversationId) {
+				setMessages([]);
+				return;
+			}
+
+			try {
+				setLoadingMessages(true);
+				const { data } = await api.get(
+					`/conversations/${activeConversationId}/messages`,
+				);
+				setMessages(Array.isArray(data?.messages) ? data.messages : []);
+			} catch {
+				toast.error("Unable to load messages");
+			} finally {
+				setLoadingMessages(false);
+			}
+		};
+
+		fetchMessages();
+	}, [activeConversationId]);
+
+	const normalizedConversations = useMemo(() => {
+		const myId = Number(user?.id);
+		const filtered = conversations.filter((conversation) => {
+			const participantName =
+				Number(conversation?.buyerId) === myId
+					? conversation?.seller?.name
+					: conversation?.buyer?.name;
+			return String(participantName || "")
+				.toLowerCase()
+				.includes(search.toLowerCase());
+		});
+
+		return filtered.map((conversation) => {
+			const isBuyer = Number(conversation?.buyerId) === myId;
+			const participant = isBuyer ? conversation?.seller : conversation?.buyer;
+
+			return {
+				...conversation,
+				participant: {
+					id: participant?.id,
+					name: participant?.name || "Unknown",
+					avatar:
+						participant?.avatar ||
+						`https://ui-avatars.com/api/?name=${encodeURIComponent(participant?.name || "User")}`,
+				},
+				lastMessageText: conversation?.lastMessage?.text || "No messages yet",
+				lastMessageTime: formatTime(conversation?.lastMessage?.createdAt),
+			};
+		});
+	}, [conversations, search, user?.id]);
+
+	const activeConversation = normalizedConversations.find(
+		(conversation) => conversation.id === activeConversationId,
 	);
 
 	const handleSelectConversation = (id) => {
@@ -124,11 +119,40 @@ export default function Messages() {
 		setShowChatOnMobile(true);
 	};
 
-	const handleSendMessage = (e) => {
+	const handleSendMessage = async (e) => {
 		e.preventDefault();
-		if (!text.trim()) return;
-		// Logic to send message would go here
-		setText("");
+		const value = text.trim();
+		if (!value || !activeConversationId) return;
+
+		try {
+			setSending(true);
+			const { data } = await api.post(
+				`/conversations/${activeConversationId}/messages`,
+				{ text: value },
+			);
+
+			const nextMessage = data?.message;
+			if (nextMessage) {
+				setMessages((prev) => [...prev, nextMessage]);
+				setConversations((prev) =>
+					prev.map((conversation) =>
+						conversation.id === activeConversationId
+							? {
+									...conversation,
+									lastMessage: nextMessage,
+									updatedAt: nextMessage.createdAt,
+								}
+							: conversation,
+					),
+				);
+			}
+
+			setText("");
+		} catch {
+			toast.error("Could not send message");
+		} finally {
+			setSending(false);
+		}
 	};
 
 	return (
@@ -158,59 +182,59 @@ export default function Messages() {
 						</div>
 
 						<div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1 scrollbar-hide">
-							{MOCK_CONVERSATIONS.map((conv) => {
-								const isActive = activeConversationId === conv.id;
-								return (
-									<div
-										key={conv.id}
-										onClick={() => handleSelectConversation(conv.id)}
-										className={`relative flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-colors ${
-											isActive ? "bg-[#FFF9E6]" : "hover:bg-gray-50"
-										}`}
-									>
-										{/* Active Left Indicator */}
-										{isActive && (
-											<div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-12 bg-[#FFD600] rounded-r-md" />
-										)}
-
-										<div className="relative">
-											<img
-												src={conv.user.avatar}
-												alt={conv.user.name}
-												className="w-14 h-14 rounded-full object-cover bg-gray-200"
-											/>
-											{conv.user.online && (
-												<div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" />
+							{loadingConversations ? (
+								<div className="px-3 py-5 text-sm text-[#888888]">
+									Loading conversations...
+								</div>
+							) : normalizedConversations.length ? (
+								normalizedConversations.map((conv) => {
+									const isActive = activeConversationId === conv.id;
+									return (
+										<div
+											key={conv.id}
+											onClick={() => handleSelectConversation(conv.id)}
+											className={`relative flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-colors ${
+												isActive ? "bg-[#FFF9E6]" : "hover:bg-gray-50"
+											}`}
+										>
+											{/* Active Left Indicator */}
+											{isActive && (
+												<div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-12 bg-[#FFD600] rounded-r-md" />
 											)}
-										</div>
 
-										<div className="flex-1 min-w-0">
-											<div className="flex items-center justify-between mb-1">
-												<h3
-													className={`text-[1.05rem] truncate ${isActive || conv.unread ? "font-bold text-black" : "font-semibold text-gray-800"}`}
-												>
-													{conv.user.name}
-												</h3>
-												<span
-													className={`text-xs whitespace-nowrap ${conv.unread ? "font-bold text-black" : "font-medium text-[#A3A3A3]"}`}
-												>
-													{conv.time}
-												</span>
+											<div className="relative">
+												<img
+													src={conv.participant.avatar}
+													alt={conv.participant.name}
+													className="w-14 h-14 rounded-full object-cover bg-gray-200"
+												/>
 											</div>
-											<div className="flex items-center justify-between gap-2">
-												<p
-													className={`text-[0.9rem] truncate ${conv.unread ? "font-bold text-black" : "text-[#888888]"}`}
-												>
-													{conv.lastMessage}
-												</p>
-												{conv.unread && (
-													<div className="w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0" />
-												)}
+
+											<div className="flex-1 min-w-0">
+												<div className="flex items-center justify-between mb-1">
+													<h3
+														className={`text-[1.05rem] truncate ${isActive ? "font-bold text-black" : "font-semibold text-gray-800"}`}
+													>
+														{conv.participant.name}
+													</h3>
+													<span className="text-xs whitespace-nowrap font-medium text-[#A3A3A3]">
+														{conv.lastMessageTime}
+													</span>
+												</div>
+												<div className="flex items-center justify-between gap-2">
+													<p className="text-[0.9rem] truncate text-[#888888]">
+														{conv.lastMessageText}
+													</p>
+												</div>
 											</div>
 										</div>
-									</div>
-								);
-							})}
+									);
+								})
+							) : (
+								<div className="px-3 py-5 text-sm text-[#888888]">
+									No conversations yet.
+								</div>
+							)}
 						</div>
 					</aside>
 
@@ -229,13 +253,17 @@ export default function Messages() {
 								</button>
 
 								<img
-									src={activeConversation?.user.avatar}
+									src={
+										activeConversation?.participant?.avatar ||
+										"https://placehold.co/80x80?text=U"
+									}
 									alt="Active User"
 									className="w-12 h-12 rounded-full object-cover bg-gray-200"
 								/>
 								<div>
 									<h2 className="text-lg font-bold text-black leading-tight">
-										{activeConversation?.user.name}
+										{activeConversation?.participant?.name ||
+											"Select a conversation"}
 									</h2>
 									<div className="flex items-center gap-1.5 mt-0.5">
 										<div className="w-2 h-2 bg-green-500 rounded-full" />
@@ -260,58 +288,46 @@ export default function Messages() {
 						<div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FAFAFA]">
 							<div className="flex justify-center mb-6">
 								<span className="px-4 py-1.5 rounded-full bg-[#F1F1F1] text-[0.75rem] font-bold text-[#A3A3A3] uppercase tracking-widest">
-									Yesterday
+									Conversation
 								</span>
 							</div>
 
-							{MOCK_MESSAGES.map((msg) => {
-								const isMe = msg.senderId === "me";
+							{loadingMessages ? (
+								<div className="text-center text-sm text-[#888888]">
+									Loading messages...
+								</div>
+							) : messages.length ? (
+								messages.map((msg) => {
+									const isMe = Number(msg.senderId) === Number(user?.id);
 
-								return (
-									<div
-										key={msg.id}
-										className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-									>
+									return (
 										<div
-											className={`max-w-[85%] md:max-w-[70%] p-4 ${
-												isMe
-													? "bg-[#FFD600] text-black rounded-[24px] rounded-tr-[8px]"
-													: "bg-[#F1F1F1] text-black rounded-[24px] rounded-tl-[8px]"
-											}`}
+											key={msg.id || msg._id}
+											className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
 										>
-											{/* Optional Ad Embed Card */}
-											{msg.isAdEmbed && msg.adDetails && (
-												<div className="bg-white p-3 rounded-2xl flex items-center gap-4 mb-3 border border-gray-100 shadow-sm">
-													<img
-														src={msg.adDetails.image}
-														alt="Product"
-														className="w-14 h-14 rounded-xl object-cover bg-gray-50"
-													/>
-													<div className="flex-1">
-														<h4 className="font-bold text-[0.95rem] text-black leading-tight">
-															{msg.adDetails.title}
-														</h4>
-														<p className="font-bold text-[#FFD600] mt-1">
-															{msg.adDetails.price}
-														</p>
-													</div>
-													<button className="bg-black text-white text-[0.75rem] font-bold px-4 py-2 rounded-full uppercase tracking-wider hover:bg-gray-800 transition">
-														View
-													</button>
-												</div>
-											)}
+											<div
+												className={`max-w-[85%] md:max-w-[70%] p-4 ${
+													isMe
+														? "bg-[#FFD600] text-black rounded-[24px] rounded-tr-[8px]"
+														: "bg-[#F1F1F1] text-black rounded-[24px] rounded-tl-[8px]"
+												}`}
+											>
+												<p className="text-[0.95rem] leading-relaxed">
+													{msg.text}
+												</p>
+											</div>
 
-											<p className="text-[0.95rem] leading-relaxed">
-												{msg.text}
-											</p>
+											<span className="text-[0.7rem] font-bold text-[#A3A3A3] mt-2 px-1">
+												{formatTime(msg.createdAt)}
+											</span>
 										</div>
-
-										<span className="text-[0.7rem] font-bold text-[#A3A3A3] mt-2 px-1">
-											{msg.time}
-										</span>
-									</div>
-								);
-							})}
+									);
+								})
+							) : (
+								<div className="text-center text-sm text-[#888888]">
+									No messages yet. Say hello.
+								</div>
+							)}
 						</div>
 
 						{/* Input Area */}
@@ -331,6 +347,7 @@ export default function Messages() {
 									<input
 										value={text}
 										onChange={(e) => setText(e.target.value)}
+										disabled={!activeConversationId || sending}
 										placeholder="Type a message..."
 										className="w-full bg-[#F4F4F4] rounded-full h-12 md:h-14 px-6 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3]"
 									/>
@@ -338,6 +355,7 @@ export default function Messages() {
 
 								<button
 									type="submit"
+									disabled={!activeConversationId || sending}
 									className="grid h-12 w-12 md:h-14 md:w-14 flex-shrink-0 place-items-center rounded-full bg-[#FFD600] text-black hover:bg-[#E6C100] transition active:scale-95 shadow-sm"
 								>
 									<Send size={20} className="ml-1" />

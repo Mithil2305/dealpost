@@ -12,8 +12,9 @@ export default {
 				"brand-border": "#e5e5e5",
 			},
 			fontFamily: {
-				display: ["Syne", "sans-serif"],
-				body: ["DM Sans", "sans-serif"],
+				sans: ["Inter", "sans-serif"],
+				display: ["Poppins", "sans-serif"],
+				body: ["Inter", "sans-serif"],
 				mono: ["JetBrains Mono", "monospace"],
 			},
 			spacing: {

@@ -17,6 +17,12 @@ export function defineListing(sequelize) {
 				type: DataTypes.TEXT,
 				allowNull: false,
 			},
+			parentCategory: {
+				type: DataTypes.STRING,
+			},
+			subCategory: {
+				type: DataTypes.STRING,
+			},
 			subtitle: {
 				type: DataTypes.STRING,
 			},

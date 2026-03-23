@@ -22,6 +22,29 @@ function toPlain(item) {
 	return typeof item.toJSON === "function" ? item.toJSON() : item;
 }
 
+function splitCategoryPath(value) {
+	if (!value) return { parentCategory: null, subCategory: null };
+	const parts = String(value)
+		.split(">")
+		.map((part) => part.trim())
+		.filter(Boolean);
+	if (!parts.length) return { parentCategory: null, subCategory: null };
+	if (parts.length === 1) {
+		return { parentCategory: parts[0], subCategory: null };
+	}
+	return {
+		parentCategory: parts[0],
+		subCategory: parts.slice(1).join(" > "),
+	};
+}
+
+function joinCategoryPath(parentCategory, subCategory) {
+	if (!parentCategory) return null;
+	return subCategory
+		? `${String(parentCategory).trim()} > ${String(subCategory).trim()}`
+		: String(parentCategory).trim();
+}
+
 function normalizeListingPayload(item) {
 	const listing = toPlain(item);
 	if (!listing) return listing;
@@ -39,10 +62,20 @@ function normalizeListingPayload(item) {
 		sellerObj._id = sellerObj.id;
 	}
 
+	const fallbackPath = categoryObj?.name || listing.category || null;
+	const fallbackSplit = splitCategoryPath(fallbackPath);
+	const parentCategory =
+		listing.parentCategory || fallbackSplit.parentCategory || "General";
+	const subCategory = listing.subCategory ?? fallbackSplit.subCategory ?? null;
+	const categoryLabel =
+		joinCategoryPath(parentCategory, subCategory) || "General";
+
 	return {
 		...listing,
 		_id: listing.id, // frontend uses both _id and id
-		category: categoryObj?.name || listing.category || "General",
+		category: categoryLabel,
+		parentCategory,
+		subCategory,
 		...(categoryObj ? { categoryObj } : {}),
 		...(sellerObj ? { seller: sellerObj } : {}),
 		businessName: sellerObj?.name || listing.businessName || null,
@@ -84,11 +117,46 @@ async function resolveCategoryId(categoryInput) {
 	return byName?.id || null;
 }
 
+async function resolveCategorySelection({
+	parentCategory,
+	subCategory,
+	category,
+}) {
+	const parsed = splitCategoryPath(category);
+	const normalizedParent = parentCategory || parsed.parentCategory || null;
+	const normalizedSub =
+		subCategory !== undefined && subCategory !== null
+			? String(subCategory).trim() || null
+			: parsed.subCategory;
+
+	const lookup =
+		joinCategoryPath(normalizedParent, normalizedSub) ||
+		normalizedParent ||
+		category;
+
+	let categoryId = await resolveCategoryId(lookup);
+	if (!categoryId && normalizedParent) {
+		categoryId = await resolveCategoryId(normalizedParent);
+	}
+
+	return {
+		parentCategory: normalizedParent,
+		subCategory: normalizedSub,
+		categoryId,
+	};
+}
+
 // ---------------------------------------------------------------------------
 // Standard seller + category includes
 // ---------------------------------------------------------------------------
 const sellerAttributes = [
-	"id", "name", "avatar", "phone", "email", "location", "createdAt",
+	"id",
+	"name",
+	"avatar",
+	"phone",
+	"email",
+	"location",
+	"createdAt",
 ];
 const categoryAttributes = ["id", "name", "slug"];
 
@@ -149,12 +217,40 @@ export const getListings = asyncHandler(async (req, res) => {
 			.filter(Boolean);
 
 		if (categoryNames.length) {
+			const categoryConditions = [];
+
+			const topLevelParents = categoryNames.filter(
+				(name) => !name.includes(">"),
+			);
+			if (topLevelParents.length) {
+				categoryConditions.push({
+					parentCategory: { [Op.in]: topLevelParents },
+				});
+			}
+
+			for (const name of categoryNames.filter((value) => value.includes(">"))) {
+				const split = splitCategoryPath(name);
+				if (split.parentCategory && split.subCategory) {
+					categoryConditions.push({
+						parentCategory: split.parentCategory,
+						subCategory: split.subCategory,
+					});
+				}
+			}
+
 			const foundCategories = await models.Category.findAll({
 				where: { name: { [Op.in]: categoryNames } },
 			});
 			const ids = foundCategories.map((c) => c.id);
 			if (ids.length) {
-				where.categoryId = { [Op.in]: ids };
+				categoryConditions.push({ categoryId: { [Op.in]: ids } });
+			}
+
+			if (categoryConditions.length) {
+				where[Op.and] = [
+					...(where[Op.and] || []),
+					{ [Op.or]: categoryConditions },
+				];
 			} else {
 				// No matching categories — return empty
 				return res.json({ listings: [], total: 0, page: 1, pages: 0 });
@@ -200,7 +296,11 @@ export const getMyListings = asyncHandler(async (req, res) => {
 	const listings = await models.Listing.findAll({
 		where: { sellerId: req.user.id },
 		include: [
-			{ model: models.Category, as: "category", attributes: categoryAttributes },
+			{
+				model: models.Category,
+				as: "category",
+				attributes: categoryAttributes,
+			},
 		],
 		order: [["createdAt", "DESC"]],
 	});
@@ -244,6 +344,8 @@ export const createListing = asyncHandler(async (req, res) => {
 		subtitle,
 		price,
 		originalPrice,
+		parentCategory,
+		subCategory,
 		category,
 		address,
 		location,
@@ -252,9 +354,9 @@ export const createListing = asyncHandler(async (req, res) => {
 		specs,
 	} = req.body;
 
-	if (!title || !description || !price || !category) {
+	if (!title || !description || !price || !(parentCategory || category)) {
 		return res.status(400).json({
-			message: "title, description, price, and category are required",
+			message: "title, description, price, and parentCategory are required",
 		});
 	}
 
@@ -262,10 +364,21 @@ export const createListing = asyncHandler(async (req, res) => {
 		return res.status(400).json({ message: "Price must be greater than 0" });
 	}
 
-	const categoryId = await resolveCategoryId(category);
+	const resolvedCategory = await resolveCategorySelection({
+		parentCategory,
+		subCategory,
+		category,
+	});
+	const selectedPath =
+		joinCategoryPath(
+			resolvedCategory.parentCategory,
+			resolvedCategory.subCategory,
+		) || category;
+
+	const categoryId = resolvedCategory.categoryId;
 	if (!categoryId) {
 		return res.status(400).json({
-			message: `Category "${category}" not found. Please select a valid category.`,
+			message: `Category "${selectedPath}" not found. Please select a valid category.`,
 		});
 	}
 
@@ -283,6 +396,8 @@ export const createListing = asyncHandler(async (req, res) => {
 	const listing = await models.Listing.create({
 		title: title.trim(),
 		description: description.trim(),
+		parentCategory: resolvedCategory.parentCategory,
+		subCategory: resolvedCategory.subCategory,
 		subtitle: subtitle?.trim() || null,
 		price: Number(price),
 		originalPrice: originalPrice ? Number(originalPrice) : null,
@@ -320,7 +435,13 @@ export const patchListing = asyncHandler(async (req, res) => {
 		return res.status(403).json({ message: "Forbidden" });
 	}
 
-	const allowedFields = ["status", "title", "description", "price", "condition"];
+	const allowedFields = [
+		"status",
+		"title",
+		"description",
+		"price",
+		"condition",
+	];
 	for (const field of allowedFields) {
 		if (req.body[field] !== undefined) {
 			listing[field] = req.body[field];
@@ -355,6 +476,8 @@ export const updateListing = asyncHandler(async (req, res) => {
 		subtitle,
 		price,
 		originalPrice,
+		parentCategory,
+		subCategory,
 		category,
 		address,
 		condition,
@@ -377,9 +500,26 @@ export const updateListing = asyncHandler(async (req, res) => {
 		listing.specs = parseMaybeJson(specs, listing.specs || {});
 	}
 
-	if (category !== undefined) {
-		const categoryId = await resolveCategoryId(category);
-		if (categoryId) listing.categoryId = categoryId;
+	if (
+		category !== undefined ||
+		parentCategory !== undefined ||
+		subCategory !== undefined
+	) {
+		const resolvedCategory = await resolveCategorySelection({
+			parentCategory:
+				parentCategory !== undefined ? parentCategory : listing.parentCategory,
+			subCategory:
+				subCategory !== undefined ? subCategory : listing.subCategory,
+			category,
+		});
+
+		if (resolvedCategory.parentCategory) {
+			listing.parentCategory = resolvedCategory.parentCategory;
+		}
+		listing.subCategory = resolvedCategory.subCategory;
+		if (resolvedCategory.categoryId) {
+			listing.categoryId = resolvedCategory.categoryId;
+		}
 	}
 
 	if (req.files?.length) {

@@ -1,448 +1,248 @@
-import {
-	ArrowRight,
-	Briefcase,
-	Car,
-	ChevronRight,
-	Dog,
-	HeartPulse,
-	Home as HomeIcon,
-	Monitor,
-	Shirt,
-	Sofa,
-	Trophy,
-	Utensils,
-} from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, ChevronRight, Layers3, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
-
+import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
-
-const CATEGORY_DATA = [
-	{
-		id: "electronics",
-		name: "Electronics",
-		icon: Monitor,
-		groups: [
-			{
-				name: "Mobile Phones",
-				items: [
-					"All Mobile Phones",
-					"Tablets",
-					"E-Readers",
-					"Wearables & Smart Watches",
-					"Mobile & Gadget Accessories",
-					"Walkie-Talkies",
-					"Other Gadgets",
-				],
-			},
-			{
-				name: "Computers & Tech",
-				items: [
-					"All Computers & Tech",
-					"Laptops & Notebooks",
-					"Desktops",
-					"Parts & Accessories",
-					"Printers",
-					"Scanners & Copiers",
-					"Office & Business Technology",
-					"Rentals",
-				],
-			},
-			{
-				name: "Video Gaming",
-				items: [
-					"All Video Gaming",
-					"Video Game Consoles",
-					"Video Games",
-					"Gaming Accessories",
-				],
-			},
-			{
-				name: "TV & Home Appliances",
-				items: [
-					"All TV & Home Appliances",
-					"TV & Entertainment Systems",
-					"Kitchen Appliances",
-					"Household Appliances",
-					"Rentals",
-				],
-			},
-			{
-				name: "Audio-Visual (AV) Equipment",
-				items: [
-					"All AV Equipment",
-					"Cameras",
-					"Lens & Kits",
-					"Drones",
-					"Video Cameras",
-					"Photography Accessories",
-					"Earphones",
-					"Headphones & Headsets",
-					"Microphones",
-					"Soundbars",
-					"Speakers & Amplifiers",
-					"Portable Music Players",
-					"Rentals",
-				],
-			},
-		],
-	},
-	{
-		id: "fashion-beauty",
-		name: "Fashion & Beauty",
-		icon: Shirt,
-		groups: [
-			{
-				name: "Women's Fashion",
-				items: [
-					"All Women's Fashion",
-					"Activewear",
-					"Maternity Wear",
-					"Tops",
-					"Bottoms",
-					"Dresses & Sets",
-					"Footwear",
-					"Swimwear",
-					"Coats & Outerwear",
-					"Bags & Wallets",
-					"Jewelry & Organizers",
-					"Watches & Accessories",
-					"Undergarments & Loungewear",
-				],
-			},
-			{
-				name: "Men's Fashion",
-				items: [
-					"All Men's Fashion",
-					"Activewear",
-					"Tops & Sets",
-					"Bottoms",
-					"Footwear",
-					"Coats & Outerwear",
-					"Bags",
-					"Watches & Accessories",
-				],
-			},
-			{
-				name: "Luxury",
-				items: [
-					"All Luxury",
-					"Luxury Bags & Wallets",
-					"Luxury Apparel",
-					"Luxury Accessories",
-					"Luxury Watches",
-					"Luxury Sneakers & Footwear",
-				],
-			},
-			{
-				name: "Beauty & Personal Care",
-				items: [
-					"All Beauty & Personal Care",
-					"Fragrance & Deodorants",
-					"Bath & Body",
-					"Face",
-					"Hair Products",
-					"Men's Grooming",
-					"Hands & Nails",
-					"Vision Care",
-					"Oral Care",
-				],
-			},
-		],
-	},
-	{
-		id: "vehicles",
-		name: "Vehicles",
-		icon: Car,
-		groups: [
-			{
-				name: "Cars",
-				items: [
-					"All Cars",
-					"Used Cars",
-					"New Cars",
-					"Parallel Imports",
-					"Car Rental",
-					"Other Vehicles",
-				],
-			},
-			{
-				name: "Car Accessories",
-				items: ["All Car Accessories", "Parts", "Accessories", "Car Care"],
-			},
-			{
-				name: "Motorcycles",
-				items: [
-					"All Motorcycles",
-					"Motorcycles for Sale",
-					"Accessories",
-					"Apparel",
-					"Rental",
-				],
-			},
-			{
-				name: "Commercial Vehicles & Spares",
-				items: [
-					"All Commercial Vehicles",
-					"Trucks",
-					"Pick-up Vans",
-					"Tractors",
-					"Taxi Cabs",
-					"Auto-rickshaws",
-					"Buses",
-					"Heavy Machinery",
-					"Wheels & Tyres",
-					"Audio & Other Accessories",
-					"Battery",
-				],
-			},
-		],
-	},
-	{
-		id: "property",
-		name: "Property",
-		icon: HomeIcon,
-		groups: [
-			{
-				name: "For Sale",
-				items: [
-					"All For Sale",
-					"Houses & Apartments",
-					"Shops, Offices & Warehouses",
-					"Lands & Plots",
-				],
-			},
-			{
-				name: "For Rent",
-				items: [
-					"All For Rent",
-					"Houses & Apartments",
-					"Shops, Offices & Warehouses",
-					"Lands & Plots",
-				],
-			},
-			{
-				name: "Commercial & Venues",
-				items: [
-					"All Commercial & Venues",
-					"Marriage & Community Halls",
-					"PG & Guest Houses",
-					"Resorts & Clubs",
-					"Hotels",
-					"Bars",
-				],
-			},
-		],
-	},
-	{
-		id: "sports",
-		name: "Sports",
-		icon: Trophy,
-		groups: [
-			{
-				name: "Sports Equipment",
-				items: [
-					"All Sports Equipment",
-					"Bicycles",
-					"Fitness Equipment",
-					"Team Sports",
-					"Racket Sports",
-					"Camping & Hiking",
-					"Turfs/Courts/Stadiums/Grounds/Tracks",
-				],
-			},
-		],
-	},
-	{
-		id: "food-drinks",
-		name: "Food & Drinks",
-		icon: Utensils,
-		groups: [
-			{
-				name: "Dining & Groceries",
-				items: [
-					"All Dining & Groceries",
-					"Restaurants",
-					"Local Eats",
-					"Packaged Food",
-					"Beverages",
-					"Fresh Produce",
-					"Homemade Bakes",
-				],
-			},
-		],
-	},
-	{
-		id: "health-wellness",
-		name: "Health & Wellness",
-		icon: HeartPulse,
-		groups: [
-			{
-				name: "Wellness",
-				items: [
-					"All Wellness",
-					"Gym & Fitness",
-					"Nutrition Products",
-					"Natural Products",
-					"Hospitals & Clinics",
-				],
-			},
-		],
-	},
-	{
-		id: "pets",
-		name: "Pet Supplies",
-		icon: Dog,
-		groups: [
-			{
-				name: "Pets & Accessories",
-				items: [
-					"All Pet Supplies",
-					"Pets",
-					"Pet food & Accessories",
-					"Fish & Aquarium",
-				],
-			},
-		],
-	},
-	{
-		id: "services",
-		name: "Services",
-		icon: Briefcase,
-		groups: [
-			{
-				name: "General Services",
-				items: [
-					"All Services",
-					"Education & Classes",
-					"Electronics Repair",
-					"Home Renovation, Repair & Cleaning",
-					"Vehicle Service",
-					"Salon, Spa & Sauna",
-					"Taxi & Tourist Services",
-					"Call Driver",
-					"Guides",
-					"Packers & Movers",
-					"Maids & Nurses",
-					"Funeral Services",
-				],
-			},
-		],
-	},
-	{
-		id: "lifestyle",
-		name: "Home & Lifestyle",
-		icon: Sofa,
-		groups: [
-			{
-				name: "Lifestyle & Decor",
-				items: [
-					"All Lifestyle",
-					"Bathroom & Kitchen Accessories",
-					"Flowers & Bouquets",
-					"Religious Items",
-					"Travel",
-				],
-			},
-		],
-	},
-];
+import { pickArray } from "../utils/api";
 
 export default function Categories() {
-	const [activeCategory, setActiveCategory] = useState(CATEGORY_DATA[0].id);
+	const [categories, setCategories] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const [activeMain, setActiveMain] = useState("");
 
-	// Get the currently selected category object
-	const currentCategory = CATEGORY_DATA.find((c) => c.id === activeCategory);
+	useEffect(() => {
+		const fetchCategories = async () => {
+			try {
+				setLoading(true);
+				const { data } = await api.get("/categories");
+				setCategories(pickArray(data, ["categories", "data", "items"]));
+			} catch {
+				toast.error("Unable to load categories");
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchCategories();
+	}, []);
+
+	const categoryTree = useMemo(() => {
+		const tree = new Map();
+
+		for (const raw of categories) {
+			const label = String(raw?.name || raw || "").trim();
+			if (!label) continue;
+
+			const parts = label
+				.split(">")
+				.map((part) => part.trim())
+				.filter(Boolean);
+			if (!parts.length) continue;
+
+			const main = parts[0];
+			if (!tree.has(main)) {
+				tree.set(main, new Map());
+			}
+
+			if (parts.length === 1) continue;
+
+			const group = parts[1];
+			const groupMap = tree.get(main);
+			if (!groupMap.has(group)) {
+				groupMap.set(group, new Set());
+			}
+
+			if (parts.length > 2) {
+				groupMap.get(group).add(parts.slice(2).join(" > "));
+			}
+		}
+
+		return tree;
+	}, [categories]);
+
+	const mainCategories = useMemo(
+		() => Array.from(categoryTree.keys()).sort((a, b) => a.localeCompare(b)),
+		[categoryTree],
+	);
+
+	useEffect(() => {
+		if (!mainCategories.length) return;
+		setActiveMain((prev) =>
+			prev && mainCategories.includes(prev) ? prev : mainCategories[0],
+		);
+	}, [mainCategories]);
+
+	const activeGroups = useMemo(() => {
+		if (!activeMain || !categoryTree.has(activeMain)) return [];
+		const groupMap = categoryTree.get(activeMain);
+		return Array.from(groupMap.entries())
+			.map(([groupName, childSet]) => ({
+				groupName,
+				children: Array.from(childSet).sort((a, b) => a.localeCompare(b)),
+			}))
+			.sort((a, b) => a.groupName.localeCompare(b.groupName));
+	}, [activeMain, categoryTree]);
+
+	const topCategories = useMemo(
+		() => mainCategories.slice(0, 10),
+		[mainCategories],
+	);
 
 	return (
-		<div className="min-h-screen bg-[#F6F6F6] font-sans text-black flex flex-col">
+		<div className="min-h-screen bg-[#F6F6F6] text-black flex flex-col">
 			<Navbar />
 
-			<main className="flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 flex flex-col md:flex-row gap-8">
-				{/* Left Sidebar Navigation */}
-				<aside className="w-full md:w-72 flex-shrink-0">
-					<h1 className="text-3xl font-bold mb-6">Categories</h1>
-					<nav className="flex md:flex-col gap-2 overflow-x-auto pb-4 md:pb-0 scrollbar-hide">
-						{CATEGORY_DATA.map((cat) => (
-							<button
-								key={cat.id}
-								onClick={() => setActiveCategory(cat.id)}
-								className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all whitespace-nowrap md:whitespace-normal ${
-									activeCategory === cat.id
-										? "bg-[#FFD600] text-black font-bold shadow-sm"
-										: "hover:bg-white text-[#666666] hover:text-black font-medium"
-								}`}
-							>
-								<cat.icon
-									size={20}
-									className={
-										activeCategory === cat.id ? "text-black" : "text-[#A3A3A3]"
-									}
-								/>
-								{cat.name}
-							</button>
-						))}
-					</nav>
-				</aside>
+			<main className="flex-1 max-w-[1300px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+				<section className="rounded-[32px] bg-[#111111] px-6 py-10 md:px-10 md:py-14 text-white relative overflow-hidden">
+					<div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#FFD600]/20 blur-3xl" />
+					<div className="pointer-events-none absolute -left-10 -bottom-20 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
 
-				{/* Right Content Area */}
-				<section className="flex-1">
-					<div className="bg-white rounded-[32px] p-6 md:p-10 shadow-sm border border-gray-100 min-h-[700px]">
-						{/* Header for Active Category */}
-						<div className="flex items-center gap-4 mb-10 pb-6 border-b border-gray-100">
-							<div className="h-16 w-16 rounded-2xl bg-[#FFF9E6] flex items-center justify-center text-[#FFD600]">
-								{currentCategory && (
-									<currentCategory.icon size={32} className="text-[#B39500]" />
-								)}
-							</div>
-							<div>
-								<h2 className="text-[2rem] font-bold text-black leading-tight">
-									{currentCategory?.name}
-								</h2>
-								<p className="text-[#888888] text-sm mt-1 font-medium">
-									Browse all subcategories and items
-								</p>
-							</div>
-						</div>
-
-						{/* Grid of Subcategories */}
-						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
-							{currentCategory?.groups.map((group) => (
-								<div key={group.name} className="flex flex-col">
-									<h3 className="text-[1.1rem] font-bold mb-4 text-black border-l-4 border-[#FFD600] pl-3">
-										{group.name}
-									</h3>
-
-									<ul className="space-y-1">
-										{group.items.map((item, index) => (
-											<li key={item}>
-												<Link
-													to={`/explore?category=${encodeURIComponent(item)}`}
-													className={`py-1.5 flex items-center gap-2 group transition-colors ${
-														index === 0
-															? "text-[0.95rem] font-bold text-black mb-1"
-															: "text-[0.9rem] text-[#666666] hover:text-black font-medium"
-													}`}
-												>
-													{index === 0 ? (
-														<ArrowRight size={14} className="text-[#FFD600]" />
-													) : (
-														<ChevronRight
-															size={14}
-															className="opacity-0 -translate-x-3 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-[#FFD600]"
-														/>
-													)}
-													{item}
-												</Link>
-											</li>
-										))}
-									</ul>
-								</div>
-							))}
-						</div>
+					<div className="relative z-10">
+						<p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs tracking-[0.15em] uppercase">
+							<Sparkles size={12} className="text-[#FFD600]" />
+							Live category feed
+						</p>
+						<h1 className="mt-4 text-4xl font-display font-bold md:text-6xl">
+							Browse Categories
+						</h1>
+						<p className="mt-3 max-w-2xl text-sm md:text-base text-white/70">
+							Every category shown here comes directly from your backend
+							database. Pick one to instantly explore live listings.
+						</p>
 					</div>
 				</section>
+
+				<section className="mt-6 rounded-[28px] border border-gray-100 bg-white p-5 md:p-7 shadow-sm">
+					<div className="mb-5 flex items-center justify-between">
+						<h2 className="flex items-center gap-2 text-2xl font-bold">
+							<Layers3 size={20} />
+							Category Directory
+						</h2>
+						<p className="text-sm text-[#777777]">
+							{mainCategories.length} main
+						</p>
+					</div>
+
+					{loading ? (
+						<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+							{Array.from({ length: 9 }).map((_, index) => (
+								<div
+									key={index}
+									className="h-16 animate-pulse rounded-2xl bg-[#F3F3F3]"
+								/>
+							))}
+						</div>
+					) : mainCategories.length ? (
+						<div className="grid gap-5 md:grid-cols-[280px_1fr]">
+							<div className="rounded-2xl border border-gray-100 bg-[#fafafa] p-3">
+								<p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777777]">
+									Main Categories
+								</p>
+								<div className="space-y-1.5">
+									{mainCategories.map((main) => {
+										const isActive = main === activeMain;
+										return (
+											<Link
+												key={main}
+												to={`/explore?category=${encodeURIComponent(main)}`}
+												onMouseEnter={() => setActiveMain(main)}
+												className={`group flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition ${
+													isActive
+														? "bg-[#111111] text-white"
+														: "bg-white text-black hover:bg-[#fff3c4]"
+												}`}
+											>
+												<span className="font-semibold">{main}</span>
+												<ChevronRight
+													size={15}
+													className={
+														isActive ? "text-[#FFD600]" : "text-[#8b8b8b]"
+													}
+												/>
+											</Link>
+										);
+									})}
+								</div>
+							</div>
+
+							<div className="rounded-2xl border border-gray-100 bg-white p-4">
+								<p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777777]">
+									Hover panel: {activeMain || "Select a category"}
+								</p>
+
+								{activeGroups.length ? (
+									<div className="grid gap-3 sm:grid-cols-2">
+										{activeGroups.map((group) => {
+											const groupPath = `${activeMain} > ${group.groupName}`;
+											return (
+												<div
+													key={group.groupName}
+													className="group relative rounded-xl border border-gray-100 bg-[#fcfcfc]"
+												>
+													<Link
+														to={`/explore?category=${encodeURIComponent(groupPath)}`}
+														className="flex items-center justify-between px-3 py-3 text-sm"
+													>
+														<span className="font-semibold">
+															{group.groupName}
+														</span>
+														<ArrowRight size={14} className="text-[#8a8a8a]" />
+													</Link>
+
+													{group.children.length > 0 && (
+														<div className="hidden rounded-b-xl border-t border-gray-100 bg-white p-2 group-hover:block">
+															{group.children.map((child) => {
+																const fullPath = `${activeMain} > ${group.groupName} > ${child}`;
+																return (
+																	<Link
+																		key={fullPath}
+																		to={`/explore?category=${encodeURIComponent(fullPath)}`}
+																		className="block rounded-lg px-2 py-1.5 text-xs text-[#666666] hover:bg-[#FFF3CF] hover:text-black"
+																	>
+																		{child}
+																	</Link>
+																);
+															})}
+														</div>
+													)}
+												</div>
+											);
+										})}
+									</div>
+								) : (
+									<div className="rounded-xl border border-dashed border-gray-200 bg-[#fafafa] p-5 text-sm text-[#777777]">
+										No nested subcategories available for this main category.
+									</div>
+								)}
+							</div>
+						</div>
+					) : (
+						<div className="rounded-2xl border border-dashed border-gray-200 bg-[#FAFAFA] p-8 text-center text-[#777777]">
+							No categories found in backend yet.
+						</div>
+					)}
+				</section>
+
+				{topCategories.length > 0 && (
+					<section className="mt-6 rounded-[28px] border border-gray-100 bg-white p-5 md:p-7 shadow-sm">
+						<h3 className="text-xl font-bold">Main Category Shortcuts</h3>
+						<div className="mt-4 flex flex-wrap gap-2">
+							{topCategories.map((label) => {
+								return (
+									<Link
+										key={label}
+										to={`/explore?category=${encodeURIComponent(label)}`}
+										className="rounded-full bg-[#F5F5F5] px-4 py-2 text-sm font-semibold hover:bg-[#FFD600] transition"
+									>
+										{label}
+									</Link>
+								);
+							})}
+						</div>
+					</section>
+				)}
 			</main>
 
 			<Footer />

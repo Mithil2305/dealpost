@@ -1,24 +1,12 @@
 import { connectDB, models, sequelize } from "../src/config/db.js";
+import { DEFAULT_CATEGORIES } from "../src/constants/defaultCategories.js";
 import { slugify } from "../src/utils/slugify.js";
-
-const categories = [
-	"Electronics",
-	"Fashion & Beauty",
-	"Vehicles",
-	"Property",
-	"Sports",
-	"Food & Drinks",
-	"Health & Wellness",
-	"Pet Supplies",
-	"Services",
-	"Home & Lifestyle",
-];
 
 async function run() {
 	try {
 		await connectDB();
 
-		for (const name of categories) {
+		for (const name of DEFAULT_CATEGORIES) {
 			await models.Category.findOrCreate({
 				where: { slug: slugify(name) },
 				defaults: {

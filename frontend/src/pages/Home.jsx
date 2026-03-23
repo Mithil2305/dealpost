@@ -18,7 +18,7 @@ import {
 	ChevronLeft,
 	Shield,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
@@ -26,91 +26,106 @@ import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { pickArray } from "../utils/api";
 
-// Hardcoded mock data to perfectly match the image visually
-const MOCK_CATEGORIES = [
-	{ name: "Tech", icon: Monitor, active: true },
-	{ name: "Living", icon: Sofa },
-	{ name: "Talent", icon: User },
-	{ name: "Auto", icon: Car },
-	{ name: "Luxury", icon: Gem },
-	{ name: "Estate", icon: HomeIcon },
-	{ name: "Sports", icon: Trophy },
-];
+const CATEGORY_ICONS = [Monitor, Sofa, User, Car, Gem, HomeIcon, Trophy];
 
-const MOCK_RECOMMENDATIONS = [
-	{
-		id: 1,
-		title: "Nike Air Max Limited",
-		category: "TECH • FASHION",
-		price: "$120",
+const formatPrice = (value) => {
+	const numeric = Number(value || 0);
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		maximumFractionDigits: 0,
+	}).format(numeric);
+};
+
+const timeAgo = (value) => {
+	if (!value) return "Just now";
+	const then = new Date(value);
+	if (Number.isNaN(then.getTime())) return "Just now";
+
+	const diffMs = Date.now() - then.getTime();
+	const diffMins = Math.max(Math.floor(diffMs / 60000), 0);
+
+	if (diffMins < 1) return "Just now";
+	if (diffMins < 60) return `${diffMins}m ago`;
+
+	const diffHours = Math.floor(diffMins / 60);
+	if (diffHours < 24) return `${diffHours}h ago`;
+
+	const diffDays = Math.floor(diffHours / 24);
+	if (diffDays < 30) return `${diffDays}d ago`;
+
+	return then.toLocaleDateString();
+};
+
+const normalizeListing = (item) => {
+	const id = item?._id || item?.id;
+	return {
+		id,
+		title: item?.title || "Untitled Listing",
+		category: String(item?.category || "General").toUpperCase(),
+		price: formatPrice(item?.price),
 		image:
-			"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=600",
+			item?.images?.[0]?.url ||
+			item?.image ||
+			"https://placehold.co/600x600?text=Deal.Post",
 		seller: {
-			name: "VERIFIED SELLER",
-			avatar: "https://randomuser.me/api/portraits/men/1.jpg",
+			name: item?.seller?.name || "Verified Seller",
+			avatar:
+				item?.seller?.avatar ||
+				`https://ui-avatars.com/api/?name=${encodeURIComponent(item?.seller?.name || "Seller")}`,
 		},
-		time: "2m ago",
-	},
-	{
-		id: 2,
-		title: "Nomos Metro Neomatik",
-		category: "LUXURY • ACCESSORIES",
-		price: "$450",
-		image:
-			"https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=600",
-		seller: {
-			name: "PREMIUM USER",
-			avatar: "https://randomuser.me/api/portraits/women/2.jpg",
-		},
-		time: "1h ago",
-	},
-	{
-		id: 3,
-		title: 'MacBook Pro M2 14"',
-		category: "TECH • ELECTRONICS",
-		price: "$899",
-		image:
-			"https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&q=80&w=600",
-		seller: {
-			name: "EVANSELLER",
-			avatar: "https://randomuser.me/api/portraits/men/3.jpg",
-		},
-		time: "12h ago",
-	},
-	{
-		id: 4,
-		title: "Velvet Modular Sofa",
-		category: "LIVING • FURNITURE",
-		price: "$1200",
-		image:
-			"https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=600",
-		seller: {
-			name: "VERIFIED",
-			avatar: "https://randomuser.me/api/portraits/women/4.jpg",
-		},
-		time: "1d ago",
-	},
-	{
-		id: 5,
-		title: "Royal Enfield Classic",
-		category: "AUTO • VEHICLES",
-		price: "$6800",
-		image:
-			"https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=600",
-		seller: {
-			name: "DEALER",
-			avatar: "https://randomuser.me/api/portraits/men/5.jpg",
-		},
-		time: "2d ago",
-	},
-];
+		time: timeAgo(item?.createdAt),
+	};
+};
+
+const getMainCategory = (value) => {
+	if (!value) return "General";
+	return String(value).split(">")[0]?.trim() || "General";
+};
 
 export default function Home() {
 	const [search, setSearch] = useState("");
+	const [categories, setCategories] = useState([]);
 	const [listings, setListings] = useState([]);
+	const [loading, setLoading] = useState(true);
 
-	// Maintaining API logic, but using mock data for visual presentation if empty
-	const displayListings = listings.length > 0 ? listings : MOCK_RECOMMENDATIONS;
+	useEffect(() => {
+		const fetchHomeData = async () => {
+			try {
+				setLoading(true);
+				const [categoriesRes, listingsRes] = await Promise.all([
+					api.get("/categories"),
+					api.get("/listings", {
+						params: { limit: 10, sort: "Newest", search: search || undefined },
+					}),
+				]);
+
+				const categoryRows = pickArray(categoriesRes?.data, [
+					"categories",
+					"data",
+					"items",
+				]);
+				setCategories(categoryRows);
+
+				const listingRows = pickArray(listingsRes?.data, [
+					"listings",
+					"items",
+					"data",
+				]);
+				setListings(listingRows);
+			} catch {
+				toast.error("Could not load homepage data");
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchHomeData();
+	}, [search]);
+
+	const displayListings = listings.map(normalizeListing);
+	const sidebarCategories = categories.slice(0, 7);
+	const topDeals = displayListings.slice(0, 3);
 
 	return (
 		<div className="min-h-screen bg-white font-sans text-black">
@@ -148,23 +163,27 @@ export default function Home() {
 							</Link>
 						</div>
 						<section className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
-							{MOCK_CATEGORIES.map((cat) => (
-								<Link
-									key={cat.name}
-									to={`/explore?category=${encodeURIComponent(cat.name)}`}
-									className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
-										cat.active
-											? "bg-[#FFD600] text-black shadow-sm"
-											: "bg-[#F8F8F8] text-[#666666] hover:bg-[#F0F0F0]"
-									}`}
-								>
-									<cat.icon
-										size={16}
-										className={cat.active ? "text-black" : "text-[#666666]"}
-									/>
-									{cat.name}
-								</Link>
-							))}
+							{sidebarCategories.map((cat, index) => {
+								const Icon = CATEGORY_ICONS[index % CATEGORY_ICONS.length];
+								const active = index === 0;
+								return (
+									<Link
+										key={cat?.id || cat?.name || index}
+										to={`/explore?category=${encodeURIComponent(cat?.name || "General")}`}
+										className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
+											active
+												? "bg-[#FFD600] text-black shadow-sm"
+												: "bg-[#F8F8F8] text-[#666666] hover:bg-[#F0F0F0]"
+										}`}
+									>
+										<Icon
+											size={16}
+											className={active ? "text-black" : "text-[#666666]"}
+										/>
+										{cat?.name || "General"}
+									</Link>
+								);
+							})}
 						</section>
 
 						{/* Hero Section */}
@@ -293,7 +312,11 @@ export default function Home() {
 
 							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
 								{displayListings.map((item) => (
-									<div key={item.id} className="group cursor-pointer">
+									<Link
+										key={item.id}
+										to={`/listing/${item.id}`}
+										className="group cursor-pointer"
+									>
 										<div className="relative aspect-square rounded-[24px] bg-[#F4F4F4] overflow-hidden mb-4 p-6 flex items-center justify-center">
 											<button className="absolute top-4 right-4 z-10 h-8 w-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:scale-110 transition">
 												<Heart size={16} className="text-black" />
@@ -336,9 +359,15 @@ export default function Home() {
 												</span>
 											</div>
 										</div>
-									</div>
+									</Link>
 								))}
 							</div>
+
+							{!loading && !displayListings.length && (
+								<div className="mt-6 rounded-2xl border border-[#EAEAEA] bg-white p-6 text-center text-sm text-[#777777]">
+									No live listings found yet.
+								</div>
+							)}
 
 							<div className="mt-12 text-center">
 								<button className="rounded-full border border-[#EAEAEA] bg-white px-10 py-3.5 text-sm font-bold text-black hover:bg-[#F8F8F8] shadow-sm transition">
@@ -368,7 +397,10 @@ export default function Home() {
 								{/* Left Faded Item */}
 								<div className="hidden lg:block w-[280px] h-[280px] rounded-[32px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer">
 									<img
-										src={MOCK_RECOMMENDATIONS[1].image}
+										src={
+											topDeals[1]?.image ||
+											"https://placehold.co/600x600?text=Deal.Post"
+										}
 										className="w-full h-full object-cover"
 										alt="Deal"
 									/>
@@ -377,7 +409,10 @@ export default function Home() {
 								{/* Center Active Item */}
 								<div className="w-full max-w-[600px] h-[360px] rounded-[32px] bg-[#111111] overflow-hidden relative shadow-2xl group cursor-pointer">
 									<img
-										src="https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&q=80&w=800"
+										src={
+											topDeals[0]?.image ||
+											"https://placehold.co/800x600?text=Deal.Post"
+										}
 										className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition duration-700"
 										alt="Main Deal"
 									/>
@@ -394,10 +429,10 @@ export default function Home() {
 
 										<div>
 											<h3 className="text-white text-2xl font-bold mb-1">
-												Sony WH-1000XM5
+												{topDeals[0]?.title || "Featured Deal"}
 											</h3>
 											<div className="text-[3.5rem] font-bold text-white leading-none tracking-tighter mb-6">
-												25% OFF
+												{topDeals[0]?.price || "$0"}
 											</div>
 											<button className="rounded-full border border-white/30 bg-white/10 backdrop-blur-md px-8 py-3 text-sm font-bold text-white hover:bg-white/20 transition uppercase tracking-wider">
 												Grab Deal
@@ -409,7 +444,10 @@ export default function Home() {
 								{/* Right Faded Item */}
 								<div className="hidden md:block w-[280px] h-[280px] rounded-[32px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer">
 									<img
-										src={MOCK_RECOMMENDATIONS[2].image}
+										src={
+											topDeals[2]?.image ||
+											"https://placehold.co/600x600?text=Deal.Post"
+										}
 										className="w-full h-full object-cover"
 										alt="Deal"
 									/>

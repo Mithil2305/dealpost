@@ -2,9 +2,6 @@ import { useCallback, useMemo, useState } from "react";
 import api from "../api/axios";
 import { AuthContext } from "./auth-context";
 
-const DEV_BYPASS_EMAIL = "dev@123";
-const DEV_BYPASS_PASSWORD = "123456";
-
 const parseStoredUser = () => {
 	try {
 		const raw = localStorage.getItem("user");
@@ -47,27 +44,6 @@ export function AuthProvider({ children }) {
 
 	const login = useCallback(
 		async (payload) => {
-			// Development-only bypass for local UI testing without backend auth.
-			if (
-				import.meta.env.DEV &&
-				payload?.email === DEV_BYPASS_EMAIL &&
-				payload?.password === DEV_BYPASS_PASSWORD
-			) {
-				const devUser = {
-					name: "Developer",
-					email: DEV_BYPASS_EMAIL,
-					role: "developer",
-				};
-
-				persistSession("dev-local-token", devUser);
-
-				return {
-					token: "dev-local-token",
-					user: devUser,
-					bypass: true,
-				};
-			}
-
 			const { data } = await api.post("/auth/login", payload);
 			const nextToken = data?.token;
 			if (!nextToken) throw new Error("Missing auth token in response");
@@ -81,6 +57,11 @@ export function AuthProvider({ children }) {
 		clearSession();
 	}, [clearSession]);
 
+	const setCurrentUser = useCallback((nextUser) => {
+		setUser(nextUser || null);
+		localStorage.setItem("user", JSON.stringify(nextUser || null));
+	}, []);
+
 	const value = useMemo(
 		() => ({
 			token,
@@ -88,9 +69,10 @@ export function AuthProvider({ children }) {
 			signup,
 			login,
 			logout,
+			setCurrentUser,
 			isAuthenticated: Boolean(token),
 		}),
-		[login, logout, signup, token, user],
+		[login, logout, setCurrentUser, signup, token, user],
 	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -14,7 +14,8 @@ export default function PostAd() {
 	const [files, setFiles] = useState([null, null, null]);
 	const [form, setForm] = useState({
 		title: "",
-		category: "",
+		parentCategory: "",
+		subCategory: "",
 		price: "",
 		description: "",
 		address: "",
@@ -39,6 +40,36 @@ export default function PostAd() {
 		fetchCategories();
 	}, []);
 
+	const categoryNames = useMemo(
+		() =>
+			categories.map((category) => category?.name || category).filter(Boolean),
+		[categories],
+	);
+
+	const parentOptions = useMemo(() => {
+		const seen = new Set();
+		for (const name of categoryNames) {
+			const parent = String(name).split(">")[0]?.trim();
+			if (parent) seen.add(parent);
+		}
+		return Array.from(seen).sort((a, b) => a.localeCompare(b));
+	}, [categoryNames]);
+
+	const subOptions = useMemo(() => {
+		if (!form.parentCategory) return [];
+		const prefix = `${form.parentCategory} > `;
+		const seen = new Set();
+
+		for (const name of categoryNames) {
+			if (String(name).startsWith(prefix)) {
+				const remainder = String(name).slice(prefix.length).trim();
+				if (remainder) seen.add(remainder);
+			}
+		}
+
+		return Array.from(seen).sort((a, b) => a.localeCompare(b));
+	}, [categoryNames, form.parentCategory]);
+
 	const onFileChange = (index, file) => {
 		if (!file) return;
 		setFiles((prev) => {
@@ -52,7 +83,10 @@ export default function PostAd() {
 		event.preventDefault();
 
 		if (!form.title.trim()) return toast.error("Ad title is required");
-		if (!form.category) return toast.error("Please select a category");
+		if (!form.parentCategory)
+			return toast.error("Please select a parent category");
+		if (subOptions.length && !form.subCategory)
+			return toast.error("Please select a subcategory");
 		if (!form.price || Number(form.price) <= 0)
 			return toast.error("Please add a valid price");
 		if (!form.description.trim()) return toast.error("Description is required");
@@ -60,7 +94,8 @@ export default function PostAd() {
 
 		const payload = new FormData();
 		payload.append("title", form.title);
-		payload.append("category", form.category);
+		payload.append("parentCategory", form.parentCategory);
+		if (form.subCategory) payload.append("subCategory", form.subCategory);
 		payload.append("price", form.price);
 		payload.append("description", form.description);
 		payload.append("address", form.address);
@@ -152,26 +187,49 @@ export default function PostAd() {
 									placeholder="Ad title"
 									className="input-shell"
 								/>
-								<div className="grid gap-3 sm:grid-cols-2">
+								<div className="grid gap-3 sm:grid-cols-3">
 									<select
-										value={form.category}
+										value={form.parentCategory}
 										onChange={(event) =>
 											setForm((prev) => ({
 												...prev,
-												category: event.target.value,
+												parentCategory: event.target.value,
+												subCategory: "",
 											}))
 										}
 										className="input-shell"
 									>
-										<option value="">Select Category</option>
-										{categories.map((category) => {
-											const value = category?.name || category;
+										<option value="">Select Parent Category</option>
+										{parentOptions.map((value) => {
 											return (
 												<option key={value} value={value}>
 													{value}
 												</option>
 											);
 										})}
+									</select>
+
+									<select
+										value={form.subCategory}
+										onChange={(event) =>
+											setForm((prev) => ({
+												...prev,
+												subCategory: event.target.value,
+											}))
+										}
+										disabled={!form.parentCategory || !subOptions.length}
+										className="input-shell disabled:opacity-70"
+									>
+										<option value="">
+											{subOptions.length
+												? "Select Subcategory"
+												: "No subcategory required"}
+										</option>
+										{subOptions.map((value) => (
+											<option key={value} value={value}>
+												{value}
+											</option>
+										))}
 									</select>
 
 									<input
