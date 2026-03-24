@@ -42,6 +42,25 @@ const getSubCategoryPath = (value) => {
 	return parts.slice(1).join(" > ");
 };
 
+const getStoredLocationCoords = () => {
+	try {
+		const raw = sessionStorage.getItem("selectedLocationCoords");
+		if (!raw) return { lat: null, lng: null };
+		const parsed = JSON.parse(raw);
+		const lat = Number(parsed?.lat);
+		const lng = Number(parsed?.lng);
+		if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+			return { lat: null, lng: null };
+		}
+		return { lat, lng };
+	} catch {
+		return { lat: null, lng: null };
+	}
+};
+
+const getStoredLocationLabel = () =>
+	localStorage.getItem("selectedLocation") || "";
+
 export default function Explore() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const queryString = searchParams.toString();
@@ -57,6 +76,10 @@ export default function Explore() {
 	const [page, setPage] = useState(1);
 	const [showFilters, setShowFilters] = useState(false);
 	const [hoveredMainCategory, setHoveredMainCategory] = useState("");
+	const [selectedCoords, setSelectedCoords] = useState(getStoredLocationCoords);
+	const [selectedLocationLabel, setSelectedLocationLabel] = useState(
+		getStoredLocationLabel,
+	);
 
 	useEffect(() => {
 		const fetchCategories = async () => {
@@ -112,6 +135,23 @@ export default function Explore() {
 	}, [search, filters.sort, filters.category, queryString, setSearchParams]);
 
 	useEffect(() => {
+		const syncSelectedLocation = () => {
+			setSelectedCoords(getStoredLocationCoords());
+			setSelectedLocationLabel(getStoredLocationLabel());
+		};
+
+		syncSelectedLocation();
+		window.addEventListener("dealpost:location-changed", syncSelectedLocation);
+
+		return () => {
+			window.removeEventListener(
+				"dealpost:location-changed",
+				syncSelectedLocation,
+			);
+		};
+	}, []);
+
+	useEffect(() => {
 		const fetchResults = async () => {
 			try {
 				setLoading(true);
@@ -120,6 +160,13 @@ export default function Explore() {
 					minPrice: filters.minPrice || undefined,
 					maxPrice: filters.maxPrice || undefined,
 					condition: filters.condition || undefined,
+					radius: filters.radius || undefined,
+					originLat: Number.isFinite(selectedCoords.lat)
+						? selectedCoords.lat
+						: undefined,
+					originLng: Number.isFinite(selectedCoords.lng)
+						? selectedCoords.lng
+						: undefined,
 					sort: filters.sort || undefined,
 					search: search || undefined,
 					page,
@@ -136,7 +183,7 @@ export default function Explore() {
 		};
 
 		fetchResults();
-	}, [filters, search, page]);
+	}, [filters, search, page, selectedCoords.lat, selectedCoords.lng]);
 
 	const hasFilters = useMemo(
 		() =>
@@ -149,6 +196,9 @@ export default function Explore() {
 			),
 		[filters],
 	);
+
+	const hasGeoContext =
+		Number.isFinite(selectedCoords.lat) && Number.isFinite(selectedCoords.lng);
 
 	const mainCategoryOptions = useMemo(
 		() =>
@@ -461,6 +511,11 @@ export default function Explore() {
 									<option>25km</option>
 									<option>50km</option>
 								</select>
+								<p className="mt-2 text-[11px] text-brand-muted">
+									{hasGeoContext
+										? `Using location: ${selectedLocationLabel || "Selected location"}`
+										: "Choose location in navbar to enable real distance radius filtering."}
+								</p>
 							</div>
 
 							<button

@@ -92,6 +92,46 @@ function parseMaybeJson(value, fallback) {
 	}
 }
 
+function toFiniteNumber(value) {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseRadiusKm(value) {
+	if (value === undefined || value === null || value === "") return null;
+	const match = String(value).match(/[\d.]+/);
+	if (!match) return null;
+	const km = Number(match[0]);
+	return Number.isFinite(km) && km > 0 ? km : null;
+}
+
+function extractListingCoordinates(locationValue) {
+	if (!locationValue || typeof locationValue !== "object") {
+		return null;
+	}
+
+	const lat =
+		toFiniteNumber(locationValue.lat) ?? toFiniteNumber(locationValue.latitude);
+	const lng =
+		toFiniteNumber(locationValue.lng) ??
+		toFiniteNumber(locationValue.longitude);
+
+	if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+	return { lat, lng };
+}
+
+function distanceKmBetween(lat1, lng1, lat2, lng2) {
+	const toRad = (deg) => (deg * Math.PI) / 180;
+	const earthRadiusKm = 6371;
+	const dLat = toRad(lat2 - lat1);
+	const dLng = toRad(lng2 - lng1);
+	const a =
+		Math.sin(dLat / 2) ** 2 +
+		Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	return earthRadiusKm * c;
+}
+
 // ---------------------------------------------------------------------------
 // Resolve category ID from a name string or numeric ID
 // ---------------------------------------------------------------------------
@@ -177,6 +217,9 @@ export const getListings = asyncHandler(async (req, res) => {
 		q,
 		search,
 		category,
+		radius,
+		originLat,
+		originLng,
 		minPrice,
 		maxPrice,
 		condition,
@@ -271,6 +314,53 @@ export const getListings = asyncHandler(async (req, res) => {
 	const numericPage = Math.max(Number(page) || 1, 1);
 	const numericLimit = Math.min(Number(limit) || 20, 100);
 	const offset = (numericPage - 1) * numericLimit;
+	const radiusKm = parseRadiusKm(radius);
+	const originLatitude = toFiniteNumber(originLat);
+	const originLongitude = toFiniteNumber(originLng);
+	const canApplyDistanceFilter =
+		Number.isFinite(originLatitude) &&
+		Number.isFinite(originLongitude) &&
+		Number.isFinite(radiusKm);
+
+	if (canApplyDistanceFilter) {
+		const rows = await models.Listing.findAll({
+			where,
+			include: listingIncludes(),
+			order: sortMap[sort] || sortMap.Newest,
+		});
+
+		const withinRadius = rows
+			.map((row) => normalizeListingPayload(row))
+			.map((listing) => {
+				const coords = extractListingCoordinates(listing.location);
+				if (!coords) return null;
+
+				const distanceKm = distanceKmBetween(
+					originLatitude,
+					originLongitude,
+					coords.lat,
+					coords.lng,
+				);
+
+				if (distanceKm > radiusKm) return null;
+
+				return {
+					...listing,
+					distanceKm: Number(distanceKm.toFixed(2)),
+				};
+			})
+			.filter(Boolean);
+
+		const total = withinRadius.length;
+		const pagedRows = withinRadius.slice(offset, offset + numericLimit);
+
+		return res.json({
+			listings: pagedRows,
+			total,
+			page: numericPage,
+			pages: Math.ceil(total / numericLimit),
+		});
+	}
 
 	const { rows, count } = await models.Listing.findAndCountAll({
 		where,
@@ -352,6 +442,9 @@ export const createListing = asyncHandler(async (req, res) => {
 		condition,
 		premiumBoost,
 		specs,
+		latitude,
+		longitude,
+		placeId,
 	} = req.body;
 
 	if (!title || !description || !price || !(parentCategory || category)) {
@@ -392,6 +485,18 @@ export const createListing = asyncHandler(async (req, res) => {
 	}
 
 	const boost = String(premiumBoost) === "true";
+	const parsedLatitude = toFiniteNumber(latitude);
+	const parsedLongitude = toFiniteNumber(longitude);
+	const locationPayload = {
+		name: address || location || "Not specified",
+	};
+	if (Number.isFinite(parsedLatitude) && Number.isFinite(parsedLongitude)) {
+		locationPayload.lat = parsedLatitude;
+		locationPayload.lng = parsedLongitude;
+	}
+	if (placeId) {
+		locationPayload.placeId = String(placeId).trim();
+	}
 
 	const listing = await models.Listing.create({
 		title: title.trim(),
@@ -402,7 +507,7 @@ export const createListing = asyncHandler(async (req, res) => {
 		price: Number(price),
 		originalPrice: originalPrice ? Number(originalPrice) : null,
 		categoryId,
-		location: { name: address || location || "Not specified" },
+		location: locationPayload,
 		condition: condition || "Good",
 		premiumBoost: boost,
 		isFeatured: boost,
@@ -480,6 +585,10 @@ export const updateListing = asyncHandler(async (req, res) => {
 		subCategory,
 		category,
 		address,
+		location,
+		latitude,
+		longitude,
+		placeId,
 		condition,
 		specs,
 		status,
@@ -493,8 +602,33 @@ export const updateListing = asyncHandler(async (req, res) => {
 		listing.originalPrice = originalPrice ? Number(originalPrice) : null;
 	if (condition !== undefined) listing.condition = condition;
 	if (status !== undefined) listing.status = status;
-	if (address !== undefined) {
-		listing.location = { ...(listing.location || {}), name: address };
+	if (
+		address !== undefined ||
+		location !== undefined ||
+		latitude !== undefined ||
+		longitude !== undefined ||
+		placeId !== undefined
+	) {
+		const parsedLatitude = toFiniteNumber(latitude);
+		const parsedLongitude = toFiniteNumber(longitude);
+		const nextLocation = { ...(listing.location || {}) };
+
+		if (address !== undefined || location !== undefined) {
+			nextLocation.name =
+				address || location || nextLocation.name || "Not specified";
+		}
+
+		if (Number.isFinite(parsedLatitude) && Number.isFinite(parsedLongitude)) {
+			nextLocation.lat = parsedLatitude;
+			nextLocation.lng = parsedLongitude;
+		}
+
+		if (placeId !== undefined) {
+			if (placeId) nextLocation.placeId = String(placeId).trim();
+			else delete nextLocation.placeId;
+		}
+
+		listing.location = nextLocation;
 	}
 	if (specs !== undefined) {
 		listing.specs = parseMaybeJson(specs, listing.specs || {});

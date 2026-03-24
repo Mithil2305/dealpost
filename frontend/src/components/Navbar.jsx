@@ -166,6 +166,16 @@ export default function Navbar({ search = "", onSearchChange }) {
 			sessionStorage.removeItem("selectedLocationCoords");
 		}
 
+		window.dispatchEvent(
+			new CustomEvent("dealpost:location-changed", {
+				detail: {
+					location: next,
+					lat: selectedCoordinates.lat,
+					lng: selectedCoordinates.lng,
+				},
+			}),
+		);
+
 		if (isAuthenticated) {
 			try {
 				const { data } = await api.put("/users/me", { location: next });
