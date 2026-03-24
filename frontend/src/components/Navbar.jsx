@@ -205,28 +205,33 @@ export default function Navbar({ search = "", onSearchChange }) {
 
 				if (window.google?.maps?.Geocoder) {
 					const geocoder = new window.google.maps.Geocoder();
-					geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-						if (status === "OK" && results?.length) {
-							const preferredResult =
-								results.find((item) =>
-									item.types?.some((type) =>
-										[
-											"sublocality",
-											"sublocality_level_1",
-											"neighborhood",
-											"route",
-											"locality",
-										].includes(type),
-									),
-								) || results[0];
+					geocoder.geocode(
+						{ location: { lat, lng }, language: "en" },
+						(results, status) => {
+							if (status === "OK" && results?.length) {
+								const preferredResult =
+									results.find((item) =>
+										item.types?.some((type) =>
+											[
+												"sublocality",
+												"sublocality_level_1",
+												"neighborhood",
+												"route",
+												"locality",
+											].includes(type),
+										),
+									) || results[0];
 
-							const label = getReadableLocationLabel(preferredResult);
-							setLocationInput(label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-						} else {
-							setLocationInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-						}
-						setIsDetectingLocation(false);
-					});
+								const label = getReadableLocationLabel(preferredResult);
+								setLocationInput(
+									label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+								);
+							} else {
+								setLocationInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+							}
+							setIsDetectingLocation(false);
+						},
+					);
 					return;
 				}
 

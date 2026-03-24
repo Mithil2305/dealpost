@@ -9,6 +9,11 @@ export function defineListing(sequelize) {
 				autoIncrement: true,
 				primaryKey: true,
 			},
+			productId: {
+				type: DataTypes.STRING,
+				allowNull: true,
+				unique: true,
+			},
 			title: {
 				type: DataTypes.STRING,
 				allowNull: false,
@@ -16,6 +21,10 @@ export function defineListing(sequelize) {
 			description: {
 				type: DataTypes.TEXT,
 				allowNull: false,
+			},
+			additionalNotes: {
+				type: DataTypes.TEXT,
+				allowNull: true,
 			},
 			parentCategory: {
 				type: DataTypes.STRING,

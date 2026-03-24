@@ -43,6 +43,10 @@ export function defineUser(sequelize) {
 			gstOrMsme: {
 				type: DataTypes.STRING,
 			},
+			likedListingIds: {
+				type: DataTypes.JSON,
+				defaultValue: [],
+			},
 			role: {
 				type: DataTypes.ENUM("user", "admin", "developer"),
 				defaultValue: "user",

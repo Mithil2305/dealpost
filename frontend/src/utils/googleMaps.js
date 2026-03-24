@@ -25,6 +25,7 @@ export function loadGoogleMapsPlaces(apiKey) {
 		apiKey,
 		version: "weekly",
 		libraries: ["places"],
+		language: "en",
 	});
 
 	googleMapsPromise = loader

@@ -4,10 +4,13 @@ import {
 	deleteListing,
 	directListingImageUpload,
 	getListingById,
+	getMyLikedListings,
 	getListings,
 	getMyListings,
+	likeListing,
 	patchListing,
 	presignListingImageUpload,
+	unlikeListing,
 	updateListing,
 } from "../controllers/listing.controller.js";
 import { optionalAuth, protect } from "../middleware/auth.middleware.js";
@@ -20,6 +23,7 @@ router.get("/", optionalAuth, getListings);
 
 // Protected — must be before /:id to avoid "my" being treated as an ID
 router.get("/my", protect, getMyListings);
+router.get("/liked/my", protect, getMyLikedListings);
 router.post("/uploads/presign", protect, presignListingImageUpload);
 router.post(
 	"/uploads/direct",
@@ -27,6 +31,8 @@ router.post(
 	upload.single("image"),
 	directListingImageUpload,
 );
+router.post("/:id/like", protect, likeListing);
+router.delete("/:id/like", protect, unlikeListing);
 
 // Public single listing
 router.get("/:id", getListingById);

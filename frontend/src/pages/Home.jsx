@@ -61,6 +61,7 @@ const normalizeListing = (item) => {
 	const id = item?._id || item?.id;
 	return {
 		id,
+		productId: item?.productId || null,
 		title: item?.title || "Untitled Listing",
 		category: String(item?.category || "General").toUpperCase(),
 		price: formatPrice(item?.price),
@@ -318,7 +319,7 @@ export default function Home() {
 								{displayListings.map((item) => (
 									<Link
 										key={item.id}
-										to={`/listing/${item.id}`}
+										to={`/listing/${item.productId || item.id}`}
 										className="group cursor-pointer"
 									>
 										<div className="relative aspect-square rounded-[24px] bg-[#F4F4F4] overflow-hidden mb-4 p-6 flex items-center justify-center">

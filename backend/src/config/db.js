@@ -56,6 +56,30 @@ async function ensureListingCategoryColumns() {
 	}
 }
 
+async function ensureListingIdentityColumns() {
+	const queryInterface = sequelize.getQueryInterface();
+	const columns = await queryInterface.describeTable("listings");
+
+	if (!columns.product_id && !columns.productId) {
+		await queryInterface.addColumn("listings", "product_id", {
+			type: DataTypes.STRING,
+			allowNull: true,
+			unique: true,
+		});
+	}
+
+	if (!columns.additional_notes && !columns.additionalNotes) {
+		await queryInterface.addColumn("listings", "additional_notes", {
+			type: DataTypes.TEXT,
+			allowNull: true,
+		});
+	}
+
+	await sequelize.query(
+		"UPDATE listings SET product_id = COALESCE(product_id, CONCAT('DP-', LPAD(id, 8, '0'))) WHERE (product_id IS NULL OR product_id = '')",
+	);
+}
+
 async function ensureUserBusinessColumns() {
 	const queryInterface = sequelize.getQueryInterface();
 	const columns = await queryInterface.describeTable("users");
@@ -81,12 +105,21 @@ async function ensureUserBusinessColumns() {
 			allowNull: true,
 		});
 	}
+
+	if (!columns.liked_listing_ids && !columns.likedListingIds) {
+		await queryInterface.addColumn("users", "liked_listing_ids", {
+			type: DataTypes.JSON,
+			allowNull: false,
+			defaultValue: [],
+		});
+	}
 }
 
 export async function connectDB() {
 	await sequelize.authenticate();
 	await sequelize.sync();
 	await ensureListingCategoryColumns();
+	await ensureListingIdentityColumns();
 	await ensureUserBusinessColumns();
 	console.log("MySQL connected and models synced");
 }

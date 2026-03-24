@@ -39,7 +39,7 @@ export default function ProductCard({ listing }) {
 
 			<div className="space-y-2 p-4">
 				<Link
-					to={`/listing/${listing?._id || listing?.id || ""}`}
+					to={`/listing/${listing?.productId || listing?._id || listing?.id || ""}`}
 					className="line-clamp-2 text-lg font-display font-bold hover:text-brand-muted"
 				>
 					{listing?.title || "Untitled Listing"}

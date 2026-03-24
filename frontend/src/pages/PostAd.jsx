@@ -42,6 +42,8 @@ export default function PostAd({ variant = "personal" }) {
 		subCategory: "",
 		price: "",
 		description: "",
+		specifications: "",
+		additionalNotes: "",
 		address: "",
 		latitude: "",
 		longitude: "",
@@ -122,6 +124,7 @@ export default function PostAd({ variant = "personal" }) {
 					q: query,
 					format: "jsonv2",
 					addressdetails: "1",
+					"accept-language": "en",
 					limit: "6",
 				});
 				const response = await fetch(
@@ -286,6 +289,9 @@ export default function PostAd({ variant = "personal" }) {
 			return toast.error("Please select a subcategory");
 		if (!form.price || Number(form.price) <= 0)
 			return toast.error("Please add a valid price");
+		if (!form.specifications.trim()) {
+			return toast.error("Please add at least one specification");
+		}
 		if (!form.description.trim()) return toast.error("Description is required");
 		if (isBusinessFlow && !form.gstOrMsme.trim()) {
 			return toast.error("GST/MSME number is required for business listing");
@@ -298,6 +304,19 @@ export default function PostAd({ variant = "personal" }) {
 
 		try {
 			setSubmitting(true);
+
+			const specsObject = Object.fromEntries(
+				form.specifications
+					.split(/\r?\n/)
+					.map((line) => line.trim())
+					.filter(Boolean)
+					.map((line, index) => {
+						const [rawKey, ...rawValue] = line.split(":");
+						const key = String(rawKey || "").trim();
+						const value = rawValue.join(":").trim();
+						return [key || `Spec ${index + 1}`, value || "N/A"];
+					}),
+			);
 
 			if (isBusinessFlow) {
 				await api.put("/users/me", {
@@ -317,6 +336,8 @@ export default function PostAd({ variant = "personal" }) {
 				...(form.subCategory ? { subCategory: form.subCategory } : {}),
 				price: form.price,
 				description: form.description,
+				specs: specsObject,
+				additionalNotes: form.additionalNotes,
 				address: form.address,
 				latitude: form.latitude,
 				longitude: form.longitude,
@@ -494,6 +515,30 @@ export default function PostAd({ variant = "personal" }) {
 									}
 									className="min-h-40 w-full rounded-2xl border border-transparent bg-brand-bg p-4 outline-none ring-brand-yellow transition focus:border-brand-yellow focus:ring-2"
 									placeholder="Tell the story behind this item..."
+								/>
+
+								<textarea
+									value={form.specifications}
+									onChange={(event) =>
+										setForm((prev) => ({
+											...prev,
+											specifications: event.target.value,
+										}))
+									}
+									className="min-h-28 w-full rounded-2xl border border-transparent bg-brand-bg p-4 outline-none ring-brand-yellow transition focus:border-brand-yellow focus:ring-2"
+									placeholder="Specifications (one per line):&#10;Brand: Apple&#10;Model: iPhone 14&#10;Storage: 128GB"
+								/>
+
+								<textarea
+									value={form.additionalNotes}
+									onChange={(event) =>
+										setForm((prev) => ({
+											...prev,
+											additionalNotes: event.target.value,
+										}))
+									}
+									className="min-h-24 w-full rounded-2xl border border-transparent bg-brand-bg p-4 outline-none ring-brand-yellow transition focus:border-brand-yellow focus:ring-2"
+									placeholder="Additional notes (warranty, pickup terms, extra info)"
 								/>
 							</div>
 

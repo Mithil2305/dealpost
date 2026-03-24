@@ -23,6 +23,7 @@ export default function Profile() {
 	const navigate = useNavigate();
 	const [activeTab, setActiveTab] = useState("overview");
 	const [listings, setListings] = useState([]);
+	const [likedListings, setLikedListings] = useState([]);
 	const [messageCount, setMessageCount] = useState(0);
 	const [savingProfile, setSavingProfile] = useState(false);
 	const [changingPassword, setChangingPassword] = useState(false);
@@ -54,11 +55,14 @@ export default function Profile() {
 	useEffect(() => {
 		const fetchStats = async () => {
 			try {
-				const [listingRes, convoRes] = await Promise.all([
+				const [listingRes, convoRes, likedRes] = await Promise.all([
 					api.get("/listings", { params: { userId: "me", limit: 100 } }),
 					api
 						.get("/conversations")
 						.catch(() => ({ data: { conversations: [] } })),
+					api
+						.get("/listings/liked/my")
+						.catch(() => ({ data: { listings: [] } })),
 				]);
 
 				setListings(
@@ -70,6 +74,9 @@ export default function Profile() {
 					Array.isArray(convoRes?.data?.conversations)
 						? convoRes.data.conversations.length
 						: 0,
+				);
+				setLikedListings(
+					Array.isArray(likedRes?.data?.listings) ? likedRes.data.listings : [],
 				);
 			} catch {
 				toast.error("Unable to load profile stats");
@@ -104,6 +111,8 @@ export default function Profile() {
 			listings.filter((item) => String(item?.status || "") === "sold").length,
 		[listings],
 	);
+
+	const likedCount = likedListings.length;
 
 	const onUpdateProfile = async (event) => {
 		event.preventDefault();
@@ -299,6 +308,18 @@ export default function Profile() {
 								</div>
 								<div className="h-14 w-14 rounded-full bg-green-50 flex items-center justify-center text-green-600">
 									<Star size={24} className="fill-green-600" />
+								</div>
+							</div>
+
+							<div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between sm:col-span-2">
+								<div>
+									<p className="text-gray-500 font-bold mb-1">Liked Products</p>
+									<h3 className="text-4xl font-display font-black text-black">
+										{likedCount}
+									</h3>
+								</div>
+								<div className="h-14 w-14 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+									<Star size={24} className="fill-red-500" />
 								</div>
 							</div>
 						</div>
@@ -515,6 +536,58 @@ export default function Profile() {
 											</div>
 										</div>
 									</div>
+								</div>
+
+								<div className="bg-white rounded-3xl border border-gray-100 p-6 md:p-8 shadow-sm">
+									<div className="flex items-center justify-between mb-6">
+										<h3 className="text-xl font-bold font-display">
+											Liked Products
+										</h3>
+										<Link
+											to="/explore"
+											className="text-sm font-bold text-[#b29500] hover:text-black"
+										>
+											Explore more →
+										</Link>
+									</div>
+
+									{likedListings.length ? (
+										<div className="space-y-3">
+											{likedListings.slice(0, 8).map((listing) => (
+												<Link
+													key={
+														listing?.productId || listing?._id || listing?.id
+													}
+													to={`/listing/${listing?.productId || listing?._id || listing?.id}`}
+													className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 hover:bg-white"
+												>
+													<div>
+														<p className="font-semibold text-black">
+															{listing?.title}
+														</p>
+														<p className="text-xs text-gray-500 uppercase">
+															{listing?.category || "General"}
+														</p>
+													</div>
+													<p className="font-mono font-semibold">
+														${listing?.price || 0}
+													</p>
+												</Link>
+											))}
+										</div>
+									) : (
+										<div className="flex flex-col items-center justify-center py-10 text-center text-gray-400 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+											<Star
+												size={40}
+												strokeWidth={1}
+												className="mb-3 text-gray-300"
+											/>
+											<p className="font-medium">No liked products yet.</p>
+											<p className="mt-2 text-sm">
+												Like products from detail pages to manage them here.
+											</p>
+										</div>
+									)}
 								</div>
 
 								<div className="bg-white rounded-3xl border border-gray-100 p-6 md:p-8 shadow-sm">

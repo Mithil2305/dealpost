@@ -69,10 +69,16 @@ function normalizeListingPayload(item) {
 	const subCategory = listing.subCategory ?? fallbackSplit.subCategory ?? null;
 	const categoryLabel =
 		joinCategoryPath(parentCategory, subCategory) || "General";
+	const normalizedProductId =
+		String(listing.productId || "").trim() ||
+		(Number.isFinite(Number(listing.id))
+			? `DP-${String(listing.id).padStart(8, "0")}`
+			: "");
 
 	return {
 		...listing,
 		_id: listing.id, // frontend uses both _id and id
+		productId: normalizedProductId,
 		category: categoryLabel,
 		parentCategory,
 		subCategory,
@@ -84,6 +90,37 @@ function normalizeListingPayload(item) {
 			listing.businessName ||
 			null,
 	};
+}
+
+async function findListingByIdentifier(
+	identifier,
+	include = listingIncludes(),
+) {
+	const numericId = Number(identifier);
+	if (Number.isFinite(numericId) && numericId > 0) {
+		return models.Listing.findByPk(numericId, { include });
+	}
+
+	return models.Listing.findOne({
+		where: { productId: String(identifier).trim() },
+		include,
+	});
+}
+
+function toListingProductId(listingId) {
+	return `DP-${String(listingId).padStart(8, "0")}`;
+}
+
+function normalizeLikedListingIds(rawIds) {
+	const parsed = parseMaybeJson(rawIds, []);
+	if (!Array.isArray(parsed)) return [];
+	return Array.from(
+		new Set(
+			parsed
+				.map((value) => Number(value))
+				.filter((value) => Number.isFinite(value) && value > 0),
+		),
+	);
 }
 
 function parseMaybeJson(value, fallback) {
@@ -459,9 +496,10 @@ export const getMyListings = asyncHandler(async (req, res) => {
 // GET /api/listings/:id  — single listing, increments view count
 // ---------------------------------------------------------------------------
 export const getListingById = asyncHandler(async (req, res) => {
-	const listing = await models.Listing.findByPk(req.params.id, {
-		include: listingIncludes(),
-	});
+	const listing = await findListingByIdentifier(
+		req.params.id,
+		listingIncludes(),
+	);
 
 	if (!listing) {
 		return res.status(404).json({ message: "Listing not found" });
@@ -471,7 +509,7 @@ export const getListingById = asyncHandler(async (req, res) => {
 	await listing.increment("views");
 
 	// Re-fetch to get updated views count
-	const refreshed = await models.Listing.findByPk(req.params.id, {
+	const refreshed = await models.Listing.findByPk(listing.id, {
 		include: listingIncludes(),
 	});
 
@@ -497,6 +535,7 @@ export const createListing = asyncHandler(async (req, res) => {
 		address,
 		location,
 		condition,
+		additionalNotes,
 		premiumBoost,
 		specs,
 		latitude,
@@ -559,8 +598,10 @@ export const createListing = asyncHandler(async (req, res) => {
 	}
 
 	const listing = await models.Listing.create({
+		productId: null,
 		title: title.trim(),
 		description: description.trim(),
+		additionalNotes: additionalNotes ? String(additionalNotes).trim() : null,
 		parentCategory: resolvedCategory.parentCategory,
 		subCategory: resolvedCategory.subCategory,
 		subtitle: subtitle?.trim() || null,
@@ -575,6 +616,11 @@ export const createListing = asyncHandler(async (req, res) => {
 		images,
 		sellerId: req.user.id,
 	});
+
+	if (!listing.productId) {
+		listing.productId = toListingProductId(listing.id);
+		await listing.save();
+	}
 
 	const hydrated = await models.Listing.findByPk(listing.id, {
 		include: listingIncludes(["id", "name", "avatar"]),
@@ -638,6 +684,7 @@ export const updateListing = asyncHandler(async (req, res) => {
 	const {
 		title,
 		description,
+		additionalNotes,
 		subtitle,
 		price,
 		originalPrice,
@@ -656,6 +703,11 @@ export const updateListing = asyncHandler(async (req, res) => {
 
 	if (title !== undefined) listing.title = title.trim();
 	if (description !== undefined) listing.description = description.trim();
+	if (additionalNotes !== undefined) {
+		listing.additionalNotes = additionalNotes
+			? String(additionalNotes).trim()
+			: null;
+	}
 	if (subtitle !== undefined) listing.subtitle = subtitle?.trim() || null;
 	if (price !== undefined) listing.price = Number(price);
 	if (originalPrice !== undefined)
@@ -751,4 +803,64 @@ export const deleteListing = asyncHandler(async (req, res) => {
 
 	await listing.destroy();
 	res.json({ message: "Listing deleted" });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/listings/:id/like  — like/save a listing for current user
+// ---------------------------------------------------------------------------
+export const likeListing = asyncHandler(async (req, res) => {
+	const listing = await findListingByIdentifier(req.params.id, []);
+	if (!listing) {
+		return res.status(404).json({ message: "Listing not found" });
+	}
+
+	const likedIds = normalizeLikedListingIds(req.user.likedListingIds);
+	if (!likedIds.includes(Number(listing.id))) {
+		likedIds.push(Number(listing.id));
+		req.user.likedListingIds = likedIds;
+		await req.user.save();
+	}
+
+	res.json({ likedListingIds: likedIds });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/listings/:id/like  — unlike/remove saved listing
+// ---------------------------------------------------------------------------
+export const unlikeListing = asyncHandler(async (req, res) => {
+	const listing = await findListingByIdentifier(req.params.id, []);
+	if (!listing) {
+		return res.status(404).json({ message: "Listing not found" });
+	}
+
+	const likedIds = normalizeLikedListingIds(req.user.likedListingIds).filter(
+		(id) => id !== Number(listing.id),
+	);
+	req.user.likedListingIds = likedIds;
+	await req.user.save();
+
+	res.json({ likedListingIds: likedIds });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/listings/liked/my  — fetch liked listings for profile page
+// ---------------------------------------------------------------------------
+export const getMyLikedListings = asyncHandler(async (req, res) => {
+	const likedIds = normalizeLikedListingIds(req.user.likedListingIds);
+	if (!likedIds.length) {
+		return res.json({ listings: [] });
+	}
+
+	const rows = await models.Listing.findAll({
+		where: { id: { [Op.in]: likedIds }, status: "active" },
+		include: listingIncludes(),
+	});
+
+	const byId = new Map(rows.map((row) => [Number(row.id), row]));
+	const ordered = likedIds
+		.map((id) => byId.get(Number(id)))
+		.filter(Boolean)
+		.map((row) => normalizeListingPayload(row));
+
+	res.json({ listings: ordered });
 });
