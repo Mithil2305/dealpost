@@ -1,7 +1,7 @@
 import { Op } from "sequelize";
 import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadToR2 } from "../utils/r2Upload.js";
+import { createR2PresignedUpload, uploadToR2 } from "../utils/r2Upload.js";
 
 // ---------------------------------------------------------------------------
 // Sort map matching the frontend Explore page sort options
@@ -90,6 +90,24 @@ function parseMaybeJson(value, fallback) {
 	} catch {
 		return fallback;
 	}
+}
+
+function normalizeIncomingImages(value) {
+	const parsed = parseMaybeJson(value, []);
+	if (!Array.isArray(parsed)) return [];
+
+	return parsed
+		.map((item) => {
+			if (!item || typeof item !== "object") return null;
+			const url = String(item.url || item.src || "").trim();
+			if (!url) return null;
+			const publicId = String(item.public_id || item.publicId || "").trim();
+			return {
+				url,
+				...(publicId ? { public_id: publicId } : {}),
+			};
+		})
+		.filter(Boolean);
 }
 
 function toFiniteNumber(value) {
@@ -206,6 +224,27 @@ function listingIncludes(sellerAttrs = sellerAttributes) {
 		{ model: models.Category, as: "category", attributes: categoryAttributes },
 	];
 }
+
+// ---------------------------------------------------------------------------
+// POST /api/listings/uploads/presign  — generate signed R2 URL for direct upload
+// ---------------------------------------------------------------------------
+export const presignListingImageUpload = asyncHandler(async (req, res) => {
+	const { fileName, contentType } = req.body || {};
+
+	if (!contentType || !String(contentType).startsWith("image/")) {
+		return res
+			.status(400)
+			.json({ message: "A valid image contentType is required" });
+	}
+
+	const signed = await createR2PresignedUpload({
+		folder: "dealpost/listings",
+		fileName,
+		contentType,
+	});
+
+	res.status(201).json(signed);
+});
 
 // ---------------------------------------------------------------------------
 // GET /api/listings
@@ -446,6 +485,7 @@ export const createListing = asyncHandler(async (req, res) => {
 		longitude,
 		placeId,
 	} = req.body;
+	const directImages = normalizeIncomingImages(req.body?.images);
 
 	if (!title || !description || !price || !(parentCategory || category)) {
 		return res.status(400).json({
@@ -482,6 +522,8 @@ export const createListing = asyncHandler(async (req, res) => {
 			req.files.map((file) => uploadToR2(file, "dealpost/listings")),
 		);
 		images = uploaded;
+	} else if (directImages.length) {
+		images = directImages;
 	}
 
 	const boost = String(premiumBoost) === "true";
@@ -661,6 +703,8 @@ export const updateListing = asyncHandler(async (req, res) => {
 			req.files.map((file) => uploadToR2(file, "dealpost/listings")),
 		);
 		listing.images = uploaded;
+	} else if (req.body?.images !== undefined) {
+		listing.images = normalizeIncomingImages(req.body.images);
 	}
 
 	await listing.save();

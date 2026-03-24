@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import sharp from "sharp";
 import { env } from "../config/env.js";
 import { r2Client, r2Enabled, resolveR2PublicBaseUrl } from "../config/r2.js";
@@ -17,6 +18,49 @@ function sanitizeFolder(folder) {
 	return String(folder || "dealpost/uploads")
 		.replace(/^\/+/, "")
 		.replace(/\/+$/, "");
+}
+
+export async function createR2PresignedUpload({
+	folder = "dealpost/listings",
+	fileName,
+	contentType,
+	expiresIn = 900,
+}) {
+	if (!r2Enabled || !r2Client) {
+		throw new Error("R2 is not configured");
+	}
+
+	if (!contentType || !String(contentType).startsWith("image/")) {
+		throw new Error("Only image uploads are allowed");
+	}
+
+	const extension =
+		String(fileName || "upload")
+			.split(".")
+			.pop()
+			?.toLowerCase()
+			?.replace(/[^a-z0-9]/g, "") || resolveExtensionFromMime(contentType);
+
+	const safeExtension = extension || resolveExtensionFromMime(contentType);
+	const key = `${sanitizeFolder(folder)}/${Date.now()}-${randomUUID()}.${safeExtension}`;
+
+	const command = new PutObjectCommand({
+		Bucket: env.R2_BUCKET,
+		Key: key,
+		ContentType: contentType,
+		CacheControl: "public, max-age=31536000, immutable",
+	});
+
+	const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn });
+	const baseUrl = resolveR2PublicBaseUrl();
+	const publicUrl = baseUrl ? `${baseUrl}/${key}` : key;
+
+	return {
+		key,
+		uploadUrl,
+		publicUrl,
+		expiresIn,
+	};
 }
 
 async function compressImage(file) {

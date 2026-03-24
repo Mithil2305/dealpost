@@ -6,6 +6,7 @@ import ProductDetail from "./pages/ProductDetail.jsx";
 import Explore from "./pages/Explore.jsx";
 import Categories from "./pages/Categories.jsx";
 import BusinessListings from "./pages/BusinessListings.jsx";
+import BusinessPostAd from "./pages/BusinessPostAd.jsx";
 import PostAd from "./pages/PostAd.jsx";
 import MyAds from "./pages/MyAds.jsx";
 import Profile from "./pages/Profile.jsx";
@@ -63,6 +64,14 @@ function App() {
 			<Route path="/explore" element={<Explore />} />
 			<Route path="/categories" element={<Categories />} />
 			<Route path="/business-listings" element={<BusinessListings />} />
+			<Route
+				path="/post-business-ad"
+				element={
+					<ProtectedRoute>
+						<BusinessPostAd />
+					</ProtectedRoute>
+				}
+			/>
 			<Route
 				path="/post-ad"
 				element={

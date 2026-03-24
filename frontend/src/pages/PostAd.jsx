@@ -5,11 +5,24 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { compressImageFile } from "../utils/imageCompressor";
 import { loadGoogleMapsPlaces } from "../utils/googleMaps";
 import { pickArray } from "../utils/api";
 
-export default function PostAd() {
+export default function PostAd({ variant = "personal" }) {
 	const navigate = useNavigate();
+	const isBusinessFlow = variant === "business";
+	const pageTitle = isBusinessFlow
+		? "Register Business Listing"
+		: "Start Listing";
+	const pageSubtitle = isBusinessFlow
+		? "Launch your storefront inventory with verified business details."
+		: "Transform your items into opportunities.";
+	const submitLabel = isBusinessFlow ? "Publish Business Ad" : "Publish Ad";
+	const premiumTitle = isBusinessFlow ? "Boost Business Reach?" : "Go Premium?";
+	const premiumDescription = isBusinessFlow
+		? "Highlight your business listing in local search and category feeds for 7 days."
+		: "Boost your ad to top of Trending for 7 days.";
 	const [submitting, setSubmitting] = useState(false);
 	const [categories, setCategories] = useState([]);
 	const [files, setFiles] = useState([null, null, null]);
@@ -114,7 +127,7 @@ export default function PostAd() {
 			const parent = String(name).split(">")[0]?.trim();
 			if (parent) seen.add(parent);
 		}
-		return Array.from(seen).sort((a, b) => a.localeCompare(b));
+		return Array.from(seen);
 	}, [categoryNames]);
 
 	const subOptions = useMemo(() => {
@@ -141,6 +154,37 @@ export default function PostAd() {
 		});
 	};
 
+	const uploadCompressedImageToR2 = async (file) => {
+		const compressed = await compressImageFile(file, {
+			maxWidth: 1600,
+			maxHeight: 1600,
+			quality: 0.8,
+			outputType: "image/webp",
+		});
+
+		const { data } = await api.post("/listings/uploads/presign", {
+			fileName: compressed.name,
+			contentType: compressed.type,
+		});
+
+		const response = await fetch(data?.uploadUrl, {
+			method: "PUT",
+			headers: {
+				"Content-Type": compressed.type,
+			},
+			body: compressed,
+		});
+
+		if (!response.ok) {
+			throw new Error("Failed to upload image to storage");
+		}
+
+		return {
+			url: data?.publicUrl,
+			public_id: data?.key,
+		};
+	};
+
 	const onSubmit = async (event) => {
 		event.preventDefault();
 
@@ -158,26 +202,28 @@ export default function PostAd() {
 		}
 		if (!files[0]) return toast.error("Please add a hero image");
 
-		const payload = new FormData();
-		payload.append("title", form.title);
-		payload.append("parentCategory", form.parentCategory);
-		if (form.subCategory) payload.append("subCategory", form.subCategory);
-		payload.append("price", form.price);
-		payload.append("description", form.description);
-		payload.append("address", form.address);
-		payload.append("latitude", form.latitude);
-		payload.append("longitude", form.longitude);
-		if (form.placeId) payload.append("placeId", form.placeId);
-		payload.append("premiumBoost", String(form.premiumBoost));
-		files.forEach((file) => {
-			if (file) payload.append("images", file);
-		});
-
 		try {
 			setSubmitting(true);
-			const { data } = await api.post("/listings", payload, {
-				headers: { "Content-Type": "multipart/form-data" },
-			});
+			const selectedFiles = files.filter(Boolean);
+			const uploadedImages = await Promise.all(
+				selectedFiles.map((file) => uploadCompressedImageToR2(file)),
+			);
+
+			const payload = {
+				title: form.title,
+				parentCategory: form.parentCategory,
+				...(form.subCategory ? { subCategory: form.subCategory } : {}),
+				price: form.price,
+				description: form.description,
+				address: form.address,
+				latitude: form.latitude,
+				longitude: form.longitude,
+				...(form.placeId ? { placeId: form.placeId } : {}),
+				premiumBoost: form.premiumBoost,
+				images: uploadedImages,
+			};
+
+			const { data } = await api.post("/listings", payload);
 			toast.success("Listing published");
 			navigate(`/listing/${data?.listing?._id || data?.listing?.id || ""}`);
 		} catch (error) {
@@ -193,14 +239,12 @@ export default function PostAd() {
 			: null;
 
 	return (
-		<div className="min-h-screen bg-brand-bg">
+		<div className="min-h-screen bg-brand-bg flex flex-col">
 			<Navbar />
 
-			<main className="container-shell py-6">
-				<h1 className="text-5xl font-display font-bold">Start Listing</h1>
-				<p className="mt-2 text-brand-muted">
-					Transform your items into opportunities.
-				</p>
+			<main className="container-shell py-6 flex-1">
+				<h1 className="text-5xl font-display font-bold">{pageTitle}</h1>
+				<p className="mt-2 text-brand-muted">{pageSubtitle}</p>
 
 				<form
 					className="mt-6 grid gap-5 lg:grid-cols-[1.4fr_1fr]"
@@ -339,7 +383,7 @@ export default function PostAd() {
 								className="btn-secondary mt-6 h-14 w-full rounded-2xl text-sm"
 							>
 								<Rocket size={16} className="mr-2" />{" "}
-								{submitting ? "Publishing..." : "Publish Ad"}
+								{submitting ? "Publishing..." : submitLabel}
 							</button>
 						</article>
 					</section>
@@ -385,10 +429,10 @@ export default function PostAd() {
 						</article>
 
 						<article className="rounded-3xl bg-[#2b2b2b] p-5 text-white">
-							<h3 className="text-2xl font-display font-bold">Go Premium?</h3>
-							<p className="mt-1 text-sm text-white/70">
-								Boost your ad to top of Trending for 7 days.
-							</p>
+							<h3 className="text-2xl font-display font-bold">
+								{premiumTitle}
+							</h3>
+							<p className="mt-1 text-sm text-white/70">{premiumDescription}</p>
 
 							<label className="mt-4 flex items-center justify-between rounded-xl border border-white/20 bg-white/5 p-3">
 								<span className="inline-flex items-center gap-2 text-sm">

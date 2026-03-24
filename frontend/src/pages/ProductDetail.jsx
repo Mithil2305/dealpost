@@ -70,10 +70,10 @@ export default function ProductDetail() {
 	};
 
 	return (
-		<div className="min-h-screen bg-brand-bg">
+		<div className="min-h-screen bg-brand-bg flex flex-col">
 			<Navbar />
 
-			<main className="container-shell py-6">
+			<main className="container-shell py-6 flex-1">
 				{loading ? (
 					<div className="grid gap-5 lg:grid-cols-2">
 						<div className="h-[520px] animate-pulse rounded-3xl bg-white" />

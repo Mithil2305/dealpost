@@ -43,7 +43,7 @@ function BrandLogo() {
 	return (
 		<Link to="/" className="flex items-center gap-2 text-xl">
 			<div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFD600]">
-				<MapPin size={16} className="text-black" fill="black" />
+				<MapPin size={16} className="text-black" />
 			</div>
 			<div className="text-black">
 				<span className="font-bold">Deal.</span>
@@ -242,7 +242,7 @@ export default function Navbar({ search = "", onSearchChange }) {
 							onClick={() => setIsLocationOpen((prev) => !prev)}
 							className="cursor-pointer items-center gap-1.5 text-sm flex"
 						>
-							<MapPin size={16} className="text-[#8B7322]" fill="#8B7322" />
+							<MapPin size={16} className="text-[#8B7322]" />
 							<span className="font-bold text-black max-w-[180px] truncate">
 								{displayLocation}
 							</span>
@@ -332,7 +332,7 @@ export default function Navbar({ search = "", onSearchChange }) {
 						className="text-black transition hover:opacity-70"
 						aria-label="Messages"
 					>
-						<MessageSquare size={22} fill="black" />
+						<MessageSquare size={22} />
 					</button>
 
 					<button
@@ -340,7 +340,7 @@ export default function Navbar({ search = "", onSearchChange }) {
 						className="text-black transition hover:opacity-70"
 						aria-label="Notifications"
 					>
-						<Bell size={22} fill="black" />
+						<Bell size={22} />
 					</button>
 
 					<button

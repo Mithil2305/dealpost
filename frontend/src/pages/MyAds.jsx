@@ -91,10 +91,10 @@ export default function MyAds() {
 	};
 
 	return (
-		<div className="min-h-screen bg-brand-bg">
+		<div className="min-h-screen bg-brand-bg flex flex-col">
 			<Navbar />
 
-			<main className="container-shell py-6">
+			<main className="container-shell py-6 flex-1">
 				<h1 className="text-5xl font-display font-bold">My Ads</h1>
 				<p className="mt-2 text-brand-muted">
 					Manage your gallery of curated listings

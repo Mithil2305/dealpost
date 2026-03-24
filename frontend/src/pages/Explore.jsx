@@ -208,7 +208,7 @@ export default function Explore() {
 						.map((category) => getMainCategory(category?.name || category))
 						.filter(Boolean),
 				),
-			).sort((a, b) => a.localeCompare(b)),
+			),
 		[categories],
 	);
 
@@ -264,7 +264,7 @@ export default function Explore() {
 	};
 
 	return (
-		<div className="min-h-screen bg-brand-bg">
+		<div className="min-h-screen bg-brand-bg flex flex-col">
 			<Navbar
 				showSearch
 				search={search}
@@ -274,7 +274,7 @@ export default function Explore() {
 				}}
 			/>
 
-			<main className="container-shell py-7">
+			<main className="container-shell py-7 flex-1">
 				<div className="mb-4 flex items-center justify-between lg:hidden">
 					<h1 className="text-3xl font-display font-bold">Explore</h1>
 					<button

@@ -132,11 +132,11 @@ export default function Home() {
 	const topDeals = displayListings.slice(0, 3);
 
 	return (
-		<div className="min-h-screen bg-white font-sans text-black">
+		<div className="min-h-screen bg-white font-sans text-black flex flex-col">
 			{/* Navbar would go here, assuming it's imported and handles its own layout */}
 			<Navbar showSearch search={search} onSearchChange={setSearch} />
 
-			<main className="mx-auto w-full max-w-[1780px] px-4 py-6 sm:px-6 lg:px-8">
+			<main className="mx-auto w-full max-w-[1780px] px-4 py-6 sm:px-6 lg:px-8 flex-1">
 				<div className="grid gap-6 xl:grid-cols-[220px_minmax(0,1fr)_220px]">
 					<aside className="hidden xl:block">
 						<div className="sticky top-24 space-y-4">

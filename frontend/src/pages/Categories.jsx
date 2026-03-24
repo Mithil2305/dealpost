@@ -63,7 +63,7 @@ export default function Categories() {
 	}, [categories]);
 
 	const mainCategories = useMemo(
-		() => Array.from(categoryTree.keys()).sort((a, b) => a.localeCompare(b)),
+		() => Array.from(categoryTree.keys()),
 		[categoryTree],
 	);
 

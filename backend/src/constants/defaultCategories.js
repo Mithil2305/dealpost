@@ -143,7 +143,6 @@ export const DEFAULT_CATEGORIES = [
 	"Property > Resorts & Clubs",
 	"Property > Hotels",
 	"Property > Bars",
-	"Funeral Services",
 	"Hospitals & Clinics",
 	"Services",
 	"Services > Education & Classes",
@@ -157,4 +156,5 @@ export const DEFAULT_CATEGORIES = [
 	"Services > Packers & Movers",
 	"Services > Maids & Nurses",
 	"Services > Courier Services",
+	"Funeral Services",
 ];

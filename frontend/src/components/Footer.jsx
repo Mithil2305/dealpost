@@ -34,7 +34,7 @@ export default function Footer({ variant = "default" }) {
 	}
 
 	return (
-		<footer className="w-full bg-[#1A1A1A] text-white py-10 px-4 sm:px-6 lg:px-8 font-sans">
+		<footer className="mt-auto w-full bg-[#1A1A1A] text-white py-10 px-4 sm:px-6 lg:px-8 font-sans">
 			<div className="max-w-[1400px] mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
 				{/* Brand & Copyright */}
 				<div className="flex flex-col items-center md:items-start gap-2">
