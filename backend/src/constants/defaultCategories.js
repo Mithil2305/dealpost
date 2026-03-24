@@ -138,6 +138,8 @@ export const DEFAULT_CATEGORIES = [
 	"Property > PG & Guest Houses",
 	"Property > For Sale: Lands & Plots",
 	"Property > For Rent: Lands & Plots",
+	"Property > For Rent: Workspaces & Co-working Spaces",
+	"Property > For Sale: Workspaces & Co-working Spaces",
 	"Property > Resorts & Clubs",
 	"Property > Hotels",
 	"Property > Bars",

@@ -1,4 +1,4 @@
-import { Filter, Search } from "lucide-react";
+import { Check, Filter, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useSearchParams } from "react-router-dom";
@@ -18,15 +18,45 @@ const defaultFilters = {
 	sort: "Newest",
 };
 
+const parseCategoryParam = (value) =>
+	String(value || "")
+		.split(",")
+		.map((item) => item.trim())
+		.filter(Boolean);
+
+const areSameArrays = (a, b) =>
+	a.length === b.length && a.every((item, index) => item === b[index]);
+
+const getMainCategory = (value) => {
+	if (!value) return "";
+	return String(value).split(">")[0]?.trim() || "";
+};
+
+const getSubCategoryPath = (value) => {
+	if (!value) return "";
+	const parts = String(value)
+		.split(">")
+		.map((part) => part.trim())
+		.filter(Boolean);
+	if (parts.length < 2) return "";
+	return parts.slice(1).join(" > ");
+};
+
 export default function Explore() {
 	const [searchParams, setSearchParams] = useSearchParams();
+	const queryString = searchParams.toString();
 	const [categories, setCategories] = useState([]);
-	const [filters, setFilters] = useState(defaultFilters);
+	const [filters, setFilters] = useState(() => ({
+		...defaultFilters,
+		category: parseCategoryParam(searchParams.get("category")),
+		sort: searchParams.get("sort") || defaultFilters.sort,
+	}));
 	const [search, setSearch] = useState(searchParams.get("search") || "");
 	const [results, setResults] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [page, setPage] = useState(1);
 	const [showFilters, setShowFilters] = useState(false);
+	const [hoveredMainCategory, setHoveredMainCategory] = useState("");
 
 	useEffect(() => {
 		const fetchCategories = async () => {
@@ -40,6 +70,46 @@ export default function Explore() {
 
 		fetchCategories();
 	}, []);
+
+	useEffect(() => {
+		const nextSearch = searchParams.get("search") || "";
+		const nextSort = searchParams.get("sort") || defaultFilters.sort;
+		const nextCategory = parseCategoryParam(searchParams.get("category"));
+
+		setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+		setFilters((prev) => {
+			if (
+				prev.sort === nextSort &&
+				areSameArrays(prev.category, nextCategory)
+			) {
+				return prev;
+			}
+
+			return {
+				...prev,
+				sort: nextSort,
+				category: nextCategory,
+			};
+		});
+		setPage(1);
+	}, [queryString, searchParams]);
+
+	useEffect(() => {
+		const nextParams = new URLSearchParams();
+		if (search.trim()) {
+			nextParams.set("search", search.trim());
+		}
+		if (filters.sort && filters.sort !== defaultFilters.sort) {
+			nextParams.set("sort", filters.sort);
+		}
+		if (filters.category.length) {
+			nextParams.set("category", filters.category.join(","));
+		}
+
+		if (nextParams.toString() !== queryString) {
+			setSearchParams(nextParams, { replace: true });
+		}
+	}, [search, filters.sort, filters.category, queryString, setSearchParams]);
 
 	useEffect(() => {
 		const fetchResults = async () => {
@@ -68,13 +138,6 @@ export default function Explore() {
 		fetchResults();
 	}, [filters, search, page]);
 
-	useEffect(() => {
-		setSearchParams({
-			search,
-			sort: filters.sort,
-		});
-	}, [search, filters.sort, setSearchParams]);
-
 	const hasFilters = useMemo(
 		() =>
 			Boolean(
@@ -86,6 +149,59 @@ export default function Explore() {
 			),
 		[filters],
 	);
+
+	const mainCategoryOptions = useMemo(
+		() =>
+			Array.from(
+				new Set(
+					categories
+						.map((category) => getMainCategory(category?.name || category))
+						.filter(Boolean),
+				),
+			).sort((a, b) => a.localeCompare(b)),
+		[categories],
+	);
+
+	const subCategoriesByMain = useMemo(() => {
+		const grouped = new Map();
+
+		for (const rawCategory of categories) {
+			const fullPath = String(rawCategory?.name || rawCategory || "").trim();
+			if (!fullPath || !fullPath.includes(">")) continue;
+
+			const main = getMainCategory(fullPath);
+			const label = getSubCategoryPath(fullPath);
+			if (!main || !label) continue;
+
+			if (!grouped.has(main)) {
+				grouped.set(main, []);
+			}
+
+			grouped.get(main).push({ value: fullPath, label });
+		}
+
+		for (const [main, items] of grouped.entries()) {
+			const uniqueItems = Array.from(
+				new Map(items.map((item) => [item.value, item])).values(),
+			).sort((a, b) => a.label.localeCompare(b.label));
+			grouped.set(main, uniqueItems);
+		}
+
+		return grouped;
+	}, [categories]);
+
+	useEffect(() => {
+		if (!mainCategoryOptions.length) {
+			setHoveredMainCategory("");
+			return;
+		}
+
+		setHoveredMainCategory((prev) =>
+			prev && mainCategoryOptions.includes(prev)
+				? prev
+				: mainCategoryOptions[0],
+		);
+	}, [mainCategoryOptions]);
 
 	const toggleArrayFilter = (key, value) => {
 		setPage(1);
@@ -140,27 +256,119 @@ export default function Explore() {
 
 						<div className="space-y-5">
 							<div>
-								<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
-									Category
-								</p>
-								<div className="space-y-2">
-									{categories.map((category) => {
-										const label = category?.name || category;
-										return (
-											<label
-												key={label}
-												className="flex items-center gap-2 text-sm text-brand-dark"
-											>
-												<input
-													type="checkbox"
-													checked={filters.category.includes(label)}
-													onChange={() => toggleArrayFilter("category", label)}
-												/>
-												{label}
-											</label>
-										);
-									})}
+								<div className="mb-2 flex items-center justify-between">
+									<p className="text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
+										Main Category
+									</p>
+									{filters.category.length > 0 && (
+										<button
+											type="button"
+											onClick={() => {
+												setPage(1);
+												setFilters((prev) => ({ ...prev, category: [] }));
+											}}
+											className="text-[11px] font-semibold text-[#8b7008] hover:text-[#6f5805]"
+										>
+											Clear
+										</button>
+									)}
 								</div>
+								<div className="rounded-2xl border border-brand-border bg-[#FAFAFA] p-2.5">
+									<div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+										{mainCategoryOptions.map((label) => {
+											const selected = filters.category.includes(label);
+											const subItems = subCategoriesByMain.get(label) || [];
+											const showSubItems = hoveredMainCategory === label;
+											return (
+												<div
+													key={label}
+													className="rounded-xl"
+													onMouseEnter={() => setHoveredMainCategory(label)}
+												>
+													<label
+														className={`flex cursor-pointer items-center gap-2 rounded-xl border px-2.5 py-2 text-sm transition ${
+															selected
+																? "border-[#FFD600] bg-[#FFF7D6] text-black"
+																: "border-transparent bg-white text-brand-dark hover:border-brand-border"
+														}`}
+													>
+														<input
+															type="checkbox"
+															checked={selected}
+															onChange={() =>
+																toggleArrayFilter("category", label)
+															}
+															className="sr-only"
+														/>
+														<span
+															className={`grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border ${
+																selected
+																	? "border-[#111111] bg-[#111111] text-white"
+																	: "border-[#D5D5D5] bg-white text-transparent"
+															}`}
+														>
+															<Check size={12} />
+														</span>
+														<span className="line-clamp-1">{label}</span>
+														{!!subItems.length && (
+															<span className="ml-auto rounded-full bg-white px-1.5 py-0.5 text-[10px] text-[#7A7A7A]">
+																{subItems.length}
+															</span>
+														)}
+													</label>
+
+													{showSubItems && !!subItems.length && (
+														<div className="mt-1.5 rounded-xl border border-brand-border bg-white p-1.5">
+															<div className="max-h-52 space-y-1 overflow-y-auto pr-1">
+																{subItems.map((option) => {
+																	const isSubSelected =
+																		filters.category.includes(option.value);
+																	return (
+																		<label
+																			key={option.value}
+																			className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-xs transition ${
+																				isSubSelected
+																					? "border-[#FFD600] bg-[#FFF7D6] text-black"
+																					: "border-transparent bg-[#FCFCFC] text-brand-dark hover:border-brand-border"
+																			}`}
+																		>
+																			<input
+																				type="checkbox"
+																				checked={isSubSelected}
+																				onChange={() =>
+																					toggleArrayFilter(
+																						"category",
+																						option.value,
+																					)
+																				}
+																				className="sr-only"
+																			/>
+																			<span
+																				className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border ${
+																					isSubSelected
+																						? "border-[#111111] bg-[#111111] text-white"
+																						: "border-[#D5D5D5] bg-white text-transparent"
+																				}`}
+																			>
+																				<Check size={10} />
+																			</span>
+																			<span className="line-clamp-1">
+																				{option.label}
+																			</span>
+																		</label>
+																	);
+																})}
+															</div>
+														</div>
+													)}
+												</div>
+											);
+										})}
+									</div>
+								</div>
+								<p className="mt-2 text-[11px] text-brand-muted">
+									Hover a main category to display and select its subcategories.
+								</p>
 							</div>
 
 							<div>

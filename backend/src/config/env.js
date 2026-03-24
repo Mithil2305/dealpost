@@ -42,6 +42,9 @@ export const env = {
 	IMAGE_MAX_HEIGHT: getNumber(process.env.IMAGE_MAX_HEIGHT, 1920),
 	IMAGE_WEBP_QUALITY: getNumber(process.env.IMAGE_WEBP_QUALITY, 75),
 
+	// Google Maps (browser key should be restricted by referrer in Google Cloud)
+	GOOGLE_MAPS_BROWSER_API_KEY: process.env.GOOGLE_MAPS_BROWSER_API_KEY || "",
+
 	// E2E message encryption — 64-char hex string (32 bytes)
 	// Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 	MESSAGE_ENCRYPTION_KEY: process.env.MESSAGE_ENCRYPTION_KEY || "",

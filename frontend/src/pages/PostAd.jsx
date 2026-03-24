@@ -1,10 +1,11 @@
 import { ImagePlus, MapPin, Rocket } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { loadGoogleMapsPlaces } from "../utils/googleMaps";
 import { pickArray } from "../utils/api";
 
 export default function PostAd() {
@@ -12,6 +13,8 @@ export default function PostAd() {
 	const [submitting, setSubmitting] = useState(false);
 	const [categories, setCategories] = useState([]);
 	const [files, setFiles] = useState([null, null, null]);
+	const [mapsReady, setMapsReady] = useState(false);
+	const addressInputRef = useRef(null);
 	const [form, setForm] = useState({
 		title: "",
 		parentCategory: "",
@@ -19,6 +22,9 @@ export default function PostAd() {
 		price: "",
 		description: "",
 		address: "",
+		latitude: "",
+		longitude: "",
+		placeId: "",
 		premiumBoost: false,
 	});
 
@@ -26,6 +32,62 @@ export default function PostAd() {
 		() => files.map((file) => (file ? URL.createObjectURL(file) : null)),
 		[files],
 	);
+
+	useEffect(() => {
+		let active = true;
+		const loadMaps = async () => {
+			try {
+				const { data } = await api.get("/config/public");
+				const key = data?.googleMapsBrowserApiKey;
+				await loadGoogleMapsPlaces(key);
+				if (active) setMapsReady(true);
+			} catch {
+				toast.error("Google Maps could not be loaded");
+			}
+		};
+
+		loadMaps();
+
+		return () => {
+			active = false;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (
+			!mapsReady ||
+			!addressInputRef.current ||
+			!window.google?.maps?.places
+		) {
+			return;
+		}
+
+		const autocomplete = new window.google.maps.places.Autocomplete(
+			addressInputRef.current,
+			{
+				fields: ["formatted_address", "geometry", "place_id", "name"],
+				types: ["geocode"],
+			},
+		);
+
+		const listener = autocomplete.addListener("place_changed", () => {
+			const place = autocomplete.getPlace();
+			const lat = place?.geometry?.location?.lat?.();
+			const lng = place?.geometry?.location?.lng?.();
+
+			setForm((prev) => ({
+				...prev,
+				address: place?.formatted_address || place?.name || prev.address,
+				latitude: Number.isFinite(lat) ? String(lat) : "",
+				longitude: Number.isFinite(lng) ? String(lng) : "",
+				placeId: place?.place_id || "",
+			}));
+		});
+
+		return () => {
+			if (listener?.remove) listener.remove();
+		};
+	}, [mapsReady]);
 
 	useEffect(() => {
 		const fetchCategories = async () => {
@@ -90,6 +152,10 @@ export default function PostAd() {
 		if (!form.price || Number(form.price) <= 0)
 			return toast.error("Please add a valid price");
 		if (!form.description.trim()) return toast.error("Description is required");
+		if (!form.address.trim()) return toast.error("Pickup location is required");
+		if (!form.latitude || !form.longitude) {
+			return toast.error("Please choose a valid location from suggestions");
+		}
 		if (!files[0]) return toast.error("Please add a hero image");
 
 		const payload = new FormData();
@@ -99,6 +165,9 @@ export default function PostAd() {
 		payload.append("price", form.price);
 		payload.append("description", form.description);
 		payload.append("address", form.address);
+		payload.append("latitude", form.latitude);
+		payload.append("longitude", form.longitude);
+		if (form.placeId) payload.append("placeId", form.placeId);
 		payload.append("premiumBoost", String(form.premiumBoost));
 		files.forEach((file) => {
 			if (file) payload.append("images", file);
@@ -117,6 +186,11 @@ export default function PostAd() {
 			setSubmitting(false);
 		}
 	};
+
+	const mapEmbedUrl =
+		form.latitude && form.longitude
+			? `https://www.google.com/maps?q=${encodeURIComponent(`${form.latitude},${form.longitude}`)}&z=15&output=embed`
+			: null;
 
 	return (
 		<div className="min-h-screen bg-brand-bg">
@@ -276,22 +350,37 @@ export default function PostAd() {
 								<MapPin size={18} /> Pickup Location
 							</h2>
 							<input
+								ref={addressInputRef}
 								className="input-shell mt-4"
 								value={form.address}
 								onChange={(event) =>
-									setForm((prev) => ({ ...prev, address: event.target.value }))
+									setForm((prev) => ({
+										...prev,
+										address: event.target.value,
+										latitude: "",
+										longitude: "",
+										placeId: "",
+									}))
 								}
-								placeholder="Start typing address..."
+								placeholder="Search and pick a real address..."
 							/>
 							<div className="mt-3 overflow-hidden rounded-2xl border border-brand-border bg-white">
-								<img
-									src="https://placehold.co/1000x600?text=Map+Preview"
-									alt="Map preview"
-									className="h-56 w-full object-cover"
-								/>
+								{mapEmbedUrl ? (
+									<iframe
+										title="Selected pickup location"
+										src={mapEmbedUrl}
+										className="h-56 w-full"
+										loading="lazy"
+										referrerPolicy="no-referrer-when-downgrade"
+									/>
+								) : (
+									<div className="grid h-56 place-items-center bg-[#f8f8f8] text-sm text-brand-muted">
+										Pick a valid address to preview map
+									</div>
+								)}
 							</div>
 							<p className="mt-2 text-xs text-brand-muted">
-								Precise location only shared with confirmed buyers.
+								Only verified map locations are accepted for publishing.
 							</p>
 						</article>
 

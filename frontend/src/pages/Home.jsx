@@ -18,7 +18,7 @@ import {
 	ChevronLeft,
 	Shield,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
@@ -124,7 +124,11 @@ export default function Home() {
 	}, [search]);
 
 	const displayListings = listings.map(normalizeListing);
-	const sidebarCategories = categories.slice(0, 7);
+	const sidebarCategories = Array.from(
+		new Set(
+			categories.map((cat) => getMainCategory(cat?.name)).filter(Boolean),
+		),
+	).slice(0, 7);
 	const topDeals = displayListings.slice(0, 3);
 
 	return (
@@ -163,13 +167,13 @@ export default function Home() {
 							</Link>
 						</div>
 						<section className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
-							{sidebarCategories.map((cat, index) => {
+							{sidebarCategories.map((catName, index) => {
 								const Icon = CATEGORY_ICONS[index % CATEGORY_ICONS.length];
 								const active = index === 0;
 								return (
 									<Link
-										key={cat?.id || cat?.name || index}
-										to={`/explore?category=${encodeURIComponent(cat?.name || "General")}`}
+										key={catName || index}
+										to={`/explore?category=${encodeURIComponent(catName || "General")}`}
 										className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
 											active
 												? "bg-[#FFD600] text-black shadow-sm"
@@ -180,7 +184,7 @@ export default function Home() {
 											size={16}
 											className={active ? "text-black" : "text-[#666666]"}
 										/>
-										{cat?.name || "General"}
+										{catName || "General"}
 									</Link>
 								);
 							})}
