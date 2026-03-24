@@ -1,3 +1,5 @@
+import { Loader } from "@googlemaps/js-api-loader";
+
 let googleMapsPromise = null;
 
 export function loadGoogleMapsPlaces(apiKey) {
@@ -11,7 +13,7 @@ export function loadGoogleMapsPlaces(apiKey) {
 		return Promise.reject(new Error("Missing Google Maps browser API key"));
 	}
 
-	if (window.google?.maps?.places) {
+	if (window.google?.maps?.places?.PlaceAutocompleteElement) {
 		return Promise.resolve(window.google);
 	}
 
@@ -19,29 +21,77 @@ export function loadGoogleMapsPlaces(apiKey) {
 		return googleMapsPromise;
 	}
 
-	googleMapsPromise = new Promise((resolve, reject) => {
-		const existingScript = document.querySelector(
-			'script[data-google-maps="places"]',
-		);
-
-		if (existingScript) {
-			existingScript.addEventListener("load", () => resolve(window.google));
-			existingScript.addEventListener("error", () => {
-				reject(new Error("Failed to load Google Maps script"));
-			});
-			return;
-		}
-
-		const script = document.createElement("script");
-		script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places`;
-		script.async = true;
-		script.defer = true;
-		script.dataset.googleMaps = "places";
-		script.onload = () => resolve(window.google);
-		script.onerror = () =>
-			reject(new Error("Failed to load Google Maps Places API"));
-		document.head.appendChild(script);
+	const loader = new Loader({
+		apiKey,
+		version: "weekly",
+		libraries: ["places"],
 	});
 
+	googleMapsPromise = loader
+		.load()
+		.then(async () => {
+			await window.google.maps.importLibrary("places");
+			return window.google;
+		})
+		.catch((error) => {
+			googleMapsPromise = null;
+			throw error;
+		});
+
 	return googleMapsPromise;
+}
+
+function readStringValue(value) {
+	if (typeof value === "string") return value;
+	if (typeof value?.text === "string") return value.text;
+	return "";
+}
+
+export function mountPlaceAutocompleteElement({
+	container,
+	placeholder,
+	onPlaceSelected,
+}) {
+	if (!container || !window.google?.maps?.places?.PlaceAutocompleteElement) {
+		return () => {};
+	}
+
+	container.innerHTML = "";
+
+	const autocompleteElement =
+		new window.google.maps.places.PlaceAutocompleteElement();
+	autocompleteElement.className = "h-11 w-full";
+	if (placeholder) {
+		autocompleteElement.setAttribute("placeholder", placeholder);
+	}
+
+	const handlePlaceSelect = async (event) => {
+		const place = event?.placePrediction?.toPlace?.();
+		if (!place) return;
+
+		await place.fetchFields({
+			fields: ["id", "displayName", "formattedAddress", "location"],
+		});
+
+		const lat = place?.location?.lat?.();
+		const lng = place?.location?.lng?.();
+
+		onPlaceSelected?.({
+			id: readStringValue(place?.id),
+			displayName: readStringValue(place?.displayName),
+			formattedAddress: readStringValue(place?.formattedAddress),
+			lat: Number.isFinite(lat) ? lat : null,
+			lng: Number.isFinite(lng) ? lng : null,
+		});
+	};
+
+	autocompleteElement.addEventListener("gmp-select", handlePlaceSelect);
+	container.appendChild(autocompleteElement);
+
+	return () => {
+		autocompleteElement.removeEventListener("gmp-select", handlePlaceSelect);
+		if (container.contains(autocompleteElement)) {
+			container.removeChild(autocompleteElement);
+		}
+	};
 }

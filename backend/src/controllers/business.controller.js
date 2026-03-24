@@ -3,7 +3,17 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const getBusinesses = asyncHandler(async (req, res) => {
 	const businesses = await models.User.findAll({
-		attributes: ["id", "name", "email", "avatar", "location", "createdAt"],
+		attributes: [
+			"id",
+			"name",
+			"email",
+			"avatar",
+			"location",
+			"accountType",
+			"businessName",
+			"gstOrMsme",
+			"createdAt",
+		],
 		include: [
 			{
 				model: models.Listing,
@@ -18,10 +28,11 @@ export const getBusinesses = asyncHandler(async (req, res) => {
 	const normalized = businesses.map((user) => ({
 		id: user.id,
 		name: user.name,
-		businessName: user.name,
+		businessName: user.businessName || user.name,
 		email: user.email,
 		avatar: user.avatar,
 		location: user.location || "Not specified",
+		gstOrMsme: user.gstOrMsme || "",
 		listingCount: user.listings?.length || 0,
 	}));
 

@@ -6,7 +6,10 @@ import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { compressImageFile } from "../utils/imageCompressor";
-import { loadGoogleMapsPlaces } from "../utils/googleMaps";
+import {
+	loadGoogleMapsPlaces,
+	mountPlaceAutocompleteElement,
+} from "../utils/googleMaps";
 import { pickArray } from "../utils/api";
 
 export default function PostAd({ variant = "personal" }) {
@@ -27,9 +30,14 @@ export default function PostAd({ variant = "personal" }) {
 	const [categories, setCategories] = useState([]);
 	const [files, setFiles] = useState([null, null, null]);
 	const [mapsReady, setMapsReady] = useState(false);
-	const addressInputRef = useRef(null);
+	const [mapsFailed, setMapsFailed] = useState(false);
+	const [fallbackQuery, setFallbackQuery] = useState("");
+	const [fallbackSuggestions, setFallbackSuggestions] = useState([]);
+	const [fallbackSearching, setFallbackSearching] = useState(false);
+	const autocompleteContainerRef = useRef(null);
 	const [form, setForm] = useState({
 		title: "",
+		gstOrMsme: "",
 		parentCategory: "",
 		subCategory: "",
 		price: "",
@@ -53,9 +61,15 @@ export default function PostAd({ variant = "personal" }) {
 				const { data } = await api.get("/config/public");
 				const key = data?.googleMapsBrowserApiKey;
 				await loadGoogleMapsPlaces(key);
-				if (active) setMapsReady(true);
+				if (active) {
+					setMapsReady(true);
+					setMapsFailed(false);
+				}
 			} catch {
-				toast.error("Google Maps could not be loaded");
+				if (active) {
+					setMapsReady(false);
+					setMapsFailed(true);
+				}
 			}
 		};
 
@@ -67,40 +81,93 @@ export default function PostAd({ variant = "personal" }) {
 	}, []);
 
 	useEffect(() => {
-		if (
-			!mapsReady ||
-			!addressInputRef.current ||
-			!window.google?.maps?.places
-		) {
+		if (!mapsReady || !autocompleteContainerRef.current) {
 			return;
 		}
 
-		const autocomplete = new window.google.maps.places.Autocomplete(
-			addressInputRef.current,
-			{
-				fields: ["formatted_address", "geometry", "place_id", "name"],
-				types: ["geocode"],
+		return mountPlaceAutocompleteElement({
+			container: autocompleteContainerRef.current,
+			placeholder: "Search and pick a real address...",
+			onPlaceSelected: (place) => {
+				setForm((prev) => ({
+					...prev,
+					address: place.formattedAddress || place.displayName || prev.address,
+					latitude: Number.isFinite(place.lat) ? String(place.lat) : "",
+					longitude: Number.isFinite(place.lng) ? String(place.lng) : "",
+					placeId: place.id || "",
+				}));
 			},
-		);
-
-		const listener = autocomplete.addListener("place_changed", () => {
-			const place = autocomplete.getPlace();
-			const lat = place?.geometry?.location?.lat?.();
-			const lng = place?.geometry?.location?.lng?.();
-
-			setForm((prev) => ({
-				...prev,
-				address: place?.formatted_address || place?.name || prev.address,
-				latitude: Number.isFinite(lat) ? String(lat) : "",
-				longitude: Number.isFinite(lng) ? String(lng) : "",
-				placeId: place?.place_id || "",
-			}));
 		});
+	}, [mapsReady]);
+
+	useEffect(() => {
+		if (!mapsFailed) {
+			setFallbackSuggestions([]);
+			setFallbackSearching(false);
+			return;
+		}
+
+		const query = fallbackQuery.trim();
+		if (query.length < 3) {
+			setFallbackSuggestions([]);
+			setFallbackSearching(false);
+			return;
+		}
+
+		const controller = new AbortController();
+		const timeoutId = window.setTimeout(async () => {
+			try {
+				setFallbackSearching(true);
+				const params = new URLSearchParams({
+					q: query,
+					format: "jsonv2",
+					addressdetails: "1",
+					limit: "6",
+				});
+				const response = await fetch(
+					`https://nominatim.openstreetmap.org/search?${params.toString()}`,
+					{
+						headers: { Accept: "application/json" },
+						signal: controller.signal,
+					},
+				);
+
+				if (!response.ok) {
+					throw new Error("Location lookup failed");
+				}
+
+				const data = await response.json();
+				const suggestions = Array.isArray(data)
+					? data
+							.map((item) => {
+								const lat = Number(item?.lat);
+								const lng = Number(item?.lon);
+								if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+								return {
+									id: String(item?.place_id || `${lat}:${lng}`),
+									label: item?.display_name || "",
+									lat,
+									lng,
+								};
+							})
+							.filter(Boolean)
+					: [];
+
+				setFallbackSuggestions(suggestions);
+			} catch (error) {
+				if (error?.name !== "AbortError") {
+					setFallbackSuggestions([]);
+				}
+			} finally {
+				setFallbackSearching(false);
+			}
+		}, 300);
 
 		return () => {
-			if (listener?.remove) listener.remove();
+			controller.abort();
+			window.clearTimeout(timeoutId);
 		};
-	}, [mapsReady]);
+	}, [mapsFailed, fallbackQuery]);
 
 	useEffect(() => {
 		const fetchCategories = async () => {
@@ -154,6 +221,18 @@ export default function PostAd({ variant = "personal" }) {
 		});
 	};
 
+	const selectFallbackSuggestion = (suggestion) => {
+		setForm((prev) => ({
+			...prev,
+			address: suggestion.label,
+			latitude: String(suggestion.lat),
+			longitude: String(suggestion.lng),
+			placeId: `osm:${suggestion.id}`,
+		}));
+		setFallbackQuery(suggestion.label);
+		setFallbackSuggestions([]);
+	};
+
 	const uploadCompressedImageToR2 = async (file) => {
 		const compressed = await compressImageFile(file, {
 			maxWidth: 1600,
@@ -162,27 +241,39 @@ export default function PostAd({ variant = "personal" }) {
 			outputType: "image/webp",
 		});
 
-		const { data } = await api.post("/listings/uploads/presign", {
-			fileName: compressed.name,
-			contentType: compressed.type,
-		});
+		try {
+			const { data } = await api.post("/listings/uploads/presign", {
+				fileName: compressed.name,
+				contentType: compressed.type,
+			});
 
-		const response = await fetch(data?.uploadUrl, {
-			method: "PUT",
-			headers: {
-				"Content-Type": compressed.type,
-			},
-			body: compressed,
-		});
+			const response = await fetch(data?.uploadUrl, {
+				method: "PUT",
+				headers: {
+					"Content-Type": compressed.type,
+				},
+				body: compressed,
+			});
 
-		if (!response.ok) {
-			throw new Error("Failed to upload image to storage");
+			if (!response.ok) {
+				throw new Error("Failed to upload image to storage");
+			}
+
+			return {
+				url: data?.publicUrl,
+				public_id: data?.key,
+			};
+		} catch {
+			const formData = new FormData();
+			formData.append("image", compressed, compressed.name);
+
+			const { data } = await api.post("/listings/uploads/direct", formData);
+
+			return {
+				url: data?.url,
+				public_id: data?.public_id,
+			};
 		}
-
-		return {
-			url: data?.publicUrl,
-			public_id: data?.key,
-		};
 	};
 
 	const onSubmit = async (event) => {
@@ -196,6 +287,9 @@ export default function PostAd({ variant = "personal" }) {
 		if (!form.price || Number(form.price) <= 0)
 			return toast.error("Please add a valid price");
 		if (!form.description.trim()) return toast.error("Description is required");
+		if (isBusinessFlow && !form.gstOrMsme.trim()) {
+			return toast.error("GST/MSME number is required for business listing");
+		}
 		if (!form.address.trim()) return toast.error("Pickup location is required");
 		if (!form.latitude || !form.longitude) {
 			return toast.error("Please choose a valid location from suggestions");
@@ -204,6 +298,14 @@ export default function PostAd({ variant = "personal" }) {
 
 		try {
 			setSubmitting(true);
+
+			if (isBusinessFlow) {
+				await api.put("/users/me", {
+					accountType: "business",
+					gstOrMsme: form.gstOrMsme,
+				});
+			}
+
 			const selectedFiles = files.filter(Boolean);
 			const uploadedImages = await Promise.all(
 				selectedFiles.map((file) => uploadCompressedImageToR2(file)),
@@ -219,6 +321,9 @@ export default function PostAd({ variant = "personal" }) {
 				latitude: form.latitude,
 				longitude: form.longitude,
 				...(form.placeId ? { placeId: form.placeId } : {}),
+				...(isBusinessFlow && form.gstOrMsme.trim()
+					? { gstOrMsme: form.gstOrMsme.trim() }
+					: {}),
 				premiumBoost: form.premiumBoost,
 				images: uploadedImages,
 			};
@@ -233,9 +338,11 @@ export default function PostAd({ variant = "personal" }) {
 		}
 	};
 
+	const lat = Number(form.latitude);
+	const lng = Number(form.longitude);
 	const mapEmbedUrl =
-		form.latitude && form.longitude
-			? `https://www.google.com/maps?q=${encodeURIComponent(`${form.latitude},${form.longitude}`)}&z=15&output=embed`
+		Number.isFinite(lat) && Number.isFinite(lng)
+			? `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(`${lng - 0.01},${lat - 0.01},${lng + 0.01},${lat + 0.01}`)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lng}`)}`
 			: null;
 
 	return (
@@ -305,6 +412,19 @@ export default function PostAd({ variant = "personal" }) {
 									placeholder="Ad title"
 									className="input-shell"
 								/>
+								{isBusinessFlow ? (
+									<input
+										value={form.gstOrMsme}
+										onChange={(event) =>
+											setForm((prev) => ({
+												...prev,
+												gstOrMsme: event.target.value,
+											}))
+										}
+										placeholder="GST / MSME Number"
+										className="input-shell"
+									/>
+								) : null}
 								<div className="grid gap-3 sm:grid-cols-3">
 									<select
 										value={form.parentCategory}
@@ -393,25 +513,66 @@ export default function PostAd({ variant = "personal" }) {
 							<h2 className="flex items-center gap-2 text-2xl font-display font-bold">
 								<MapPin size={18} /> Pickup Location
 							</h2>
-							<input
-								ref={addressInputRef}
-								className="input-shell mt-4"
-								value={form.address}
-								onChange={(event) =>
-									setForm((prev) => ({
-										...prev,
-										address: event.target.value,
-										latitude: "",
-										longitude: "",
-										placeId: "",
-									}))
-								}
-								placeholder="Search and pick a real address..."
-							/>
+							<div className="mt-4 rounded-2xl border border-brand-border bg-white p-2">
+								{mapsReady ? (
+									<div ref={autocompleteContainerRef} className="w-full" />
+								) : (
+									<div className="space-y-2 px-1 py-1">
+										<input
+											value={fallbackQuery}
+											onChange={(event) => {
+												setFallbackQuery(event.target.value);
+												setForm((prev) => ({
+													...prev,
+													address: event.target.value,
+													latitude: "",
+													longitude: "",
+													placeId: "",
+												}));
+											}}
+											placeholder="Search location (fallback mode)"
+											className="input-shell"
+										/>
+										{mapsFailed ? (
+											<p className="px-1 text-xs text-brand-muted">
+												Google location service is unavailable. Using fallback
+												search.
+											</p>
+										) : null}
+										{fallbackSearching ? (
+											<div className="px-1 text-xs text-brand-muted">
+												Searching...
+											</div>
+										) : null}
+										{fallbackSuggestions.length ? (
+											<div className="max-h-44 overflow-auto rounded-xl border border-brand-border">
+												{fallbackSuggestions.map((suggestion) => (
+													<button
+														key={suggestion.id}
+														type="button"
+														onMouseDown={(event) => {
+															event.preventDefault();
+															selectFallbackSuggestion(suggestion);
+														}}
+														className="w-full px-3 py-2 text-left text-xs hover:bg-[#f7f7f7]"
+													>
+														{suggestion.label}
+													</button>
+												))}
+											</div>
+										) : null}
+									</div>
+								)}
+							</div>
+							{form.address ? (
+								<div className="mt-2 rounded-xl border border-brand-border bg-[#f8f8f8] px-3 py-2 text-sm text-black">
+									Selected: {form.address}
+								</div>
+							) : null}
 							<div className="mt-3 overflow-hidden rounded-2xl border border-brand-border bg-white">
 								{mapEmbedUrl ? (
 									<iframe
-										title="Selected pickup location"
+										title="Selected pickup location preview"
 										src={mapEmbedUrl}
 										className="h-56 w-full"
 										loading="lazy"

@@ -26,6 +26,7 @@ export default function ProductDetail() {
 	const [activeTab, setActiveTab] = useState("description");
 	const [activeImage, setActiveImage] = useState("");
 	const [loading, setLoading] = useState(true);
+	const [sendingMessage, setSendingMessage] = useState(false);
 
 	useEffect(() => {
 		const fetchListing = async () => {
@@ -57,15 +58,42 @@ export default function ProductDetail() {
 	}, [listing]);
 
 	const sendMessage = async () => {
+		const listingId = Number(listing?._id || listing?.id);
+		if (!Number.isFinite(listingId) || listingId <= 0) {
+			toast.error(
+				"Listing details are incomplete. Please refresh and try again.",
+			);
+			return;
+		}
+
 		try {
-			await api.post("/messages", {
-				listingId: listing?._id || listing?.id,
-				sellerId: listing?.seller?._id || listing?.seller?.id,
+			setSendingMessage(true);
+			const sellerId = Number(
+				listing?.seller?._id || listing?.seller?.id || listing?.sellerId,
+			);
+
+			const payload = {
+				listingId,
 				text: "Hi, I am interested in this listing.",
-			});
+			};
+
+			if (Number.isFinite(sellerId) && sellerId > 0) {
+				payload.sellerId = sellerId;
+			}
+
+			await api.post("/messages", payload);
 			toast.success("Message request sent to seller");
-		} catch {
-			toast.error("Could not contact seller right now");
+		} catch (error) {
+			const status = error?.response?.status;
+			if (status === 401) {
+				toast.error("Please log in to message sellers");
+				return;
+			}
+			toast.error(
+				error?.response?.data?.message || "Could not contact seller right now",
+			);
+		} finally {
+			setSendingMessage(false);
 		}
 	};
 
@@ -192,10 +220,12 @@ export default function ProductDetail() {
 
 								<button
 									type="button"
+									disabled={sendingMessage}
 									onClick={sendMessage}
-									className="btn-secondary h-14 w-full rounded-2xl text-sm"
+									className="btn-secondary h-14 w-full rounded-2xl text-sm disabled:opacity-60"
 								>
-									<Sparkles size={16} className="mr-2" /> Message Seller
+									<Sparkles size={16} className="mr-2" />
+									{sendingMessage ? "Sending..." : "Message Seller"}
 								</button>
 
 								<div className="flex flex-wrap items-center gap-6 text-sm text-brand-muted">

@@ -22,7 +22,8 @@ export const getUserProfile = asyncHandler(async (req, res) => {
 // Supports multipart/form-data with optional avatar file upload to R2
 // ---------------------------------------------------------------------------
 export const updateProfile = asyncHandler(async (req, res) => {
-	const { name, phone, location } = req.body;
+	const { name, phone, location, accountType, businessName, gstOrMsme } =
+		req.body;
 
 	if (name !== undefined) {
 		if (String(name).trim().length < 2) {
@@ -35,6 +36,24 @@ export const updateProfile = asyncHandler(async (req, res) => {
 
 	if (phone !== undefined) req.user.phone = phone;
 	if (location !== undefined) req.user.location = location;
+
+	if (accountType !== undefined) {
+		const normalizedType = String(accountType).toLowerCase();
+		if (!["personal", "business"].includes(normalizedType)) {
+			return res
+				.status(400)
+				.json({ message: "accountType must be personal or business" });
+		}
+		req.user.accountType = normalizedType;
+	}
+
+	if (businessName !== undefined) {
+		req.user.businessName = String(businessName).trim() || null;
+	}
+
+	if (gstOrMsme !== undefined) {
+		req.user.gstOrMsme = String(gstOrMsme).trim().toUpperCase() || null;
+	}
 
 	// Upload new avatar to Cloudflare R2
 	if (req.file) {
@@ -67,9 +86,7 @@ export const changePassword = asyncHandler(async (req, res) => {
 
 	const isValid = await req.user.comparePassword(currentPassword);
 	if (!isValid) {
-		return res
-			.status(400)
-			.json({ message: "Current password is incorrect" });
+		return res.status(400).json({ message: "Current password is incorrect" });
 	}
 
 	if (currentPassword === newPassword) {

@@ -33,6 +33,16 @@ export function defineUser(sequelize) {
 			location: {
 				type: DataTypes.STRING,
 			},
+			accountType: {
+				type: DataTypes.ENUM("personal", "business"),
+				defaultValue: "personal",
+			},
+			businessName: {
+				type: DataTypes.STRING,
+			},
+			gstOrMsme: {
+				type: DataTypes.STRING,
+			},
 			role: {
 				type: DataTypes.ENUM("user", "admin", "developer"),
 				defaultValue: "user",

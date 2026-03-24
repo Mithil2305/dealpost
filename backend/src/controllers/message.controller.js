@@ -9,33 +9,49 @@ import { encryptMessage, decryptMessage } from "../utils/encryption.js";
 export const quickMessage = asyncHandler(async (req, res) => {
 	const { listingId, sellerId, text } = req.body;
 
-	if (!listingId || !sellerId || !text) {
-		return res
-			.status(400)
-			.json({ message: "listingId, sellerId, and text are required" });
+	if (!listingId || !text) {
+		return res.status(400).json({ message: "listingId and text are required" });
 	}
 
 	if (!text.trim()) {
 		return res.status(400).json({ message: "Message text cannot be empty" });
 	}
 
-	// Prevent messaging yourself
-	if (Number(sellerId) === Number(req.user.id)) {
+	const numericListingId = Number(listingId);
+	if (!Number.isFinite(numericListingId) || numericListingId <= 0) {
+		return res.status(400).json({ message: "Invalid listingId" });
+	}
+
+	const listing = await models.Listing.findByPk(numericListingId, {
+		attributes: ["id", "sellerId"],
+	});
+
+	if (!listing) {
+		return res.status(404).json({ message: "Listing not found" });
+	}
+
+	const resolvedSellerId = Number(sellerId) || Number(listing.sellerId);
+	if (!Number.isFinite(resolvedSellerId) || resolvedSellerId <= 0) {
 		return res
 			.status(400)
-			.json({ message: "You cannot message yourself" });
+			.json({ message: "Seller information is unavailable for this listing" });
+	}
+
+	// Prevent messaging yourself
+	if (resolvedSellerId === Number(req.user.id)) {
+		return res.status(400).json({ message: "You cannot message yourself" });
 	}
 
 	const [conversation] = await models.Conversation.findOrCreate({
 		where: {
 			buyerId: req.user.id,
-			sellerId: Number(sellerId),
-			listingId: Number(listingId),
+			sellerId: resolvedSellerId,
+			listingId: numericListingId,
 		},
 		defaults: {
 			buyerId: req.user.id,
-			sellerId: Number(sellerId),
-			listingId: Number(listingId),
+			sellerId: resolvedSellerId,
+			listingId: numericListingId,
 		},
 	});
 
@@ -62,9 +78,10 @@ export const quickMessage = asyncHandler(async (req, res) => {
 	});
 
 	// Return decrypted text to the client
-	const plain = typeof populated.toJSON === "function"
-		? populated.toJSON()
-		: { ...populated };
+	const plain =
+		typeof populated.toJSON === "function"
+			? populated.toJSON()
+			: { ...populated };
 	plain.text = decryptMessage(plain.text);
 
 	res.status(201).json({

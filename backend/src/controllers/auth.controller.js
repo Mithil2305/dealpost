@@ -6,7 +6,39 @@ import { signToken } from "../utils/jwt.js";
 // POST /api/auth/register
 // ---------------------------------------------------------------------------
 export const register = asyncHandler(async (req, res) => {
-	const { name, email, password, phone, location } = req.body;
+	const {
+		name,
+		email,
+		password,
+		phone,
+		location,
+		accountType,
+		business,
+		businessName,
+		gstOrMsme,
+	} = req.body;
+
+	const normalizedAccountType =
+		String(accountType || "personal").toLowerCase() === "business"
+			? "business"
+			: "personal";
+
+	const businessPayload =
+		business && typeof business === "object" ? business : {};
+	const normalizedBusinessName = String(
+		businessName || businessPayload.name || "",
+	)
+		.trim()
+		.slice(0, 120);
+	const normalizedGstOrMsme = String(
+		gstOrMsme || businessPayload.gstOrMsme || "",
+	)
+		.trim()
+		.toUpperCase()
+		.slice(0, 64);
+	const normalizedLocation = String(location || businessPayload.location || "")
+		.trim()
+		.slice(0, 160);
 
 	if (!name || String(name).trim().length < 2) {
 		return res
@@ -24,6 +56,18 @@ export const register = asyncHandler(async (req, res) => {
 			.json({ message: "Password must be at least 6 characters" });
 	}
 
+	if (normalizedAccountType === "business") {
+		if (!normalizedBusinessName) {
+			return res.status(400).json({ message: "Business name is required" });
+		}
+		if (!normalizedGstOrMsme) {
+			return res.status(400).json({ message: "GST/MSME number is required" });
+		}
+		if (!normalizedLocation) {
+			return res.status(400).json({ message: "Business location is required" });
+		}
+	}
+
 	const exists = await models.User.findOne({
 		where: { email: String(email).toLowerCase() },
 	});
@@ -37,7 +81,12 @@ export const register = asyncHandler(async (req, res) => {
 		email: String(email).toLowerCase(),
 		password,
 		phone: phone || null,
-		location: location || null,
+		location: normalizedLocation || null,
+		accountType: normalizedAccountType,
+		businessName:
+			normalizedAccountType === "business" ? normalizedBusinessName : null,
+		gstOrMsme:
+			normalizedAccountType === "business" ? normalizedGstOrMsme : null,
 	});
 
 	const token = signToken(user.id);
@@ -51,9 +100,7 @@ export const login = asyncHandler(async (req, res) => {
 	const { email, password } = req.body;
 
 	if (!email || !password) {
-		return res
-			.status(400)
-			.json({ message: "Email and password are required" });
+		return res.status(400).json({ message: "Email and password are required" });
 	}
 
 	const user = await models.User.findOne({
@@ -65,9 +112,7 @@ export const login = asyncHandler(async (req, res) => {
 	}
 
 	if (!user.isActive) {
-		return res
-			.status(403)
-			.json({ message: "Your account has been suspended" });
+		return res.status(403).json({ message: "Your account has been suspended" });
 	}
 
 	const token = signToken(user.id);

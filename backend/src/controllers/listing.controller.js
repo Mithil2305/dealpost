@@ -78,7 +78,11 @@ function normalizeListingPayload(item) {
 		subCategory,
 		...(categoryObj ? { categoryObj } : {}),
 		...(sellerObj ? { seller: sellerObj } : {}),
-		businessName: sellerObj?.name || listing.businessName || null,
+		businessName:
+			sellerObj?.businessName ||
+			sellerObj?.name ||
+			listing.businessName ||
+			null,
 	};
 }
 
@@ -210,6 +214,8 @@ async function resolveCategorySelection({
 const sellerAttributes = [
 	"id",
 	"name",
+	"businessName",
+	"gstOrMsme",
 	"avatar",
 	"phone",
 	"email",
@@ -244,6 +250,18 @@ export const presignListingImageUpload = asyncHandler(async (req, res) => {
 	});
 
 	res.status(201).json(signed);
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/listings/uploads/direct  — server-side upload fallback when R2 CORS blocks browser PUT
+// ---------------------------------------------------------------------------
+export const directListingImageUpload = asyncHandler(async (req, res) => {
+	if (!req.file) {
+		return res.status(400).json({ message: "Image file is required" });
+	}
+
+	const uploaded = await uploadToR2(req.file, "dealpost/listings");
+	res.status(201).json(uploaded);
 });
 
 // ---------------------------------------------------------------------------

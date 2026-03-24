@@ -30,6 +30,8 @@ export default function Profile() {
 		name: user?.name || "",
 		phone: user?.phone || "",
 		location: user?.location || "",
+		businessName: user?.businessName || "",
+		gstOrMsme: user?.gstOrMsme || "",
 	});
 	const [passwordForm, setPasswordForm] = useState({
 		currentPassword: "",
@@ -41,8 +43,13 @@ export default function Profile() {
 			name: user?.name || "",
 			phone: user?.phone || "",
 			location: user?.location || "",
+			businessName: user?.businessName || "",
+			gstOrMsme: user?.gstOrMsme || "",
 		});
 	}, [user]);
+
+	const isBusinessAccount =
+		String(user?.accountType || "").toLowerCase() === "business";
 
 	useEffect(() => {
 		const fetchStats = async () => {
@@ -107,11 +114,18 @@ export default function Profile() {
 
 		try {
 			setSavingProfile(true);
-			const { data } = await api.put("/users/me", {
+			const payload = {
 				name: profileForm.name,
 				phone: profileForm.phone,
 				location: profileForm.location,
-			});
+			};
+
+			if (isBusinessAccount) {
+				payload.businessName = profileForm.businessName;
+				payload.gstOrMsme = profileForm.gstOrMsme;
+			}
+
+			const { data } = await api.put("/users/me", payload);
 			setCurrentUser(data?.user || user);
 			toast.success("Profile updated");
 			setActiveTab("overview");
@@ -328,6 +342,32 @@ export default function Profile() {
 									placeholder="Location"
 									className="w-full rounded-xl bg-[#F5F5F5] px-4 h-12"
 								/>
+								{isBusinessAccount ? (
+									<>
+										<input
+											value={profileForm.businessName}
+											onChange={(event) =>
+												setProfileForm((prev) => ({
+													...prev,
+													businessName: event.target.value,
+												}))
+											}
+											placeholder="Business name"
+											className="w-full rounded-xl bg-[#F5F5F5] px-4 h-12"
+										/>
+										<input
+											value={profileForm.gstOrMsme}
+											onChange={(event) =>
+												setProfileForm((prev) => ({
+													...prev,
+													gstOrMsme: event.target.value,
+												}))
+											}
+											placeholder="GST / MSME Number"
+											className="w-full rounded-xl bg-[#F5F5F5] px-4 h-12"
+										/>
+									</>
+								) : null}
 								<div className="flex gap-3">
 									<button
 										type="submit"
@@ -440,7 +480,37 @@ export default function Profile() {
 											</div>
 											<div className="sm:col-span-2">
 												<span className="bg-gray-100 text-gray-600 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md">
-													{user?.role || "Member"}
+													{user?.accountType || "personal"}
+												</span>
+											</div>
+										</div>
+										{isBusinessAccount ? (
+											<>
+												<div className="grid sm:grid-cols-3 gap-4 pb-4 border-b border-gray-100">
+													<div className="text-sm font-bold text-gray-400">
+														Business Name
+													</div>
+													<div className="sm:col-span-2 font-medium">
+														{user?.businessName || "Not set"}
+													</div>
+												</div>
+												<div className="grid sm:grid-cols-3 gap-4">
+													<div className="text-sm font-bold text-gray-400">
+														GST / MSME
+													</div>
+													<div className="sm:col-span-2 font-medium">
+														{user?.gstOrMsme || "Not set"}
+													</div>
+												</div>
+											</>
+										) : null}
+										<div className="grid sm:grid-cols-3 gap-4 pt-4 border-t border-gray-100">
+											<div className="text-sm font-bold text-gray-400">
+												Role
+											</div>
+											<div className="sm:col-span-2">
+												<span className="bg-gray-100 text-gray-600 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md">
+													{user?.role || "member"}
 												</span>
 											</div>
 										</div>

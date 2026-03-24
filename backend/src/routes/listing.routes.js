@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
 	createListing,
 	deleteListing,
+	directListingImageUpload,
 	getListingById,
 	getListings,
 	getMyListings,
@@ -20,6 +21,12 @@ router.get("/", optionalAuth, getListings);
 // Protected — must be before /:id to avoid "my" being treated as an ID
 router.get("/my", protect, getMyListings);
 router.post("/uploads/presign", protect, presignListingImageUpload);
+router.post(
+	"/uploads/direct",
+	protect,
+	upload.single("image"),
+	directListingImageUpload,
+);
 
 // Public single listing
 router.get("/:id", getListingById);

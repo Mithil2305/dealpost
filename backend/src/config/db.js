@@ -56,9 +56,37 @@ async function ensureListingCategoryColumns() {
 	}
 }
 
+async function ensureUserBusinessColumns() {
+	const queryInterface = sequelize.getQueryInterface();
+	const columns = await queryInterface.describeTable("users");
+
+	if (!columns.account_type && !columns.accountType) {
+		await queryInterface.addColumn("users", "account_type", {
+			type: DataTypes.ENUM("personal", "business"),
+			allowNull: false,
+			defaultValue: "personal",
+		});
+	}
+
+	if (!columns.business_name && !columns.businessName) {
+		await queryInterface.addColumn("users", "business_name", {
+			type: DataTypes.STRING,
+			allowNull: true,
+		});
+	}
+
+	if (!columns.gst_or_msme && !columns.gstOrMsme) {
+		await queryInterface.addColumn("users", "gst_or_msme", {
+			type: DataTypes.STRING,
+			allowNull: true,
+		});
+	}
+}
+
 export async function connectDB() {
 	await sequelize.authenticate();
 	await sequelize.sync();
 	await ensureListingCategoryColumns();
+	await ensureUserBusinessColumns();
 	console.log("MySQL connected and models synced");
 }

@@ -11,10 +11,17 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useAuth } from "../context/useAuth";
-import { loadGoogleMapsPlaces } from "../utils/googleMaps";
+import {
+	loadGoogleMapsPlaces,
+	mountPlaceAutocompleteElement,
+} from "../utils/googleMaps";
 
 function getReadableLocationLabel(placeLike) {
 	if (!placeLike) return "";
+
+	if (typeof placeLike.formattedAddress === "string") {
+		return placeLike.formattedAddress;
+	}
 
 	const components = placeLike.address_components || [];
 	const findComponent = (types) =>
@@ -77,11 +84,12 @@ export default function Navbar({ search = "", onSearchChange }) {
 	const [locationInput, setLocationInput] = useState(initialLocation);
 	const [displayLocation, setDisplayLocation] = useState(initialLocation);
 	const [mapsReady, setMapsReady] = useState(false);
+	const [mapsFailed, setMapsFailed] = useState(false);
 	const [isSavingLocation, setIsSavingLocation] = useState(false);
 	const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 	const [selectedCoordinates, setSelectedCoordinates] = useState(initialCoords);
 	const wrapperRef = useRef(null);
-	const inputRef = useRef(null);
+	const autocompleteContainerRef = useRef(null);
 
 	useEffect(() => {
 		let active = true;
@@ -90,9 +98,15 @@ export default function Navbar({ search = "", onSearchChange }) {
 			try {
 				const { data } = await api.get("/config/public");
 				await loadGoogleMapsPlaces(data?.googleMapsBrowserApiKey || "");
-				if (active) setMapsReady(true);
+				if (active) {
+					setMapsReady(true);
+					setMapsFailed(false);
+				}
 			} catch {
-				// Silently ignore if API key is not configured.
+				if (active) {
+					setMapsReady(false);
+					setMapsFailed(true);
+				}
 			}
 		};
 
@@ -104,32 +118,22 @@ export default function Navbar({ search = "", onSearchChange }) {
 	}, []);
 
 	useEffect(() => {
-		if (!isLocationOpen || !mapsReady || !inputRef.current) return;
+		if (!isLocationOpen || !mapsReady || !autocompleteContainerRef.current) {
+			return;
+		}
 
-		const autocomplete = new window.google.maps.places.Autocomplete(
-			inputRef.current,
-			{
-				fields: ["formatted_address", "geometry", "name", "address_components"],
-				types: ["geocode"],
+		return mountPlaceAutocompleteElement({
+			container: autocompleteContainerRef.current,
+			placeholder: "Search for area, city, or address",
+			onPlaceSelected: (place) => {
+				const nextLocation = getReadableLocationLabel(place) || locationInput;
+				setLocationInput(nextLocation);
+				setSelectedCoordinates({
+					lat: Number.isFinite(place.lat) ? place.lat : null,
+					lng: Number.isFinite(place.lng) ? place.lng : null,
+				});
 			},
-		);
-
-		const listener = autocomplete.addListener("place_changed", () => {
-			const place = autocomplete.getPlace();
-			const nextLocation = getReadableLocationLabel(place) || locationInput;
-			const lat = place?.geometry?.location?.lat?.();
-			const lng = place?.geometry?.location?.lng?.();
-
-			setLocationInput(nextLocation);
-			setSelectedCoordinates({
-				lat: Number.isFinite(lat) ? lat : null,
-				lng: Number.isFinite(lng) ? lng : null,
-			});
 		});
-
-		return () => {
-			if (listener?.remove) listener.remove();
-		};
 	}, [isLocationOpen, mapsReady, locationInput]);
 
 	useEffect(() => {
@@ -190,7 +194,7 @@ export default function Navbar({ search = "", onSearchChange }) {
 	};
 
 	const useCurrentLocation = () => {
-		if (!navigator.geolocation || !window.google?.maps?.Geocoder) return;
+		if (!navigator.geolocation) return;
 
 		setIsDetectingLocation(true);
 		navigator.geolocation.getCurrentPosition(
@@ -199,29 +203,35 @@ export default function Navbar({ search = "", onSearchChange }) {
 				const lng = position.coords.longitude;
 				setSelectedCoordinates({ lat, lng });
 
-				const geocoder = new window.google.maps.Geocoder();
-				geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-					if (status === "OK" && results?.length) {
-						const preferredResult =
-							results.find((item) =>
-								item.types?.some((type) =>
-									[
-										"sublocality",
-										"sublocality_level_1",
-										"neighborhood",
-										"route",
-										"locality",
-									].includes(type),
-								),
-							) || results[0];
+				if (window.google?.maps?.Geocoder) {
+					const geocoder = new window.google.maps.Geocoder();
+					geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+						if (status === "OK" && results?.length) {
+							const preferredResult =
+								results.find((item) =>
+									item.types?.some((type) =>
+										[
+											"sublocality",
+											"sublocality_level_1",
+											"neighborhood",
+											"route",
+											"locality",
+										].includes(type),
+									),
+								) || results[0];
 
-						const label = getReadableLocationLabel(preferredResult);
-						setLocationInput(label || displayLocation);
-					} else {
-						setLocationInput(displayLocation);
-					}
-					setIsDetectingLocation(false);
-				});
+							const label = getReadableLocationLabel(preferredResult);
+							setLocationInput(label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+						} else {
+							setLocationInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+						}
+						setIsDetectingLocation(false);
+					});
+					return;
+				}
+
+				setLocationInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+				setIsDetectingLocation(false);
 			},
 			() => {
 				setIsDetectingLocation(false);
@@ -264,26 +274,37 @@ export default function Navbar({ search = "", onSearchChange }) {
 									</button>
 								</div>
 
-								<input
-									ref={inputRef}
-									value={locationInput}
-									onChange={(event) => {
-										setLocationInput(event.target.value);
-										setSelectedCoordinates({ lat: null, lng: null });
-										sessionStorage.removeItem("selectedLocationCoords");
-									}}
-									placeholder={
-										mapsReady
-											? "Search for area, city, or address"
-											: "Type your location"
-									}
-									className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#FFD600]"
-								/>
+								<div className="rounded-xl border border-gray-200 p-1">
+									{mapsReady ? (
+										<div ref={autocompleteContainerRef} className="w-full" />
+									) : (
+										<input
+											value={locationInput}
+											onChange={(event) => {
+												setLocationInput(event.target.value);
+												setSelectedCoordinates({ lat: null, lng: null });
+												sessionStorage.removeItem("selectedLocationCoords");
+											}}
+											placeholder={
+												mapsFailed
+													? "Type location (Google unavailable)"
+													: "Loading location search..."
+											}
+											className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#FFD600]"
+										/>
+									)}
+								</div>
+
+								{!!locationInput && (
+									<p className="mt-2 truncate text-xs text-gray-600">
+										Selected: {locationInput}
+									</p>
+								)}
 
 								<div className="mt-2 flex items-center justify-between">
 									<button
 										type="button"
-										disabled={!mapsReady || isDetectingLocation}
+										disabled={isDetectingLocation}
 										onClick={useCurrentLocation}
 										className="inline-flex items-center gap-1 rounded-lg bg-[#f6f6f6] px-2.5 py-1.5 text-xs font-semibold text-gray-700 disabled:opacity-50"
 									>
