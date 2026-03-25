@@ -1,6 +1,8 @@
 import { Router } from "express";
 import {
 	changePassword,
+	deactivateMyAccount,
+	deleteMyAccount,
 	getUserProfile,
 	updateProfile,
 } from "../controllers/user.controller.js";
@@ -12,5 +14,7 @@ const router = Router();
 router.get("/:id", getUserProfile);
 router.put("/me", protect, upload.single("avatar"), updateProfile);
 router.put("/me/password", protect, changePassword);
+router.patch("/me/deactivate", protect, deactivateMyAccount);
+router.delete("/me", protect, deleteMyAccount);
 
 export default router;

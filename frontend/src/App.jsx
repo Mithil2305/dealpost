@@ -12,6 +12,7 @@ import MyAds from "./pages/MyAds.jsx";
 import Profile from "./pages/Profile.jsx";
 import Messages from "./pages/Messages.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
+import UserDashboard from "./pages/UserDashboard.jsx";
 import { useAuth } from "./context/useAuth.jsx";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
@@ -42,78 +43,88 @@ function GuestOnlyRoute({ children }) {
 
 function App() {
 	return (
-		<Routes>
-			<Route path="/" element={<Home />} />
-			<Route
-				path="/login"
-				element={
-					<GuestOnlyRoute>
-						<Login />
-					</GuestOnlyRoute>
-				}
-			/>
-			<Route
-				path="/signup"
-				element={
-					<GuestOnlyRoute>
-						<Signup />
-					</GuestOnlyRoute>
-				}
-			/>
-			<Route path="/listing/:id" element={<ProductDetail />} />
-			<Route path="/explore" element={<Explore />} />
-			<Route path="/categories" element={<Categories />} />
-			<Route path="/business-listings" element={<BusinessListings />} />
-			<Route
-				path="/post-business-ad"
-				element={
-					<ProtectedRoute>
-						<BusinessPostAd />
-					</ProtectedRoute>
-				}
-			/>
-			<Route
-				path="/post-ad"
-				element={
-					<ProtectedRoute>
-						<PostAd />
-					</ProtectedRoute>
-				}
-			/>
-			<Route
-				path="/my-ads"
-				element={
-					<ProtectedRoute>
-						<MyAds />
-					</ProtectedRoute>
-				}
-			/>
-			<Route
-				path="/profile"
-				element={
-					<ProtectedRoute>
-						<Profile />
-					</ProtectedRoute>
-				}
-			/>
-			<Route
-				path="/messages"
-				element={
-					<ProtectedRoute>
-						<Messages />
-					</ProtectedRoute>
-				}
-			/>
-			<Route
-				path="/admin"
-				element={
-					<ProtectedRoute requireAdmin>
-						<AdminDashboard />
-					</ProtectedRoute>
-				}
-			/>
-			<Route path="*" element={<Navigate to="/" replace />} />
-		</Routes>
+		<>
+			<Routes>
+				<Route path="/" element={<Home />} />
+				<Route
+					path="/login"
+					element={
+						<GuestOnlyRoute>
+							<Login />
+						</GuestOnlyRoute>
+					}
+				/>
+				<Route
+					path="/signup"
+					element={
+						<GuestOnlyRoute>
+							<Signup />
+						</GuestOnlyRoute>
+					}
+				/>
+				<Route path="/listing/:id" element={<ProductDetail />} />
+				<Route path="/explore" element={<Explore />} />
+				<Route path="/categories" element={<Categories />} />
+				<Route path="/business-listings" element={<BusinessListings />} />
+				<Route
+					path="/post-business-ad"
+					element={
+						<ProtectedRoute>
+							<BusinessPostAd />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/post-ad"
+					element={
+						<ProtectedRoute>
+							<PostAd />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/my-ads"
+					element={
+						<ProtectedRoute>
+							<MyAds />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/dashboard"
+					element={
+						<ProtectedRoute>
+							<UserDashboard />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/profile"
+					element={
+						<ProtectedRoute>
+							<Profile />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/messages"
+					element={
+						<ProtectedRoute>
+							<Messages />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/admin"
+					element={
+						<ProtectedRoute requireAdmin>
+							<AdminDashboard />
+						</ProtectedRoute>
+					}
+				/>
+				<Route path="*" element={<Navigate to="/" replace />} />
+			</Routes>
+		</>
 	);
 }
 

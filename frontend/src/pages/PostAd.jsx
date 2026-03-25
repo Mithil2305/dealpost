@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { useAuth } from "../context/useAuth";
 import { compressImageFile } from "../utils/imageCompressor";
 import {
 	loadGoogleMapsPlaces,
@@ -14,6 +15,7 @@ import { pickArray } from "../utils/api";
 
 export default function PostAd({ variant = "personal" }) {
 	const navigate = useNavigate();
+	const { user, setCurrentUser } = useAuth();
 	const isBusinessFlow = variant === "business";
 	const pageTitle = isBusinessFlow
 		? "Register Business Listing"
@@ -38,6 +40,8 @@ export default function PostAd({ variant = "personal" }) {
 	const [form, setForm] = useState({
 		title: "",
 		gstOrMsme: "",
+		verifiedBusinessName: "",
+		verifiedBusinessAddress: "",
 		parentCategory: "",
 		subCategory: "",
 		price: "",
@@ -50,6 +54,35 @@ export default function PostAd({ variant = "personal" }) {
 		placeId: "",
 		premiumBoost: false,
 	});
+
+	const needsBusinessVerification = useMemo(() => {
+		if (!isBusinessFlow) return false;
+		const role = String(user?.accountType || "").toLowerCase();
+		const missingBusinessName = !String(user?.businessName || "").trim();
+		const missingGst = !String(user?.gstOrMsme || "").trim();
+		const missingAddress = !String(user?.location || "").trim();
+		return (
+			role !== "business" || missingBusinessName || missingGst || missingAddress
+		);
+	}, [
+		isBusinessFlow,
+		user?.accountType,
+		user?.businessName,
+		user?.gstOrMsme,
+		user?.location,
+	]);
+
+	useEffect(() => {
+		if (!isBusinessFlow) return;
+		setForm((prev) => ({
+			...prev,
+			gstOrMsme: prev.gstOrMsme || user?.gstOrMsme || "",
+			verifiedBusinessName:
+				prev.verifiedBusinessName || user?.businessName || "",
+			verifiedBusinessAddress:
+				prev.verifiedBusinessAddress || user?.location || "",
+		}));
+	}, [isBusinessFlow, user?.businessName, user?.gstOrMsme, user?.location]);
 
 	const previews = useMemo(
 		() => files.map((file) => (file ? URL.createObjectURL(file) : null)),
@@ -296,6 +329,12 @@ export default function PostAd({ variant = "personal" }) {
 		if (isBusinessFlow && !form.gstOrMsme.trim()) {
 			return toast.error("GST/MSME number is required for business listing");
 		}
+		if (isBusinessFlow && !form.verifiedBusinessName.trim()) {
+			return toast.error("Verified business name is required");
+		}
+		if (isBusinessFlow && !form.verifiedBusinessAddress.trim()) {
+			return toast.error("Verified business address is required");
+		}
 		if (!form.address.trim()) return toast.error("Pickup location is required");
 		if (!form.latitude || !form.longitude) {
 			return toast.error("Please choose a valid location from suggestions");
@@ -319,10 +358,20 @@ export default function PostAd({ variant = "personal" }) {
 			);
 
 			if (isBusinessFlow) {
-				await api.put("/users/me", {
+				const businessProfilePayload = {
 					accountType: "business",
-					gstOrMsme: form.gstOrMsme,
-				});
+					gstOrMsme: form.gstOrMsme.trim(),
+					businessName: form.verifiedBusinessName.trim(),
+					location: form.verifiedBusinessAddress.trim(),
+				};
+
+				const { data: profileData } = await api.put(
+					"/users/me",
+					businessProfilePayload,
+				);
+				if (profileData?.user) {
+					setCurrentUser(profileData.user);
+				}
 			}
 
 			const selectedFiles = files.filter(Boolean);
@@ -434,17 +483,55 @@ export default function PostAd({ variant = "personal" }) {
 									className="input-shell"
 								/>
 								{isBusinessFlow ? (
-									<input
-										value={form.gstOrMsme}
-										onChange={(event) =>
-											setForm((prev) => ({
-												...prev,
-												gstOrMsme: event.target.value,
-											}))
-										}
-										placeholder="GST / MSME Number"
-										className="input-shell"
-									/>
+									<div className="space-y-3 rounded-2xl border border-[#E7D89F] bg-[#FFF9E5] p-4">
+										<p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8B7322]">
+											Business Verification
+										</p>
+										{needsBusinessVerification ? (
+											<p className="text-xs text-[#7B6A26]">
+												Complete this once for your first business listing.
+											</p>
+										) : (
+											<p className="text-xs text-[#7B6A26]">
+												Your verified business profile will be used for this
+												listing.
+											</p>
+										)}
+
+										<input
+											value={form.gstOrMsme}
+											onChange={(event) =>
+												setForm((prev) => ({
+													...prev,
+													gstOrMsme: event.target.value,
+												}))
+											}
+											placeholder="GST / MSME Number"
+											className="input-shell"
+										/>
+										<input
+											value={form.verifiedBusinessName}
+											onChange={(event) =>
+												setForm((prev) => ({
+													...prev,
+													verifiedBusinessName: event.target.value,
+												}))
+											}
+											placeholder="Verified Business Name"
+											className="input-shell"
+										/>
+										<input
+											value={form.verifiedBusinessAddress}
+											onChange={(event) =>
+												setForm((prev) => ({
+													...prev,
+													verifiedBusinessAddress: event.target.value,
+												}))
+											}
+											placeholder="Verified Business Address"
+											className="input-shell"
+										/>
+									</div>
 								) : null}
 								<div className="grid gap-3 sm:grid-cols-3">
 									<select

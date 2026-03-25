@@ -100,3 +100,48 @@ export const changePassword = asyncHandler(async (req, res) => {
 
 	res.json({ message: "Password updated successfully" });
 });
+
+// ---------------------------------------------------------------------------
+// PATCH /api/users/me/deactivate  — deactivate own account
+// ---------------------------------------------------------------------------
+export const deactivateMyAccount = asyncHandler(async (req, res) => {
+	if (["admin", "developer"].includes(String(req.user?.role || ""))) {
+		return res.status(403).json({
+			message: "Privileged accounts cannot be deactivated from user dashboard",
+		});
+	}
+
+	req.user.isActive = false;
+	await req.user.save();
+
+	res.json({ message: "Account deactivated" });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/users/me  — remove own account (soft-delete style)
+// ---------------------------------------------------------------------------
+export const deleteMyAccount = asyncHandler(async (req, res) => {
+	if (["admin", "developer"].includes(String(req.user?.role || ""))) {
+		return res.status(403).json({
+			message: "Privileged accounts cannot be removed from user dashboard",
+		});
+	}
+
+	const accountId = Number(req.user.id);
+	const suffix = `${accountId}-${Date.now()}`;
+
+	req.user.name = "Deleted User";
+	req.user.email = `deleted+${suffix}@dealpost.local`;
+	req.user.phone = null;
+	req.user.avatar = "";
+	req.user.location = null;
+	req.user.businessName = null;
+	req.user.gstOrMsme = null;
+	req.user.accountType = "personal";
+	req.user.likedListingIds = [];
+	req.user.isActive = false;
+
+	await req.user.save();
+
+	res.json({ message: "Account removed" });
+});

@@ -180,15 +180,19 @@ export default function ProductDetail() {
 		const shareUrl = `${window.location.origin}/listing/${identifier}`;
 
 		try {
+			await navigator.clipboard.writeText(shareUrl);
+			toast.success("Share link copied");
+
 			if (navigator.share) {
-				await navigator.share({
-					title: listing.title,
-					text: `Check this listing: ${listing.title}`,
-					url: shareUrl,
-				});
-			} else {
-				await navigator.clipboard.writeText(shareUrl);
-				toast.success("Share link copied");
+				try {
+					await navigator.share({
+						title: listing.title,
+						text: `Check this listing: ${listing.title}`,
+						url: shareUrl,
+					});
+				} catch {
+					// Link already copied; ignore share-dismiss errors.
+				}
 			}
 		} catch {
 			toast.error("Unable to share this listing");
@@ -338,7 +342,7 @@ export default function ProductDetail() {
 											onClick={shareListing}
 											className="h-12 rounded-xl border border-brand-border bg-white px-4 text-sm font-semibold hover:bg-brand-bg"
 										>
-											<Share2 size={15} className="mr-2 inline" /> Curate Share
+											<Share2 size={15} className="mr-2 inline" /> Share Product
 										</button>
 									</div>
 

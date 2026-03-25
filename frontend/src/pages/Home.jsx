@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import api from "../api/axios";
+import AdSidebar from "../components/ad-sidebar";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { pickArray } from "../utils/api";
@@ -139,22 +140,7 @@ export default function Home() {
 
 			<main className="mx-auto w-full max-w-[1780px] px-4 py-6 sm:px-6 lg:px-8 flex-1">
 				<div className="grid gap-6 xl:grid-cols-[220px_minmax(0,1fr)_220px]">
-					<aside className="hidden xl:block">
-						<div className="sticky top-24 space-y-4">
-							<div className="rounded-3xl border border-dashed border-[#E2E2E2] bg-[#FAFAFA] p-4 text-center">
-								<p className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#A0A0A0]">
-									Ad Slot
-								</p>
-								<div className="mt-2 h-[260px] rounded-2xl bg-white" />
-							</div>
-							<div className="rounded-3xl border border-dashed border-[#E2E2E2] bg-[#FAFAFA] p-4 text-center">
-								<p className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#A0A0A0]">
-									Sponsored
-								</p>
-								<div className="mt-2 h-[200px] rounded-2xl bg-white" />
-							</div>
-						</div>
-					</aside>
+					<AdSidebar side="left" />
 
 					<div className="min-w-0">
 						{/* Categories Row */}
@@ -514,22 +500,7 @@ export default function Home() {
 						</section>
 					</div>
 
-					<aside className="hidden xl:block">
-						<div className="sticky top-24 space-y-4">
-							<div className="rounded-3xl border border-dashed border-[#E2E2E2] bg-[#FAFAFA] p-4 text-center">
-								<p className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#A0A0A0]">
-									Ad Slot
-								</p>
-								<div className="mt-2 h-[300px] rounded-2xl bg-white" />
-							</div>
-							<div className="rounded-3xl border border-dashed border-[#E2E2E2] bg-[#FAFAFA] p-4 text-center">
-								<p className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#A0A0A0]">
-									Ad Slot
-								</p>
-								<div className="mt-2 h-[160px] rounded-2xl bg-white" />
-							</div>
-						</div>
-					</aside>
+					<AdSidebar side="right" />
 				</div>
 			</main>
 

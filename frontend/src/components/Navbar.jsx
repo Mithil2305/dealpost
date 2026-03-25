@@ -2,13 +2,13 @@ import {
 	Bell,
 	ChevronDown,
 	Crosshair,
+	ExternalLink,
 	MapPin,
 	MessageSquare,
 	Search,
 	X,
 } from "lucide-react";
-import { getUnreadConversationCount } from "../utils/messageNotifications";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useAuth } from "../context/useAuth";
@@ -16,10 +16,10 @@ import {
 	loadGoogleMapsPlaces,
 	mountPlaceAutocompleteElement,
 } from "../utils/googleMaps";
+import { getUnreadConversationCount } from "../utils/messageNotifications";
 
 function getReadableLocationLabel(placeLike) {
 	if (!placeLike) return "";
-
 	if (typeof placeLike.formattedAddress === "string") {
 		return placeLike.formattedAddress;
 	}
@@ -62,9 +62,19 @@ function BrandLogo() {
 }
 
 export default function Navbar({ search = "", onSearchChange }) {
-	const { user, setCurrentUser, isAuthenticated } = useAuth();
+	const { user, setCurrentUser, isAuthenticated, logout } = useAuth();
 	const navigate = useNavigate();
 	const [unreadCount, setUnreadCount] = useState(0);
+	const [recentConversations, setRecentConversations] = useState([]);
+	const [recentAlerts, setRecentAlerts] = useState([]);
+	const [isMessagesOpen, setIsMessagesOpen] = useState(false);
+	const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+	const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+	const [searchSuggestions, setSearchSuggestions] = useState([]);
+	const [isSearchFocused, setIsSearchFocused] = useState(false);
+	const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
+	const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+
 	const initialLocation =
 		localStorage.getItem("selectedLocation") ||
 		user?.location ||
@@ -82,6 +92,7 @@ export default function Navbar({ search = "", onSearchChange }) {
 			return { lat: null, lng: null };
 		}
 	})();
+
 	const [isLocationOpen, setIsLocationOpen] = useState(false);
 	const [locationInput, setLocationInput] = useState(initialLocation);
 	const [displayLocation, setDisplayLocation] = useState(initialLocation);
@@ -90,8 +101,35 @@ export default function Navbar({ search = "", onSearchChange }) {
 	const [isSavingLocation, setIsSavingLocation] = useState(false);
 	const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 	const [selectedCoordinates, setSelectedCoordinates] = useState(initialCoords);
-	const wrapperRef = useRef(null);
+
+	const locationWrapperRef = useRef(null);
 	const autocompleteContainerRef = useRef(null);
+	const actionsRef = useRef(null);
+	const searchRef = useRef(null);
+
+	const profileDashboardRoute = useMemo(() => {
+		const role = String(user?.role || "")
+			.toLowerCase()
+			.trim();
+		return role === "admin" || role === "developer" ? "/admin" : "/dashboard";
+	}, [user?.role]);
+
+	const onProfileAvatarClick = () => {
+		setIsProfileMenuOpen((prev) => !prev);
+		setIsMessagesOpen(false);
+		setIsAlertsOpen(false);
+	};
+
+	const onProfileDashboardClick = () => {
+		setIsProfileMenuOpen(false);
+		navigate(profileDashboardRoute);
+	};
+
+	const onProfileLogoutClick = () => {
+		setIsProfileMenuOpen(false);
+		logout();
+		navigate("/login");
+	};
 
 	useEffect(() => {
 		let active = true;
@@ -113,16 +151,14 @@ export default function Navbar({ search = "", onSearchChange }) {
 		};
 
 		setupMaps();
-
 		return () => {
 			active = false;
 		};
 	}, []);
 
 	useEffect(() => {
-		if (!isLocationOpen || !mapsReady || !autocompleteContainerRef.current) {
+		if (!isLocationOpen || !mapsReady || !autocompleteContainerRef.current)
 			return;
-		}
 
 		return mountPlaceAutocompleteElement({
 			container: autocompleteContainerRef.current,
@@ -136,15 +172,14 @@ export default function Navbar({ search = "", onSearchChange }) {
 				});
 			},
 		});
-	}, [isLocationOpen, mapsReady, locationInput]);
+	}, [isLocationOpen, locationInput, mapsReady]);
 
 	useEffect(() => {
 		const onClickOutside = (event) => {
-			if (!wrapperRef.current?.contains(event.target)) {
+			if (!locationWrapperRef.current?.contains(event.target)) {
 				setIsLocationOpen(false);
 			}
 		};
-
 		document.addEventListener("mousedown", onClickOutside);
 		return () => document.removeEventListener("mousedown", onClickOutside);
 	}, []);
@@ -152,6 +187,7 @@ export default function Navbar({ search = "", onSearchChange }) {
 	const refreshUnreadCount = useCallback(async () => {
 		if (!isAuthenticated || !user?.id) {
 			setUnreadCount(0);
+			setRecentConversations([]);
 			return;
 		}
 
@@ -159,10 +195,22 @@ export default function Navbar({ search = "", onSearchChange }) {
 			const { data } = await api.get("/conversations");
 			const rows = Array.isArray(data?.conversations) ? data.conversations : [];
 			setUnreadCount(getUnreadConversationCount(rows, user.id));
+			setRecentConversations(rows.slice(0, 5));
 		} catch {
 			// Ignore unread badge refresh failures.
 		}
 	}, [isAuthenticated, user?.id]);
+
+	const refreshRecentAlerts = useCallback(async () => {
+		try {
+			const { data } = await api.get("/listings", {
+				params: { limit: 5, sort: "Newest" },
+			});
+			setRecentAlerts(Array.isArray(data?.listings) ? data.listings : []);
+		} catch {
+			setRecentAlerts([]);
+		}
+	}, []);
 
 	useEffect(() => {
 		if (!isAuthenticated || !user?.id) {
@@ -171,12 +219,8 @@ export default function Navbar({ search = "", onSearchChange }) {
 		}
 
 		refreshUnreadCount();
-
 		const intervalId = window.setInterval(refreshUnreadCount, 7000);
-		const onSeenUpdated = () => {
-			refreshUnreadCount();
-		};
-
+		const onSeenUpdated = () => refreshUnreadCount();
 		window.addEventListener(
 			"dealpost:conversation-seen-updated",
 			onSeenUpdated,
@@ -190,6 +234,63 @@ export default function Navbar({ search = "", onSearchChange }) {
 			);
 		};
 	}, [isAuthenticated, refreshUnreadCount, user?.id]);
+
+	useEffect(() => {
+		refreshRecentAlerts();
+	}, [refreshRecentAlerts]);
+
+	useEffect(() => {
+		const onClickOutside = (event) => {
+			if (actionsRef.current?.contains(event.target)) return;
+			setIsMessagesOpen(false);
+			setIsAlertsOpen(false);
+			setIsProfileMenuOpen(false);
+		};
+		document.addEventListener("mousedown", onClickOutside);
+		return () => document.removeEventListener("mousedown", onClickOutside);
+	}, []);
+
+	useEffect(() => {
+		const onClickOutside = (event) => {
+			if (searchRef.current?.contains(event.target)) return;
+			setShowSearchDropdown(false);
+			setIsSearchFocused(false);
+		};
+		document.addEventListener("mousedown", onClickOutside);
+		return () => document.removeEventListener("mousedown", onClickOutside);
+	}, []);
+
+	useEffect(() => {
+		if (!onSearchChange) return;
+
+		const keyword = String(search || "").trim();
+		if (keyword.length < 2) {
+			setSearchSuggestions([]);
+			setShowSearchDropdown(false);
+			return;
+		}
+
+		const timeoutId = window.setTimeout(async () => {
+			try {
+				setIsSearchingSuggestions(true);
+				const { data } = await api.get("/listings", {
+					params: { search: keyword, limit: 6, sort: "Newest" },
+				});
+				setSearchSuggestions(
+					Array.isArray(data?.listings) ? data.listings : [],
+				);
+				if (isSearchFocused) {
+					setShowSearchDropdown(true);
+				}
+			} catch {
+				setSearchSuggestions([]);
+			} finally {
+				setIsSearchingSuggestions(false);
+			}
+		}, 250);
+
+		return () => window.clearTimeout(timeoutId);
+	}, [isSearchFocused, onSearchChange, search]);
 
 	const persistLocation = async () => {
 		const next = locationInput.trim();
@@ -282,34 +383,60 @@ export default function Navbar({ search = "", onSearchChange }) {
 				setLocationInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
 				setIsDetectingLocation(false);
 			},
-			() => {
-				setIsDetectingLocation(false);
-			},
+			() => setIsDetectingLocation(false),
 		);
 	};
 
+	const onSearchInputChange = (value) => {
+		onSearchChange?.(value);
+		setIsSearchFocused(true);
+		if (String(value || "").trim().length < 2) {
+			setShowSearchDropdown(false);
+		}
+	};
+
+	const shouldShowDropdown =
+		showSearchDropdown &&
+		isSearchFocused &&
+		(searchSuggestions.length > 0 || isSearchingSuggestions);
+
+	const openMessagesPopup = () => {
+		setIsMessagesOpen((prev) => !prev);
+		setIsAlertsOpen(false);
+		setIsProfileMenuOpen(false);
+	};
+
+	const openAlertsPopup = () => {
+		setIsAlertsOpen((prev) => !prev);
+		setIsMessagesOpen(false);
+		setIsProfileMenuOpen(false);
+	};
+
+	const onMessagesPageClick = () => {
+		setIsMessagesOpen(false);
+		navigate("/messages");
+	};
+
 	return (
-		<header className="sticky top-0 z-40 bg-white border-b border-gray-100">
+		<header className="sticky top-0 z-40 border-b border-gray-100 bg-white">
 			<div className="flex h-16 w-full items-center px-6">
-				{/* Left Section: Logo & Location */}
 				<div className="flex items-center gap-8">
 					<BrandLogo />
 
-					<div className="relative hidden lg:flex" ref={wrapperRef}>
+					<div className="relative hidden lg:flex" ref={locationWrapperRef}>
 						<button
 							type="button"
 							onClick={() => setIsLocationOpen((prev) => !prev)}
-							className="cursor-pointer items-center gap-1.5 text-sm flex"
+							className="flex cursor-pointer items-center gap-1.5 text-sm"
 						>
 							<MapPin size={16} className="text-[#8B7322]" />
-							<span className="font-bold text-black max-w-[180px] truncate">
+							<span className="max-w-[180px] truncate font-bold text-black">
 								{displayLocation}
 							</span>
 							<ChevronDown size={16} className="text-gray-400" />
 						</button>
-
 						{isLocationOpen && (
-							<div className="absolute top-9 left-0 z-50 w-[360px] rounded-2xl border border-gray-200 bg-white p-3 shadow-xl">
+							<div className="absolute left-0 top-9 z-50 w-[360px] rounded-2xl border border-gray-200 bg-white p-3 shadow-xl">
 								<div className="mb-2 flex items-center justify-between">
 									<p className="text-sm font-bold text-black">
 										Change Location
@@ -322,7 +449,6 @@ export default function Navbar({ search = "", onSearchChange }) {
 										<X size={14} />
 									</button>
 								</div>
-
 								<div className="rounded-xl border border-gray-200 p-1">
 									{mapsReady ? (
 										<div ref={autocompleteContainerRef} className="w-full" />
@@ -343,13 +469,6 @@ export default function Navbar({ search = "", onSearchChange }) {
 										/>
 									)}
 								</div>
-
-								{!!locationInput && (
-									<p className="mt-2 truncate text-xs text-gray-600">
-										Selected: {locationInput}
-									</p>
-								)}
-
 								<div className="mt-2 flex items-center justify-between">
 									<button
 										type="button"
@@ -360,7 +479,6 @@ export default function Navbar({ search = "", onSearchChange }) {
 										<Crosshair size={13} />
 										{isDetectingLocation ? "Detecting..." : "Use current"}
 									</button>
-
 									<button
 										type="button"
 										onClick={persistLocation}
@@ -370,53 +488,170 @@ export default function Navbar({ search = "", onSearchChange }) {
 										{isSavingLocation ? "Saving..." : "Save"}
 									</button>
 								</div>
+							</div>
+						)}
+					</div>
+				</div>
 
-								{!!selectedCoordinates.lat && !!selectedCoordinates.lng && (
-									<p className="mt-2 text-[11px] text-gray-500">
-										Coordinates captured for radius filtering.
+				<div className="mx-8 hidden flex-1 items-center justify-center lg:flex">
+					<div className="relative w-full max-w-2xl" ref={searchRef}>
+						<div className="flex w-full items-center rounded-full bg-[#F1F1F1] px-4 py-2.5">
+							<Search size={18} className="text-gray-500" />
+							<input
+								value={search}
+								onChange={(event) => onSearchInputChange(event.target.value)}
+								onFocus={() => {
+									setIsSearchFocused(true);
+									if (searchSuggestions.length || isSearchingSuggestions) {
+										setShowSearchDropdown(true);
+									}
+								}}
+								placeholder="Find Cars, Mobile Phones, and more..."
+								className="ml-3 w-full bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-500"
+							/>
+						</div>
+						{shouldShowDropdown && (
+							<div className="absolute top-12 z-50 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
+								{isSearchingSuggestions ? (
+									<p className="px-4 py-3 text-sm text-gray-500">
+										Searching...
 									</p>
+								) : (
+									<>
+										{searchSuggestions.map((item) => (
+											<button
+												key={item?.id || item?.productId}
+												type="button"
+												onClick={() =>
+													navigate(`/listing/${item?.productId || item?.id}`)
+												}
+												className="flex w-full items-center justify-between border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50"
+											>
+												<div>
+													<p className="text-sm font-semibold text-gray-900">
+														{item?.title || "Listing"}
+													</p>
+													<p className="text-xs text-gray-500">
+														{item?.location?.name || item?.location || ""}
+													</p>
+												</div>
+												<ExternalLink size={14} className="text-gray-400" />
+											</button>
+										))}
+									</>
 								)}
 							</div>
 						)}
 					</div>
 				</div>
 
-				{/* Center Section: Search Bar */}
-				<div className="mx-8 hidden flex-1 items-center justify-center lg:flex">
-					<div className="flex w-full max-w-2xl items-center rounded-full bg-[#F1F1F1] px-4 py-2.5">
-						<Search size={18} className="text-gray-500" />
-						<input
-							value={search}
-							onChange={(event) => onSearchChange?.(event.target.value)}
-							placeholder="Find Cars, Mobile Phones, and more..."
-							className="ml-3 w-full bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-500"
-						/>
-					</div>
-				</div>
-
-				{/* Right Section: Actions & Profile */}
-				<div className="ml-auto flex items-center gap-6">
+				<div className="ml-auto flex items-center gap-6" ref={actionsRef}>
 					<button
 						type="button"
-						onClick={() => navigate("/messages")}
+						onClick={openMessagesPopup}
 						className="relative text-black transition hover:opacity-70"
 						aria-label="Messages"
 					>
 						<MessageSquare size={22} />
 						{unreadCount > 0 && (
-							<span className="absolute -right-2 -top-2 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white animate-pulse">
+							<span className="absolute -right-2 -top-2 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white">
 								{unreadCount > 99 ? "99+" : unreadCount}
 							</span>
 						)}
 					</button>
+					{isMessagesOpen && (
+						<div className="absolute right-44 top-14 z-50 w-80 rounded-2xl border border-gray-200 bg-white shadow-xl">
+							<div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+								<p className="text-sm font-bold text-gray-900">
+									Recent Messages
+								</p>
+							</div>
+							<div className="max-h-80 overflow-y-auto">
+								{recentConversations.length ? (
+									recentConversations.map((conversation) => {
+										const me = Number(user?.id);
+										const isBuyer = Number(conversation?.buyerId) === me;
+										const participant = isBuyer
+											? conversation?.seller
+											: conversation?.buyer;
+										return (
+											<button
+												key={conversation?.id}
+												type="button"
+												onClick={onMessagesPageClick}
+												className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50"
+											>
+												<p className="text-sm font-semibold text-gray-900">
+													{participant?.name || "User"}
+												</p>
+												<p className="line-clamp-1 text-xs text-gray-500">
+													{conversation?.lastMessage?.text || "No messages yet"}
+												</p>
+											</button>
+										);
+									})
+								) : (
+									<p className="px-4 py-6 text-sm text-gray-500">
+										No recent messages
+									</p>
+								)}
+							</div>
+							<div className="p-3">
+								<button
+									type="button"
+									onClick={onMessagesPageClick}
+									className="w-full rounded-xl bg-black px-3 py-2 text-sm font-semibold text-white"
+								>
+									View All Messsages
+								</button>
+							</div>
+						</div>
+					)}
 
 					<button
 						type="button"
+						onClick={openAlertsPopup}
 						className="text-black transition hover:opacity-70"
 						aria-label="Notifications"
 					>
 						<Bell size={22} />
 					</button>
+					{isAlertsOpen && (
+						<div className="absolute right-28 top-14 z-50 w-80 rounded-2xl border border-gray-200 bg-white shadow-xl">
+							<div className="border-b border-gray-100 px-4 py-3">
+								<p className="text-sm font-bold text-gray-900">Latest Alerts</p>
+							</div>
+							<div className="max-h-80 overflow-y-auto">
+								{recentAlerts.length ? (
+									recentAlerts.map((alertItem) => (
+										<button
+											key={alertItem?.id || alertItem?.productId}
+											type="button"
+											onClick={() =>
+												navigate(
+													`/listing/${alertItem?.productId || alertItem?.id}`,
+												)
+											}
+											className="w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50"
+										>
+											<p className="line-clamp-1 text-sm font-semibold text-gray-900">
+												{alertItem?.title || "New listing"}
+											</p>
+											<p className="line-clamp-1 text-xs text-gray-500">
+												{alertItem?.location?.name ||
+													alertItem?.location ||
+													"Recently updated"}
+											</p>
+										</button>
+									))
+								) : (
+									<p className="px-4 py-6 text-sm text-gray-500">
+										No alerts available
+									</p>
+								)}
+							</div>
+						</div>
+					)}
 
 					<button
 						type="button"
@@ -425,7 +660,6 @@ export default function Navbar({ search = "", onSearchChange }) {
 					>
 						Businesses
 					</button>
-
 					<button
 						type="button"
 						onClick={() => navigate("/post-ad")}
@@ -433,18 +667,36 @@ export default function Navbar({ search = "", onSearchChange }) {
 					>
 						START LISTING
 					</button>
-
-					<Link
-						to="/profile"
-						className="h-10 w-10 overflow-hidden rounded-full border border-gray-200 bg-gray-50 flex items-center justify-center transition-all hover:border-[#FFD600] group"
-						aria-label="Open profile"
+					<button
+						type="button"
+						onClick={onProfileAvatarClick}
+						className="group flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-gray-50 transition-all hover:border-[#FFD600]"
+						aria-label="Open profile menu"
 					>
 						<img
 							src={user?.avatar || "https://placehold.co/80x80?text=U"}
 							alt={user?.name || "User avatar"}
 							className="h-full w-full object-cover group-hover:opacity-90"
 						/>
-					</Link>
+					</button>
+					{isProfileMenuOpen && (
+						<div className="absolute right-0 top-14 z-50 w-40 rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl">
+							<button
+								type="button"
+								onClick={onProfileDashboardClick}
+								className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-gray-800 hover:bg-gray-50"
+							>
+								Dashboard
+							</button>
+							<button
+								type="button"
+								onClick={onProfileLogoutClick}
+								className="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-600 hover:bg-red-50"
+							>
+								Logout
+							</button>
+						</div>
+					)}
 				</div>
 			</div>
 		</header>

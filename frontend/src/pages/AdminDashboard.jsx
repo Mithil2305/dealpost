@@ -2,6 +2,7 @@ import {
 	Ban,
 	Bell,
 	CheckCircle2,
+	Eye,
 	LoaderCircle,
 	Pencil,
 	Plus,
@@ -17,6 +18,12 @@ import api from "../api/axios";
 import AdminSidebar from "../components/AdminSidebar";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
+import {
+	createAdSlot,
+	getAdSlots,
+	removeAdSlot,
+	updateAdSlot,
+} from "../utils/adSlots";
 
 const REPORT_PAGE_SIZE = 8;
 const USERS_PAGE_SIZE = 10;
@@ -30,7 +37,7 @@ const formatDate = (value) => {
 };
 
 export default function AdminDashboard() {
-	const { user } = useAuth();
+	const { user, setCurrentUser } = useAuth();
 
 	const [activeSection, setActiveSection] = useState("dashboard");
 	const [actionKey, setActionKey] = useState("");
@@ -67,6 +74,21 @@ export default function AdminDashboard() {
 	const [editingCategoryName, setEditingCategoryName] = useState("");
 	const [editingCategoryIcon, setEditingCategoryIcon] = useState("");
 	const [editingCategoryColor, setEditingCategoryColor] = useState("");
+
+	const [adminProfileForm, setAdminProfileForm] = useState({
+		name: user?.name || "",
+		phone: user?.phone || "",
+		location: user?.location || "",
+	});
+	const [adSlots, setAdSlots] = useState([]);
+	const [adForm, setAdForm] = useState({
+		title: "",
+		description: "",
+		imageUrl: "",
+		targetUrl: "",
+		isActive: true,
+	});
+	const [editingAdId, setEditingAdId] = useState(null);
 
 	const fetchStats = useCallback(async () => {
 		try {
@@ -185,6 +207,18 @@ export default function AdminDashboard() {
 	useEffect(() => {
 		setListingPage(1);
 	}, [listingSearch]);
+
+	useEffect(() => {
+		setAdminProfileForm({
+			name: user?.name || "",
+			phone: user?.phone || "",
+			location: user?.location || "",
+		});
+	}, [user]);
+
+	useEffect(() => {
+		setAdSlots(getAdSlots());
+	}, []);
 
 	const filteredReports = useMemo(() => {
 		const query = reportSearch.trim().toLowerCase();
@@ -399,6 +433,86 @@ export default function AdminDashboard() {
 				error?.response?.data?.message || "Could not delete category",
 			);
 		}
+	};
+
+	const saveAdminProfile = async (event) => {
+		event.preventDefault();
+		if (!adminProfileForm.name.trim()) {
+			toast.error("Name is required");
+			return;
+		}
+
+		try {
+			await runAction("save-admin-profile", async () => {
+				const { data } = await api.put("/users/me", adminProfileForm);
+				setCurrentUser(data?.user || user);
+			});
+			toast.success("Profile updated");
+		} catch (error) {
+			toast.error(error?.response?.data?.message || "Unable to update profile");
+		}
+	};
+
+	const resetAdForm = () => {
+		setAdForm({
+			title: "",
+			description: "",
+			imageUrl: "",
+			targetUrl: "",
+			isActive: true,
+		});
+		setEditingAdId(null);
+	};
+
+	const saveAdSlot = async (event) => {
+		event.preventDefault();
+		if (adForm.title.trim().length < 3) {
+			toast.error("Ad title must be at least 3 characters");
+			return;
+		}
+
+		if (!adForm.imageUrl.trim()) {
+			toast.error("Ad image URL is required");
+			return;
+		}
+
+		try {
+			if (editingAdId) {
+				updateAdSlot(editingAdId, adForm);
+				toast.success("Ad updated");
+			} else {
+				createAdSlot(adForm);
+				toast.success("Ad created");
+			}
+
+			setAdSlots(getAdSlots());
+			resetAdForm();
+		} catch {
+			toast.error("Unable to save ad");
+		}
+	};
+
+	const startAdEdit = (slot) => {
+		setEditingAdId(slot?.id || null);
+		setAdForm({
+			title: slot?.title || "",
+			description: slot?.description || "",
+			imageUrl: slot?.imageUrl || "",
+			targetUrl: slot?.targetUrl || "",
+			isActive: Boolean(slot?.isActive),
+		});
+	};
+
+	const deleteAdSlot = (id) => {
+		removeAdSlot(id);
+		setAdSlots(getAdSlots());
+		toast.success("Ad removed");
+	};
+
+	const toggleAdSlotVisibility = (slot) => {
+		if (!slot?.id) return;
+		updateAdSlot(slot.id, { isActive: !slot.isActive });
+		setAdSlots(getAdSlots());
 	};
 
 	const reportPages = Math.max(Math.ceil(reportsTotal / REPORT_PAGE_SIZE), 1);
@@ -1129,13 +1243,203 @@ export default function AdminDashboard() {
 					)}
 
 					{activeSection === "settings" && (
-						<section className="rounded-3xl border border-gray-200 bg-white p-6">
-							<h2 className="text-2xl font-display font-bold text-gray-900">
-								Settings
-							</h2>
-							<p className="mt-2 text-sm text-gray-500">
-								Core admin settings and policies can be configured here next.
-							</p>
+						<section className="grid gap-6 lg:grid-cols-2">
+							<article className="rounded-3xl border border-gray-200 bg-white p-6">
+								<h2 className="text-2xl font-display font-bold text-gray-900">
+									Profile Settings
+								</h2>
+								<p className="mt-2 text-sm text-gray-500">
+									This mirrors profile page content directly in admin settings.
+								</p>
+								<form onSubmit={saveAdminProfile} className="mt-5 space-y-3">
+									<input
+										value={adminProfileForm.name}
+										onChange={(event) =>
+											setAdminProfileForm((prev) => ({
+												...prev,
+												name: event.target.value,
+											}))
+										}
+										placeholder="Name"
+										className="h-11 w-full rounded-xl border border-gray-200 px-3"
+									/>
+									<input
+										value={adminProfileForm.phone}
+										onChange={(event) =>
+											setAdminProfileForm((prev) => ({
+												...prev,
+												phone: event.target.value,
+											}))
+										}
+										placeholder="Phone"
+										className="h-11 w-full rounded-xl border border-gray-200 px-3"
+									/>
+									<input
+										value={adminProfileForm.location}
+										onChange={(event) =>
+											setAdminProfileForm((prev) => ({
+												...prev,
+												location: event.target.value,
+											}))
+										}
+										placeholder="Location"
+										className="h-11 w-full rounded-xl border border-gray-200 px-3"
+									/>
+									<button
+										type="submit"
+										disabled={actionKey === "save-admin-profile"}
+										className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+									>
+										{actionKey === "save-admin-profile"
+											? "Saving..."
+											: "Save Profile"}
+									</button>
+								</form>
+							</article>
+
+							<article className="rounded-3xl border border-gray-200 bg-white p-6">
+								<h2 className="text-2xl font-display font-bold text-gray-900">
+									Ad Container CRUD
+								</h2>
+								<p className="mt-2 text-sm text-gray-500">
+									Manage ads displayed in the side sponsored container.
+								</p>
+								<form onSubmit={saveAdSlot} className="mt-5 space-y-3">
+									<input
+										value={adForm.title}
+										onChange={(event) =>
+											setAdForm((prev) => ({
+												...prev,
+												title: event.target.value,
+											}))
+										}
+										placeholder="Ad title"
+										className="h-11 w-full rounded-xl border border-gray-200 px-3"
+									/>
+									<input
+										value={adForm.description}
+										onChange={(event) =>
+											setAdForm((prev) => ({
+												...prev,
+												description: event.target.value,
+											}))
+										}
+										placeholder="Ad description"
+										className="h-11 w-full rounded-xl border border-gray-200 px-3"
+									/>
+									<input
+										value={adForm.imageUrl}
+										onChange={(event) =>
+											setAdForm((prev) => ({
+												...prev,
+												imageUrl: event.target.value,
+											}))
+										}
+										placeholder="Image URL"
+										className="h-11 w-full rounded-xl border border-gray-200 px-3"
+									/>
+									<input
+										value={adForm.targetUrl}
+										onChange={(event) =>
+											setAdForm((prev) => ({
+												...prev,
+												targetUrl: event.target.value,
+											}))
+										}
+										placeholder="Target URL (e.g. /explore or https://...)"
+										className="h-11 w-full rounded-xl border border-gray-200 px-3"
+									/>
+									<label className="inline-flex items-center gap-2 text-sm text-gray-700">
+										<input
+											type="checkbox"
+											checked={adForm.isActive}
+											onChange={(event) =>
+												setAdForm((prev) => ({
+													...prev,
+													isActive: event.target.checked,
+												}))
+											}
+										/>
+										Active in side rail
+									</label>
+									<div className="flex gap-2">
+										<button
+											type="submit"
+											className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
+										>
+											{editingAdId ? "Update Ad" : "Create Ad"}
+										</button>
+										{editingAdId ? (
+											<button
+												type="button"
+												onClick={resetAdForm}
+												className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700"
+											>
+												Cancel
+											</button>
+										) : null}
+									</div>
+								</form>
+
+								<div className="mt-5 space-y-2">
+									{adSlots.length ? (
+										adSlots.map((slot) => (
+											<div
+												key={slot.id}
+												className="flex items-center gap-3 rounded-2xl border border-gray-200 p-2.5"
+											>
+												<img
+													src={slot.imageUrl}
+													alt={slot.title}
+													className="h-12 w-12 rounded-xl object-cover"
+												/>
+												<div className="min-w-0 flex-1">
+													<p className="truncate text-sm font-semibold text-gray-900">
+														{slot.title}
+													</p>
+													<p className="truncate text-xs text-gray-500">
+														{slot.targetUrl}
+													</p>
+												</div>
+												<span
+													className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+														slot.isActive
+															? "bg-green-50 text-green-700"
+															: "bg-gray-100 text-gray-600"
+													}`}
+												>
+													{slot.isActive ? "Active" : "Inactive"}
+												</span>
+												<button
+													type="button"
+													onClick={() => startAdEdit(slot)}
+													className="grid h-8 w-8 place-items-center rounded-full border border-gray-200 bg-white text-gray-700"
+												>
+													<Pencil size={12} />
+												</button>
+												<button
+													type="button"
+													onClick={() => toggleAdSlotVisibility(slot)}
+													className="grid h-8 w-8 place-items-center rounded-full border border-gray-200 bg-white text-gray-700"
+												>
+													<Eye size={12} />
+												</button>
+												<button
+													type="button"
+													onClick={() => deleteAdSlot(slot.id)}
+													className="grid h-8 w-8 place-items-center rounded-full border border-red-200 bg-red-50 text-red-600"
+												>
+													<Trash2 size={12} />
+												</button>
+											</div>
+										))
+									) : (
+										<p className="text-sm text-gray-500">
+											No ad slots created yet.
+										</p>
+									)}
+								</div>
+							</article>
 						</section>
 					)}
 				</main>
