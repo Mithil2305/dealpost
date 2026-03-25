@@ -7,7 +7,8 @@ import {
 	Search,
 	X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { getUnreadConversationCount } from "../utils/messageNotifications";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useAuth } from "../context/useAuth";
@@ -63,6 +64,7 @@ function BrandLogo() {
 export default function Navbar({ search = "", onSearchChange }) {
 	const { user, setCurrentUser, isAuthenticated } = useAuth();
 	const navigate = useNavigate();
+	const [unreadCount, setUnreadCount] = useState(0);
 	const initialLocation =
 		localStorage.getItem("selectedLocation") ||
 		user?.location ||
@@ -146,6 +148,48 @@ export default function Navbar({ search = "", onSearchChange }) {
 		document.addEventListener("mousedown", onClickOutside);
 		return () => document.removeEventListener("mousedown", onClickOutside);
 	}, []);
+
+	const refreshUnreadCount = useCallback(async () => {
+		if (!isAuthenticated || !user?.id) {
+			setUnreadCount(0);
+			return;
+		}
+
+		try {
+			const { data } = await api.get("/conversations");
+			const rows = Array.isArray(data?.conversations) ? data.conversations : [];
+			setUnreadCount(getUnreadConversationCount(rows, user.id));
+		} catch {
+			// Ignore unread badge refresh failures.
+		}
+	}, [isAuthenticated, user?.id]);
+
+	useEffect(() => {
+		if (!isAuthenticated || !user?.id) {
+			setUnreadCount(0);
+			return;
+		}
+
+		refreshUnreadCount();
+
+		const intervalId = window.setInterval(refreshUnreadCount, 7000);
+		const onSeenUpdated = () => {
+			refreshUnreadCount();
+		};
+
+		window.addEventListener(
+			"dealpost:conversation-seen-updated",
+			onSeenUpdated,
+		);
+
+		return () => {
+			window.clearInterval(intervalId);
+			window.removeEventListener(
+				"dealpost:conversation-seen-updated",
+				onSeenUpdated,
+			);
+		};
+	}, [isAuthenticated, refreshUnreadCount, user?.id]);
 
 	const persistLocation = async () => {
 		const next = locationInput.trim();
@@ -355,10 +399,15 @@ export default function Navbar({ search = "", onSearchChange }) {
 					<button
 						type="button"
 						onClick={() => navigate("/messages")}
-						className="text-black transition hover:opacity-70"
+						className="relative text-black transition hover:opacity-70"
 						aria-label="Messages"
 					>
 						<MessageSquare size={22} />
+						{unreadCount > 0 && (
+							<span className="absolute -right-2 -top-2 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white animate-pulse">
+								{unreadCount > 99 ? "99+" : unreadCount}
+							</span>
+						)}
 					</button>
 
 					<button

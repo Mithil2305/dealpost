@@ -1,17 +1,19 @@
 import {
 	ChevronLeft,
 	EllipsisVertical,
+	LoaderCircle,
 	Phone,
 	Plus,
 	Search,
 	Send,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Link } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/useAuth";
+import { markConversationSeen } from "../utils/messageNotifications";
 
 import Navbar from "../components/Navbar";
 
@@ -22,8 +24,26 @@ const formatTime = (value) => {
 	return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
+const formatPrice = (value) => {
+	const numeric = Number(value);
+	if (!Number.isFinite(numeric)) return "";
+	return new Intl.NumberFormat("en-US", {
+		style: "currency",
+		currency: "USD",
+		maximumFractionDigits: 0,
+	}).format(numeric);
+};
+
+const getListingImage = (listing) => {
+	if (!listing) return "";
+	return (
+		listing?.image || listing?.images?.[0]?.url || listing?.images?.[0] || ""
+	);
+};
+
 export default function Messages() {
 	const { user } = useAuth();
+	const location = useLocation();
 	const [conversations, setConversations] = useState([]);
 	const [messages, setMessages] = useState([]);
 	const [loadingConversations, setLoadingConversations] = useState(true);
@@ -32,52 +52,144 @@ export default function Messages() {
 	const [activeConversationId, setActiveConversationId] = useState(null);
 	const [search, setSearch] = useState("");
 	const [text, setText] = useState("");
+	const [animatedMessageIds, setAnimatedMessageIds] = useState([]);
+	const [initiatedListing, setInitiatedListing] = useState(null);
+	const messagesEndRef = useRef(null);
+	const initiatedConversationIdRef = useRef(null);
 
 	// For mobile responsiveness: toggles between list view and chat view
 	const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
 	useEffect(() => {
-		const fetchConversations = async () => {
+		const requestedConversationId = Number(location.state?.conversationId);
+		if (
+			Number.isFinite(requestedConversationId) &&
+			requestedConversationId > 0
+		) {
+			initiatedConversationIdRef.current = requestedConversationId;
+			setActiveConversationId(requestedConversationId);
+			setShowChatOnMobile(true);
+		}
+
+		if (location.state?.listing) {
+			setInitiatedListing(location.state.listing);
+		}
+	}, [location.state]);
+
+	useEffect(() => {
+		const fetchConversations = async (showLoading = true) => {
 			try {
-				setLoadingConversations(true);
+				if (showLoading) {
+					setLoadingConversations(true);
+				}
 				const { data } = await api.get("/conversations");
 				const rows = Array.isArray(data?.conversations)
 					? data.conversations
 					: [];
 				setConversations(rows);
-				setActiveConversationId((prev) => prev || rows[0]?.id || null);
+				setActiveConversationId((prev) => {
+					if (prev) return prev;
+					const requestedId = initiatedConversationIdRef.current;
+					if (
+						requestedId &&
+						rows.some((row) => Number(row.id) === Number(requestedId))
+					) {
+						return requestedId;
+					}
+					return rows[0]?.id || null;
+				});
 			} catch {
 				toast.error("Unable to load conversations");
 			} finally {
-				setLoadingConversations(false);
+				if (showLoading) {
+					setLoadingConversations(false);
+				}
 			}
 		};
 
-		fetchConversations();
+		fetchConversations(true);
+
+		const intervalId = window.setInterval(() => {
+			fetchConversations(false);
+		}, 9000);
+
+		return () => {
+			window.clearInterval(intervalId);
+		};
+	}, []);
+
+	const trackAnimatedMessage = useCallback((messageKey) => {
+		if (!messageKey) return;
+		setAnimatedMessageIds((prev) => [...prev, messageKey]);
+		window.setTimeout(() => {
+			setAnimatedMessageIds((prev) => prev.filter((id) => id !== messageKey));
+		}, 450);
 	}, []);
 
 	useEffect(() => {
-		const fetchMessages = async () => {
+		const fetchMessages = async (showLoading = true, animateNew = false) => {
 			if (!activeConversationId) {
 				setMessages([]);
 				return;
 			}
 
 			try {
-				setLoadingMessages(true);
+				if (showLoading) {
+					setLoadingMessages(true);
+				}
 				const { data } = await api.get(
 					`/conversations/${activeConversationId}/messages`,
 				);
-				setMessages(Array.isArray(data?.messages) ? data.messages : []);
+				const nextMessages = Array.isArray(data?.messages) ? data.messages : [];
+
+				setMessages((prev) => {
+					if (animateNew && prev.length) {
+						const previousKeys = new Set(
+							prev.map((msg) => String(msg.id || msg._id)),
+						);
+						nextMessages.forEach((msg) => {
+							const key = String(msg.id || msg._id);
+							if (!previousKeys.has(key)) {
+								trackAnimatedMessage(key);
+							}
+						});
+					}
+
+					return nextMessages;
+				});
+
+				const latestMessage = nextMessages[nextMessages.length - 1];
+				if (latestMessage?.createdAt) {
+					markConversationSeen(activeConversationId, latestMessage.createdAt);
+				}
 			} catch {
-				toast.error("Unable to load messages");
+				if (showLoading) {
+					toast.error("Unable to load messages");
+				}
 			} finally {
-				setLoadingMessages(false);
+				if (showLoading) {
+					setLoadingMessages(false);
+				}
 			}
 		};
 
-		fetchMessages();
-	}, [activeConversationId]);
+		fetchMessages(true, false);
+
+		const intervalId = window.setInterval(() => {
+			fetchMessages(false, true);
+		}, 4000);
+
+		return () => {
+			window.clearInterval(intervalId);
+		};
+	}, [activeConversationId, trackAnimatedMessage]);
+
+	useEffect(() => {
+		messagesEndRef.current?.scrollIntoView({
+			behavior: "smooth",
+			block: "end",
+		});
+	}, [messages]);
 
 	const normalizedConversations = useMemo(() => {
 		const myId = Number(user?.id);
@@ -114,15 +226,42 @@ export default function Messages() {
 		(conversation) => conversation.id === activeConversationId,
 	);
 
+	const activeListing =
+		activeConversation?.listing ||
+		(Number(activeConversationId) === Number(initiatedConversationIdRef.current)
+			? initiatedListing
+			: null);
+
 	const handleSelectConversation = (id) => {
 		setActiveConversationId(id);
 		setShowChatOnMobile(true);
+		if (Number(id) !== Number(initiatedConversationIdRef.current)) {
+			setInitiatedListing(null);
+		}
+		const selectedConversation = conversations.find(
+			(conversation) => conversation.id === id,
+		);
+		const seenAt = selectedConversation?.lastMessage?.createdAt || new Date();
+		markConversationSeen(id, seenAt);
 	};
 
 	const handleSendMessage = async (e) => {
 		e.preventDefault();
 		const value = text.trim();
 		if (!value || !activeConversationId) return;
+
+		const optimisticId = `temp-${Date.now()}`;
+		const optimisticMessage = {
+			id: optimisticId,
+			text: value,
+			senderId: user?.id,
+			createdAt: new Date().toISOString(),
+			pending: true,
+		};
+
+		setMessages((prev) => [...prev, optimisticMessage]);
+		trackAnimatedMessage(optimisticId);
+		setText("");
 
 		try {
 			setSending(true);
@@ -133,7 +272,9 @@ export default function Messages() {
 
 			const nextMessage = data?.message;
 			if (nextMessage) {
-				setMessages((prev) => [...prev, nextMessage]);
+				setMessages((prev) =>
+					prev.map((msg) => (msg.id === optimisticId ? nextMessage : msg)),
+				);
 				setConversations((prev) =>
 					prev.map((conversation) =>
 						conversation.id === activeConversationId
@@ -145,10 +286,11 @@ export default function Messages() {
 							: conversation,
 					),
 				);
+				markConversationSeen(activeConversationId, nextMessage.createdAt);
 			}
-
-			setText("");
 		} catch {
+			setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId));
+			setText(value);
 			toast.error("Could not send message");
 		} finally {
 			setSending(false);
@@ -292,6 +434,41 @@ export default function Messages() {
 								</span>
 							</div>
 
+							{activeListing && (
+								<div className="mx-auto w-full max-w-[520px] rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+									<div className="flex items-center gap-3">
+										<img
+											src={
+												getListingImage(activeListing) ||
+												"https://placehold.co/120x90?text=Deal.Post"
+											}
+											alt={activeListing?.title || "Listing"}
+											className="h-16 w-20 rounded-lg object-cover bg-gray-100"
+										/>
+										<div className="min-w-0">
+											<p className="text-[11px] font-bold uppercase tracking-wider text-[#999999]">
+												Product Context
+											</p>
+											<p className="truncate text-sm font-semibold text-black">
+												{activeListing?.title || "Selected Listing"}
+											</p>
+											<div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#777777]">
+												{formatPrice(activeListing?.price) && (
+													<span className="font-semibold text-[#5C4D00]">
+														{formatPrice(activeListing?.price)}
+													</span>
+												)}
+												{activeListing?.location && (
+													<span className="truncate">
+														{activeListing.location}
+													</span>
+												)}
+											</div>
+										</div>
+									</div>
+								</div>
+							)}
+
 							{loadingMessages ? (
 								<div className="text-center text-sm text-[#888888]">
 									Loading messages...
@@ -299,10 +476,12 @@ export default function Messages() {
 							) : messages.length ? (
 								messages.map((msg) => {
 									const isMe = Number(msg.senderId) === Number(user?.id);
+									const messageKey = String(msg.id || msg._id);
+									const shouldAnimate = animatedMessageIds.includes(messageKey);
 
 									return (
 										<div
-											key={msg.id || msg._id}
+											key={messageKey}
 											className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
 										>
 											<div
@@ -310,7 +489,7 @@ export default function Messages() {
 													isMe
 														? "bg-[#FFD600] text-black rounded-[24px] rounded-tr-[8px]"
 														: "bg-[#F1F1F1] text-black rounded-[24px] rounded-tl-[8px]"
-												}`}
+												} ${shouldAnimate ? (isMe ? "message-pop-outgoing" : "message-pop-incoming") : ""} ${msg.pending ? "opacity-80" : ""}`}
 											>
 												<p className="text-[0.95rem] leading-relaxed">
 													{msg.text}
@@ -318,7 +497,7 @@ export default function Messages() {
 											</div>
 
 											<span className="text-[0.7rem] font-bold text-[#A3A3A3] mt-2 px-1">
-												{formatTime(msg.createdAt)}
+												{msg.pending ? "Sending..." : formatTime(msg.createdAt)}
 											</span>
 										</div>
 									);
@@ -328,6 +507,7 @@ export default function Messages() {
 									No messages yet. Say hello.
 								</div>
 							)}
+							<div ref={messagesEndRef} />
 						</div>
 
 						{/* Input Area */}
@@ -358,7 +538,11 @@ export default function Messages() {
 									disabled={!activeConversationId || sending}
 									className="grid h-12 w-12 md:h-14 md:w-14 flex-shrink-0 place-items-center rounded-full bg-[#FFD600] text-black hover:bg-[#E6C100] transition active:scale-95 shadow-sm"
 								>
-									<Send size={20} className="ml-1" />
+									{sending ? (
+										<LoaderCircle size={20} className="animate-spin" />
+									) : (
+										<Send size={20} className="ml-1" />
+									)}
 								</button>
 							</form>
 						</div>

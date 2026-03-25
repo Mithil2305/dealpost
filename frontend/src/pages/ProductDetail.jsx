@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
@@ -23,6 +23,7 @@ const formatPrice = (price) =>
 
 export default function ProductDetail() {
 	const { id } = useParams();
+	const navigate = useNavigate();
 	const { isAuthenticated } = useAuth();
 	const [listing, setListing] = useState(null);
 	const [activeTab, setActiveTab] = useState("description");
@@ -85,6 +86,12 @@ export default function ProductDetail() {
 	}, [listing]);
 
 	const sendMessage = async () => {
+		if (!isAuthenticated) {
+			toast.error("Please log in to message sellers");
+			navigate("/login");
+			return;
+		}
+
 		const listingId = Number(listing?._id || listing?.id);
 		if (!Number.isFinite(listingId) || listingId <= 0) {
 			toast.error(
@@ -98,18 +105,32 @@ export default function ProductDetail() {
 			const sellerId = Number(
 				listing?.seller?._id || listing?.seller?.id || listing?.sellerId,
 			);
-
-			const payload = {
-				listingId,
-				text: "Hi, I am interested in this listing.",
-			};
-
-			if (Number.isFinite(sellerId) && sellerId > 0) {
-				payload.sellerId = sellerId;
+			if (!Number.isFinite(sellerId) || sellerId <= 0) {
+				toast.error("Seller information is unavailable for this listing.");
+				return;
 			}
 
-			await api.post("/messages", payload);
-			toast.success("Message request sent to seller");
+			const { data } = await api.post("/conversations", {
+				recipientId: sellerId,
+				listingId,
+			});
+
+			navigate("/messages", {
+				state: {
+					conversationId: data?.conversation?.id,
+					listing: {
+						id: listingId,
+						title: listing?.title,
+						price: listing?.price,
+						location: listing?.location?.name || listing?.location || "",
+						image:
+							listing?.images?.[0]?.url ||
+							listing?.images?.[0] ||
+							listing?.image ||
+							"",
+					},
+				},
+			});
 		} catch (error) {
 			const status = error?.response?.status;
 			if (status === 401) {
@@ -117,7 +138,8 @@ export default function ProductDetail() {
 				return;
 			}
 			toast.error(
-				error?.response?.data?.message || "Could not contact seller right now",
+				error?.response?.data?.message ||
+					"Could not open conversation right now",
 			);
 		} finally {
 			setSendingMessage(false);
@@ -309,7 +331,7 @@ export default function ProductDetail() {
 											className="btn-secondary h-12 w-full rounded-xl text-sm disabled:opacity-60"
 										>
 											<Sparkles size={16} className="mr-2" />
-											{sendingMessage ? "Sending..." : "Message Seller"}
+											{sendingMessage ? "Opening chat..." : "Message Seller"}
 										</button>
 										<button
 											type="button"

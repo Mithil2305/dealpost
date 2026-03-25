@@ -7,21 +7,26 @@ import {
 } from "lucide-react";
 
 const items = [
-	{ label: "Dashboard", icon: LayoutDashboard, active: true },
-	{ label: "Users", icon: Users },
-	{ label: "Ads", icon: Megaphone },
-	{ label: "Categories", icon: Tags },
-	{ label: "Settings", icon: Settings },
+	{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+	{ key: "users", label: "Users", icon: Users },
+	{ key: "ads", label: "Ads", icon: Megaphone },
+	{ key: "categories", label: "Categories", icon: Tags },
+	{ key: "reports", label: "Reports", icon: Tags },
+	{ key: "settings", label: "Settings", icon: Settings },
 ];
 
-export default function AdminSidebar({ admin }) {
+export default function AdminSidebar({
+	admin,
+	activeSection,
+	onSectionChange,
+}) {
 	return (
-		<aside className="flex h-full min-h-screen w-full max-w-[230px] flex-col border-r border-white/10 bg-[#141414] p-4 text-white">
+		<aside className="flex h-full min-h-screen w-full max-w-[250px] flex-col border-r border-gray-200 bg-white p-4 text-gray-900">
 			<div>
 				<h1 className="text-2xl font-display font-bold">
-					Deal. <span className="text-brand-yellow">Post</span>
+					Deal. <span className="text-[#C79A00]">Post</span>
 				</h1>
-				<p className="mt-1 text-[10px] uppercase tracking-[0.35em] text-white/40">
+				<p className="mt-1 text-[10px] uppercase tracking-[0.35em] text-gray-500">
 					Control Room
 				</p>
 			</div>
@@ -29,14 +34,16 @@ export default function AdminSidebar({ admin }) {
 			<nav className="mt-8 space-y-1.5">
 				{items.map((item) => {
 					const Icon = item.icon;
+					const isActive = activeSection === item.key;
 					return (
 						<button
-							key={item.label}
+							key={item.key}
 							type="button"
+							onClick={() => onSectionChange?.(item.key)}
 							className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
-								item.active
-									? "bg-brand-yellow font-semibold text-brand-dark"
-									: "text-white/70 hover:bg-white/10 hover:text-white"
+								isActive
+									? "bg-[#FFF5D1] font-semibold text-[#5C4D00]"
+									: "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
 							}`}
 						>
 							<Icon size={16} />
@@ -46,7 +53,7 @@ export default function AdminSidebar({ admin }) {
 				})}
 			</nav>
 
-			<div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-3">
+			<div className="mt-auto rounded-2xl border border-gray-200 bg-[#FAFAFA] p-3">
 				<div className="flex items-center gap-3">
 					<img
 						src={admin?.avatar || "https://placehold.co/80x80?text=A"}
@@ -57,7 +64,7 @@ export default function AdminSidebar({ admin }) {
 						<p className="text-sm font-semibold">
 							{admin?.name || "Admin User"}
 						</p>
-						<p className="text-[10px] uppercase tracking-[0.12em] text-brand-yellow">
+						<p className="text-[10px] uppercase tracking-[0.12em] text-[#C79A00]">
 							Super Admin
 						</p>
 					</div>

@@ -6,7 +6,8 @@
 	"scripts": {
 		"dev": "nodemon server.js",
 		"start": "node server.js",
-		"seed:categories": "node scripts/seedCategories.js"
+		"seed:categories": "node scripts/seedCategories.js",
+		"seed:admin": "node scripts/seedAdmin.js"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1014.0",
