@@ -24,6 +24,24 @@ const formatTime = (value) => {
 	return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
+const getMessageDateKey = (value) => {
+	if (!value) return "";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return "";
+	return [date.getFullYear(), date.getMonth() + 1, date.getDate()].join("-");
+};
+
+const formatDateLabel = (value) => {
+	if (!value) return "";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return "";
+	return date.toLocaleDateString("en-IN", {
+		day: "numeric",
+		month: "short",
+		year: "numeric",
+	});
+};
+
 const formatPrice = (value) => {
 	const numeric = Number(value);
 	if (!Number.isFinite(numeric)) return "";
@@ -474,31 +492,47 @@ export default function Messages() {
 									Loading messages...
 								</div>
 							) : messages.length ? (
-								messages.map((msg) => {
+								messages.map((msg, index) => {
 									const isMe = Number(msg.senderId) === Number(user?.id);
 									const messageKey = String(msg.id || msg._id);
 									const shouldAnimate = animatedMessageIds.includes(messageKey);
+									const currentDateKey = getMessageDateKey(msg.createdAt);
+									const previousDateKey = getMessageDateKey(
+										messages[index - 1]?.createdAt,
+									);
+									const showDateLabel =
+										currentDateKey && currentDateKey !== previousDateKey;
 
 									return (
-										<div
-											key={messageKey}
-											className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-										>
+										<div key={messageKey}>
+											{showDateLabel ? (
+												<div className="my-5 flex justify-center">
+													<span className="px-4 py-1.5 rounded-full bg-[#F1F1F1] text-[0.72rem] font-bold text-[#8D8D8D] uppercase tracking-wider">
+														{formatDateLabel(msg.createdAt)}
+													</span>
+												</div>
+											) : null}
 											<div
-												className={`max-w-[85%] md:max-w-[70%] p-4 ${
-													isMe
-														? "bg-[#FFD600] text-black rounded-[24px] rounded-tr-[8px]"
-														: "bg-[#F1F1F1] text-black rounded-[24px] rounded-tl-[8px]"
-												} ${shouldAnimate ? (isMe ? "message-pop-outgoing" : "message-pop-incoming") : ""} ${msg.pending ? "opacity-80" : ""}`}
+												className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
 											>
-												<p className="text-[0.95rem] leading-relaxed">
-													{msg.text}
-												</p>
-											</div>
+												<div
+													className={`max-w-[85%] md:max-w-[70%] p-4 ${
+														isMe
+															? "bg-[#FFD600] text-black rounded-[24px] rounded-tr-[8px]"
+															: "bg-[#F1F1F1] text-black rounded-[24px] rounded-tl-[8px]"
+													} ${shouldAnimate ? (isMe ? "message-pop-outgoing" : "message-pop-incoming") : ""} ${msg.pending ? "opacity-80" : ""}`}
+												>
+													<p className="text-[0.95rem] leading-relaxed">
+														{msg.text}
+													</p>
+												</div>
 
-											<span className="text-[0.7rem] font-bold text-[#A3A3A3] mt-2 px-1">
-												{msg.pending ? "Sending..." : formatTime(msg.createdAt)}
-											</span>
+												<span className="mt-2 px-1 text-[0.7rem] font-bold text-[#A3A3A3]">
+													{msg.pending
+														? "Sending..."
+														: formatTime(msg.createdAt)}
+												</span>
+											</div>
 										</div>
 									);
 								})
