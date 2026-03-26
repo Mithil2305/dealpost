@@ -13,6 +13,219 @@ import {
 } from "../utils/googleMaps";
 import { pickArray } from "../utils/api";
 
+const SPEC_TEMPLATES = [
+	{
+		match: "Electronics > Mobile Phones",
+		fields: [
+			"Brand",
+			"Model",
+			"Color",
+			"Storage",
+			"RAM",
+			"Battery Health",
+			"Screen Size",
+			"Condition",
+		],
+	},
+	{
+		match: "Electronics > Computers & Tech",
+		fields: [
+			"Brand",
+			"Model",
+			"Processor",
+			"RAM",
+			"Storage",
+			"Graphics",
+			"Display",
+			"Condition",
+		],
+	},
+	{
+		match: "Electronics > TV & Home Appliances",
+		fields: [
+			"Brand",
+			"Model",
+			"Type",
+			"Capacity",
+			"Power",
+			"Energy Rating",
+			"Age",
+			"Condition",
+		],
+	},
+	{
+		match: "Electronics > Audio-Visual (AV) Equipment",
+		fields: [
+			"Brand",
+			"Model",
+			"Type",
+			"Resolution/Output",
+			"Connectivity",
+			"Accessories Included",
+			"Usage",
+			"Condition",
+		],
+	},
+	{
+		match: "Fashion & Beauty",
+		fields: [
+			"Brand",
+			"Category",
+			"Size",
+			"Color",
+			"Material",
+			"Condition",
+			"Authenticity",
+		],
+	},
+	{
+		match: "Sports",
+		fields: [
+			"Brand",
+			"Type",
+			"Sport",
+			"Size",
+			"Material",
+			"Usage",
+			"Condition",
+		],
+	},
+	{
+		match: "Pet Supplies",
+		fields: [
+			"Category",
+			"Pet Type",
+			"Brand",
+			"Age/Stage",
+			"Quantity",
+			"Expiry",
+			"Condition",
+		],
+	},
+	{
+		match: "Food & Drinks",
+		fields: [
+			"Category",
+			"Brand/Outlet",
+			"Net Quantity",
+			"Package Type",
+			"Expiry Date",
+			"Delivery/Pickup",
+		],
+	},
+	{
+		match: "Health & Wellness",
+		fields: [
+			"Category",
+			"Brand",
+			"Usage",
+			"Package Size",
+			"Expiry Date",
+			"Condition",
+		],
+	},
+	{
+		match: "Vehicles",
+		fields: [
+			"Brand",
+			"Model",
+			"Year",
+			"Fuel Type",
+			"Transmission",
+			"Mileage",
+			"Ownership",
+			"Condition",
+		],
+	},
+	{
+		match: "Property",
+		fields: [
+			"Property Type",
+			"Size",
+			"Bedrooms",
+			"Bathrooms",
+			"Furnishing",
+			"Parking",
+			"Availability",
+		],
+	},
+	{
+		match: "Hospitals & Clinics",
+		fields: [
+			"Service Type",
+			"Specialization",
+			"Location",
+			"Consultation Type",
+			"Timings",
+			"Experience",
+		],
+	},
+	{
+		match: "Services",
+		fields: [
+			"Service Type",
+			"Coverage Area",
+			"Availability",
+			"Experience",
+			"Turnaround Time",
+			"Pricing Model",
+		],
+	},
+	{
+		match: "Funeral Services",
+		fields: [
+			"Service Type",
+			"Coverage Area",
+			"Availability",
+			"Response Time",
+			"Contact Person",
+		],
+	},
+	{
+		match: "Miscellaneous / Other (Extracted from middle/back)",
+		fields: [
+			"Category",
+			"Brand/Provider",
+			"Type",
+			"Size/Capacity",
+			"Usage",
+			"Condition",
+		],
+	},
+];
+
+function getCuratedSpecFields(parentCategory, subCategory) {
+	const path = [parentCategory, subCategory].filter(Boolean).join(" > ");
+	if (!path && !parentCategory) {
+		return [
+			"Brand/Provider",
+			"Model/Type",
+			"Color/Variant",
+			"Condition",
+			"Usage",
+			"Warranty",
+		];
+	}
+
+	const sorted = [...SPEC_TEMPLATES].sort(
+		(a, b) => b.match.length - a.match.length,
+	);
+	const matched = sorted.find((entry) => path.startsWith(entry.match));
+	if (matched) return matched.fields;
+
+	const parentMatched = sorted.find((entry) => entry.match === parentCategory);
+	if (parentMatched) return parentMatched.fields;
+
+	return [
+		"Brand/Provider",
+		"Model/Type",
+		"Color/Variant",
+		"Condition",
+		"Usage",
+		"Warranty",
+	];
+}
+
 export default function PostAd({ variant = "personal" }) {
 	const navigate = useNavigate();
 	const { user, setCurrentUser } = useAuth();
@@ -37,6 +250,7 @@ export default function PostAd({ variant = "personal" }) {
 	const [fallbackSuggestions, setFallbackSuggestions] = useState([]);
 	const [fallbackSearching, setFallbackSearching] = useState(false);
 	const autocompleteContainerRef = useRef(null);
+	const [curatedSpecs, setCuratedSpecs] = useState({});
 	const [form, setForm] = useState({
 		title: "",
 		gstOrMsme: "",
@@ -248,6 +462,21 @@ export default function PostAd({ variant = "personal" }) {
 		return Array.from(seen).sort((a, b) => a.localeCompare(b));
 	}, [categoryNames, form.parentCategory]);
 
+	const curatedSpecFields = useMemo(
+		() => getCuratedSpecFields(form.parentCategory, form.subCategory),
+		[form.parentCategory, form.subCategory],
+	);
+
+	useEffect(() => {
+		setCuratedSpecs((prev) => {
+			const next = {};
+			for (const field of curatedSpecFields) {
+				next[field] = prev[field] || "";
+			}
+			return next;
+		});
+	}, [curatedSpecFields]);
+
 	const onFileChange = (index, file) => {
 		if (!file) return;
 		setFiles((prev) => {
@@ -322,7 +551,11 @@ export default function PostAd({ variant = "personal" }) {
 			return toast.error("Please select a subcategory");
 		if (!form.price || Number(form.price) <= 0)
 			return toast.error("Please add a valid price");
-		if (!form.specifications.trim()) {
+		const hasCuratedSpecs = Object.values(curatedSpecs).some((value) =>
+			String(value || "").trim(),
+		);
+		const hasAdditionalSpecs = String(form.specifications || "").trim();
+		if (!hasCuratedSpecs && !hasAdditionalSpecs) {
 			return toast.error("Please add at least one specification");
 		}
 		if (!form.description.trim()) return toast.error("Description is required");
@@ -344,7 +577,13 @@ export default function PostAd({ variant = "personal" }) {
 		try {
 			setSubmitting(true);
 
-			const specsObject = Object.fromEntries(
+			const curatedSpecsObject = Object.fromEntries(
+				Object.entries(curatedSpecs)
+					.map(([key, value]) => [key, String(value || "").trim()])
+					.filter(([, value]) => Boolean(value)),
+			);
+
+			const customSpecsObject = Object.fromEntries(
 				form.specifications
 					.split(/\r?\n/)
 					.map((line) => line.trim())
@@ -356,6 +595,11 @@ export default function PostAd({ variant = "personal" }) {
 						return [key || `Spec ${index + 1}`, value || "N/A"];
 					}),
 			);
+
+			const specsObject = {
+				...curatedSpecsObject,
+				...customSpecsObject,
+			};
 
 			if (isBusinessFlow) {
 				const businessProfilePayload = {
@@ -604,6 +848,31 @@ export default function PostAd({ variant = "personal" }) {
 									placeholder="Tell the story behind this item..."
 								/>
 
+								<div className="rounded-2xl border border-[#E6D9A7] bg-[#FFF9E5] p-4">
+									<p className="text-xs font-bold uppercase tracking-[0.12em] text-[#8B7322]">
+										Curated Specifications
+									</p>
+									<p className="mt-1 text-xs text-[#7B6A26]">
+										Auto-suggested fields based on category. Fill what applies.
+									</p>
+									<div className="mt-3 grid gap-3 sm:grid-cols-2">
+										{curatedSpecFields.map((field) => (
+											<input
+												key={field}
+												value={curatedSpecs[field] || ""}
+												onChange={(event) =>
+													setCuratedSpecs((prev) => ({
+														...prev,
+														[field]: event.target.value,
+													}))
+												}
+												placeholder={field}
+												className="input-shell"
+											/>
+										))}
+									</div>
+								</div>
+
 								<textarea
 									value={form.specifications}
 									onChange={(event) =>
@@ -613,7 +882,7 @@ export default function PostAd({ variant = "personal" }) {
 										}))
 									}
 									className="min-h-28 w-full rounded-2xl border border-transparent bg-brand-bg p-4 outline-none ring-brand-yellow transition focus:border-brand-yellow focus:ring-2"
-									placeholder="Specifications (one per line):&#10;Brand: Apple&#10;Model: iPhone 14&#10;Storage: 128GB"
+									placeholder="Additional custom specs (optional, one per line):&#10;Battery Replaced: No&#10;Invoice Available: Yes"
 								/>
 
 								<textarea
@@ -732,7 +1001,7 @@ export default function PostAd({ variant = "personal" }) {
 									<Rocket size={14} className="text-brand-yellow" /> Deal.Plus
 									Boost
 								</span>
-								<span className="font-mono text-brand-yellow">+$14.99</span>
+								<span className="font-mono text-brand-yellow">+₹14.99</span>
 								<input
 									type="checkbox"
 									checked={form.premiumBoost}
@@ -747,9 +1016,8 @@ export default function PostAd({ variant = "personal" }) {
 						</article>
 					</section>
 				</form>
-
-				<Footer />
 			</main>
+			<Footer />
 		</div>
 	);
 }

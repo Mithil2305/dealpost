@@ -11,6 +11,7 @@ import configRoutes from "./routes/config.routes.js";
 import conversationRoutes from "./routes/conversation.routes.js";
 import listingRoutes from "./routes/listing.routes.js";
 import messageRoutes from "./routes/message.routes.js";
+import sponsoredAdRoutes from "./routes/sponsoredAd.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 
@@ -40,6 +41,7 @@ app.use("/api/conversations", conversationRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/businesses", businessRoutes);
+app.use("/api/sponsored-ads", sponsoredAdRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

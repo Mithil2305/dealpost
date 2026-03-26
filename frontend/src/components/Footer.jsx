@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Globe, Shield, MapPin } from "lucide-react";
 
 export default function Footer({ variant = "default" }) {
+	const year = new Date().getFullYear();
 	if (variant === "auth") {
 		return (
 			<footer className="w-full px-4 pb-2 pt-8 sm:px-6 lg:px-8 font-sans">
@@ -11,23 +12,29 @@ export default function Footer({ variant = "default" }) {
 						<span>Post</span>
 					</div>
 					<div className="flex flex-wrap items-center justify-center gap-6">
-						<a href="#" className="hover:text-black transition">
-							Terms of Service
-						</a>
-						<a href="#" className="hover:text-black transition">
+						<Link to="/about" className="hover:text-black transition">
+							About
+						</Link>
+						<Link
+							to="/legal/terms-and-conditions"
+							className="hover:text-black transition"
+						>
+							Terms & Conditions
+						</Link>
+						<Link
+							to="/legal/privacy-policy"
+							className="hover:text-black transition"
+						>
 							Privacy Policy
-						</a>
-						<a href="#" className="hover:text-black transition">
-							Cookie Settings
-						</a>
-						<a href="#" className="hover:text-black transition">
-							Support
-						</a>
-						<a href="#" className="hover:text-black transition">
-							Press
-						</a>
+						</Link>
+						<Link to="/help-center" className="hover:text-black transition">
+							Help Center
+						</Link>
+						<Link to="/contact" className="hover:text-black transition">
+							Contact
+						</Link>
 					</div>
-					<div>© 2024 Deal.Post. The Digital Gallery.</div>
+					<div>© {year} Deal.Post. The Digital Gallery.</div>
 				</div>
 			</footer>
 		);
@@ -48,27 +55,36 @@ export default function Footer({ variant = "default" }) {
 						</div>
 					</Link>
 					<p className="text-[#888888] text-[0.8rem]">
-						© 2024 Deal.Post. The Curated Exchange.
+						© {year} Deal.Post. The Curated Exchange.
 					</p>
 				</div>
 
 				{/* Links */}
 				<nav className="flex flex-wrap items-center justify-center gap-6 text-[0.85rem] font-medium text-[#A3A3A3]">
-					<a href="#" className="hover:text-white transition">
-						Privacy Policy
-					</a>
-					<a href="#" className="hover:text-white transition">
-						Terms of Service
-					</a>
-					<a href="#" className="hover:text-white transition">
+					<Link to="/about" className="hover:text-white transition">
+						About
+					</Link>
+					<Link to="/contact" className="hover:text-white transition">
+						Contact
+					</Link>
+					<Link to="/help-center" className="hover:text-white transition">
 						Help Center
-					</a>
-					<a href="#" className="hover:text-white transition">
-						Instagram
-					</a>
-					<a href="#" className="hover:text-white transition">
-						Twitter
-					</a>
+					</Link>
+					<Link to="/legal/disclaimer" className="hover:text-white transition">
+						Disclaimer
+					</Link>
+					<Link
+						to="/legal/privacy-policy"
+						className="hover:text-white transition"
+					>
+						Privacy Policy
+					</Link>
+					<Link
+						to="/legal/terms-and-conditions"
+						className="hover:text-white transition"
+					>
+						Terms & Conditions
+					</Link>
 				</nav>
 
 				{/* Badges / Options */}

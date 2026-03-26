@@ -13,6 +13,13 @@ import Profile from "./pages/Profile.jsx";
 import Messages from "./pages/Messages.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import UserDashboard from "./pages/UserDashboard.jsx";
+import About from "./pages/About.jsx";
+import Contact from "./pages/Contact.jsx";
+import Disclaimer from "./pages/Disclaimer.jsx";
+import HelpCenter from "./pages/HelpCenter.jsx";
+import PrivacyPolicy from "./pages/PrivacyPolicy.jsx";
+import TermsAndConditions from "./pages/TermsAndConditions.jsx";
+import CompareListings from "./pages/CompareListings.jsx";
 import { useAuth } from "./context/useAuth.jsx";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
@@ -65,6 +72,16 @@ function App() {
 				<Route path="/listing/:id" element={<ProductDetail />} />
 				<Route path="/explore" element={<Explore />} />
 				<Route path="/categories" element={<Categories />} />
+				<Route path="/compare" element={<CompareListings />} />
+				<Route path="/about" element={<About />} />
+				<Route path="/contact" element={<Contact />} />
+				<Route path="/help-center" element={<HelpCenter />} />
+				<Route path="/legal/disclaimer" element={<Disclaimer />} />
+				<Route path="/legal/privacy-policy" element={<PrivacyPolicy />} />
+				<Route
+					path="/legal/terms-and-conditions"
+					element={<TermsAndConditions />}
+				/>
 				<Route path="/business-listings" element={<BusinessListings />} />
 				<Route
 					path="/post-business-ad"

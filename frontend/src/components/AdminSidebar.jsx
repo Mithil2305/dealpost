@@ -4,12 +4,15 @@ import {
 	Settings,
 	Tags,
 	Users,
+	Bell,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const items = [
 	{ key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
 	{ key: "users", label: "Users", icon: Users },
-	{ key: "ads", label: "Ads", icon: Megaphone },
+	{ key: "ads", label: "Listings", icon: Megaphone },
+	{ key: "sponsored", label: "Sponsored", icon: Bell },
 	{ key: "categories", label: "Categories", icon: Tags },
 	{ key: "reports", label: "Reports", icon: Tags },
 	{ key: "settings", label: "Settings", icon: Settings },
@@ -20,15 +23,18 @@ export default function AdminSidebar({
 	activeSection,
 	onSectionChange,
 }) {
+	const navigate = useNavigate();
 	return (
 		<aside className="flex h-full min-h-screen w-full max-w-[250px] flex-col border-r border-gray-200 bg-white p-4 text-gray-900">
-			<div>
+			<div
+				onClick={() => {
+					navigate("/");
+				}}
+				className=" cursor-pointer"
+			>
 				<h1 className="text-2xl font-display font-bold">
-					Deal. <span className="text-[#C79A00]">Post</span>
+					Deal. <span className="text-brand-yellow	">Post</span>
 				</h1>
-				<p className="mt-1 text-[10px] uppercase tracking-[0.35em] text-gray-500">
-					Control Room
-				</p>
 			</div>
 
 			<nav className="mt-8 space-y-1.5">

@@ -1,6 +1,7 @@
 import {
 	Heart,
 	MapPin,
+	MessageSquareText,
 	Share2,
 	Sparkles,
 	Star,
@@ -13,11 +14,16 @@ import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/useAuth";
+import {
+	fetchMyLikedListingIds,
+	getListingLikedCount,
+	updateListingLikeStatus,
+} from "../utils/likes";
 
 const formatPrice = (price) =>
-	new Intl.NumberFormat("en-US", {
+	new Intl.NumberFormat("en-IN", {
 		style: "currency",
-		currency: "USD",
+		currency: "INR",
 		maximumFractionDigits: 0,
 	}).format(Number(price || 0));
 
@@ -32,6 +38,7 @@ export default function ProductDetail() {
 	const [sendingMessage, setSendingMessage] = useState(false);
 	const [isLiked, setIsLiked] = useState(false);
 	const [updatingLike, setUpdatingLike] = useState(false);
+	const [likedByCount, setLikedByCount] = useState(0);
 
 	useEffect(() => {
 		const fetchListing = async () => {
@@ -40,6 +47,8 @@ export default function ProductDetail() {
 				const { data } = await api.get(`/listings/${id}`);
 				const entry = data?.listing || data;
 				setListing(entry);
+				setLikedByCount(getListingLikedCount(entry));
+				setIsLiked(Boolean(entry?.isLiked));
 				setActiveImage(
 					entry?.images?.[0]?.url ||
 						entry?.image ||
@@ -63,13 +72,8 @@ export default function ProductDetail() {
 			}
 
 			try {
-				const { data } = await api.get("/listings/liked/my");
-				const likedRows = Array.isArray(data?.listings) ? data.listings : [];
-				setIsLiked(
-					likedRows.some(
-						(item) => Number(item?._id || item?.id) === Number(listing.id),
-					),
-				);
+				const likedIds = await fetchMyLikedListingIds();
+				setIsLiked(likedIds.includes(Number(listing.id)));
 			} catch {
 				setIsLiked(false);
 			}
@@ -150,22 +154,29 @@ export default function ProductDetail() {
 		if (!listing?.id) return;
 		if (!isAuthenticated) {
 			toast.error("Please log in to save products");
+			navigate("/login");
 			return;
 		}
 
-		const listingIdentifier = listing?.productId || listing?._id || listing?.id;
-
 		try {
 			setUpdatingLike(true);
-			if (isLiked) {
-				await api.delete(`/listings/${listingIdentifier}/like`);
-				setIsLiked(false);
-				toast.success("Removed from liked products");
-			} else {
-				await api.post(`/listings/${listingIdentifier}/like`);
-				setIsLiked(true);
-				toast.success("Added to liked products");
-			}
+			const next = await updateListingLikeStatus({ listing, isLiked });
+			setIsLiked(next.isLiked);
+			setLikedByCount(next.likedByCount);
+			setListing((prev) =>
+				prev
+					? {
+							...prev,
+							isLiked: next.isLiked,
+							likedByCount: next.likedByCount,
+						}
+					: prev,
+			);
+			toast.success(
+				next.isLiked
+					? "Added to liked products"
+					: "Removed from liked products",
+			);
 		} catch (error) {
 			toast.error(error?.response?.data?.message || "Unable to update like");
 		} finally {
@@ -241,9 +252,7 @@ export default function ProductDetail() {
 										<span className="rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold shadow-sm">
 											Verified
 										</span>
-										<span className="rounded-full bg-brand-yellow px-3 py-1 text-[11px] font-semibold text-brand-dark shadow-sm">
-											Featured
-										</span>
+
 										{listing?.productId ? (
 											<span className="rounded-full bg-black/85 px-3 py-1 text-[10px] font-semibold tracking-[0.08em] text-white">
 												{listing.productId}
@@ -276,13 +285,10 @@ export default function ProductDetail() {
 										<h1 className="text-3xl font-display font-bold leading-tight sm:text-4xl lg:text-5xl">
 											{listing?.title}
 										</h1>
-										<p className="mt-2 text-2xl font-display font-bold text-brand-yellow sm:text-3xl">
-											{listing?.subtitle || "Premium Listing"}
-										</p>
 									</div>
 
 									<div className="flex items-end gap-3 border-b border-brand-border pb-5">
-										<p className="font-mono text-3xl font-semibold text-brand-dark sm:text-4xl">
+										<p className="font-inter text-3xl font-semibold text-brand-dark sm:text-4xl">
 											{formatPrice(listing?.price)}
 										</p>
 										{listing?.originalPrice && (
@@ -295,7 +301,7 @@ export default function ProductDetail() {
 									<div className="grid gap-4 rounded-2xl bg-[#F8F8F8] p-4 sm:grid-cols-2">
 										<div>
 											<p className="text-[11px] tracking-[0.14em] text-brand-muted uppercase">
-												Neighborhood
+												Location
 											</p>
 											<div className="mt-1.5 flex items-center gap-2 text-sm font-medium">
 												<MapPin size={15} />{" "}
@@ -307,7 +313,7 @@ export default function ProductDetail() {
 
 										<div>
 											<p className="text-[11px] tracking-[0.14em] text-brand-muted uppercase">
-												The Curator
+												Seller
 											</p>
 											<div className="mt-1.5 flex items-center gap-2 text-sm">
 												<img
@@ -332,9 +338,9 @@ export default function ProductDetail() {
 											type="button"
 											disabled={sendingMessage}
 											onClick={sendMessage}
-											className="btn-secondary h-12 w-full rounded-xl text-sm disabled:opacity-60"
+											className="h-12 rounded-xl border border-brand-border bg-brand-dark px-4 text-sm font-semibold hover:bg-brand-dark/85 text-white disabled:opacity-60"
 										>
-											<Sparkles size={16} className="mr-2" />
+											<MessageSquareText size={16} className="mr-2 inline" />
 											{sendingMessage ? "Opening chat..." : "Message Seller"}
 										</button>
 										<button
@@ -358,22 +364,15 @@ export default function ProductDetail() {
 												className={isLiked ? "fill-current text-red-500" : ""}
 											/>{" "}
 											{isLiked ? "Liked" : "Like Product"}
+											<span className="text-xs text-brand-muted">
+												({likedByCount})
+											</span>
 										</button>
 										{listing?.productId ? (
 											<span className="rounded-full bg-[#F1F1F1] px-3 py-1 text-xs font-semibold tracking-[0.08em] text-[#666666]">
 												ID {listing.productId}
 											</span>
 										) : null}
-									</div>
-
-									<div className="rounded-2xl border border-brand-border bg-[#FAFAFA] p-4">
-										<p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-muted">
-											The Narrative
-										</p>
-										<p className="mt-2 text-sm leading-relaxed text-brand-muted">
-											{listing?.description ||
-												"No narrative has been added to this listing yet."}
-										</p>
 									</div>
 								</div>
 							</div>
@@ -470,9 +469,8 @@ export default function ProductDetail() {
 						This listing is no longer available.
 					</div>
 				)}
-
-				<Footer />
 			</main>
+			<Footer />
 		</div>
 	);
 }

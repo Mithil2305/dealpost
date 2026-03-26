@@ -15,6 +15,14 @@ import {
 	updateReportStatus,
 	updateListingStatus,
 } from "../controllers/admin.controller.js";
+import {
+	createAdminSponsoredAd,
+	deleteAdminSponsoredAd,
+	getAdminGoogleAdsSnippet,
+	getAdminSponsoredAds,
+	updateAdminSponsoredAd,
+	upsertAdminGoogleAdsSnippet,
+} from "../controllers/sponsoredAd.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { requireAdmin } from "../middleware/role.middleware.js";
 
@@ -45,5 +53,12 @@ router.delete("/categories/:id", deleteAdminCategory);
 router.get("/listings", getAllListings);
 router.patch("/listings/:id/status", updateListingStatus);
 router.delete("/listings/:id", adminDeleteListing);
+
+router.get("/sponsored-ads", getAdminSponsoredAds);
+router.post("/sponsored-ads", createAdminSponsoredAd);
+router.patch("/sponsored-ads/:id", updateAdminSponsoredAd);
+router.delete("/sponsored-ads/:id", deleteAdminSponsoredAd);
+router.get("/sponsored-ads/google-snippet", getAdminGoogleAdsSnippet);
+router.put("/sponsored-ads/google-snippet", upsertAdminGoogleAdsSnippet);
 
 export default router;

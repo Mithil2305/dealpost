@@ -114,7 +114,17 @@ export default function Navbar({ search = "", onSearchChange }) {
 		return role === "admin" || role === "developer" ? "/admin" : "/dashboard";
 	}, [user?.role]);
 
+	const redirectUnauthenticatedUser = () => {
+		if (isAuthenticated) return false;
+		setIsMessagesOpen(false);
+		setIsAlertsOpen(false);
+		setIsProfileMenuOpen(false);
+		navigate("/login");
+		return true;
+	};
+
 	const onProfileAvatarClick = () => {
+		if (redirectUnauthenticatedUser()) return;
 		setIsProfileMenuOpen((prev) => !prev);
 		setIsMessagesOpen(false);
 		setIsAlertsOpen(false);
@@ -401,12 +411,14 @@ export default function Navbar({ search = "", onSearchChange }) {
 		(searchSuggestions.length > 0 || isSearchingSuggestions);
 
 	const openMessagesPopup = () => {
+		if (redirectUnauthenticatedUser()) return;
 		setIsMessagesOpen((prev) => !prev);
 		setIsAlertsOpen(false);
 		setIsProfileMenuOpen(false);
 	};
 
 	const openAlertsPopup = () => {
+		if (redirectUnauthenticatedUser()) return;
 		setIsAlertsOpen((prev) => !prev);
 		setIsMessagesOpen(false);
 		setIsProfileMenuOpen(false);

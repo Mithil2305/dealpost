@@ -20,20 +20,28 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import AdSidebar from "../components/ad-sidebar";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
+import {
+	fetchMyLikedListingIds,
+	getListingLikedCount,
+	getListingNumericId,
+	isListingLiked,
+	updateListingLikeStatus,
+} from "../utils/likes";
 
 const CATEGORY_ICONS = [Monitor, Sofa, User, Car, Gem, HomeIcon, Trophy];
 
 const formatPrice = (value) => {
 	const numeric = Number(value || 0);
-	return new Intl.NumberFormat("en-US", {
+	return new Intl.NumberFormat("en-IN", {
 		style: "currency",
-		currency: "USD",
+		currency: "INR",
 		maximumFractionDigits: 0,
 	}).format(numeric);
 };
@@ -58,20 +66,35 @@ const timeAgo = (value) => {
 	return then.toLocaleDateString();
 };
 
+const getEndSubCategory = (value) => {
+	if (!value) return "General";
+	const parts = String(value)
+		.split(">")
+		.map((segment) => segment.trim())
+		.filter(Boolean);
+	return parts[parts.length - 1] || "General";
+};
+
 const normalizeListing = (item) => {
 	const id = item?._id || item?.id;
+	const numericPrice = Number(item?.price || 15006);
+	const originalPriceNum = numericPrice > 0 ? numericPrice * 1.43 : 356;
+
 	return {
 		id,
 		productId: item?.productId || null,
-		title: item?.title || "Untitled Listing",
-		category: String(item?.category || "General").toUpperCase(),
-		price: formatPrice(item?.price),
+		title: item?.title || "Heimer Miller Sofa",
+		category: getEndSubCategory(item?.category),
+		price: formatPrice(numericPrice),
+		originalPrice: formatPrice(originalPriceNum),
+		likedByCount: getListingLikedCount(item),
+		isLiked: Boolean(item?.isLiked),
 		image:
 			item?.images?.[0]?.url ||
 			item?.image ||
-			"https://placehold.co/600x600?text=Deal.Post",
+			"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800", // Fallback to a shoe matching the vibe
 		seller: {
-			name: item?.seller?.name || "Verified Seller",
+			name: item?.seller?.name || "Banana Mania",
 			avatar:
 				item?.seller?.avatar ||
 				`https://ui-avatars.com/api/?name=${encodeURIComponent(item?.seller?.name || "Seller")}`,
@@ -86,10 +109,18 @@ const getMainCategory = (value) => {
 };
 
 export default function Home() {
+	const navigate = useNavigate();
+	const { isAuthenticated } = useAuth();
 	const [search, setSearch] = useState("");
 	const [categories, setCategories] = useState([]);
 	const [listings, setListings] = useState([]);
 	const [loading, setLoading] = useState(true);
+	const [likedListingIds, setLikedListingIds] = useState([]);
+	const [likingByListingId, setLikingByListingId] = useState({});
+	const [selectedCompareIds, setSelectedCompareIds] = useState([]);
+	const [selectedCompareCategory, setSelectedCompareCategory] = useState("");
+	const [topDealsIndex, setTopDealsIndex] = useState(0);
+	const [slideDirection, setSlideDirection] = useState("next");
 
 	useEffect(() => {
 		const fetchHomeData = async () => {
@@ -125,13 +156,194 @@ export default function Home() {
 		fetchHomeData();
 	}, [search]);
 
+	useEffect(() => {
+		let active = true;
+
+		const hydrateLikedIds = async () => {
+			if (!isAuthenticated) {
+				setLikedListingIds([]);
+				return;
+			}
+
+			try {
+				const ids = await fetchMyLikedListingIds();
+				if (active) {
+					setLikedListingIds(ids);
+				}
+			} catch {
+				if (active) {
+					setLikedListingIds([]);
+				}
+			}
+		};
+
+		hydrateLikedIds();
+
+		return () => {
+			active = false;
+		};
+	}, [isAuthenticated]);
+
 	const displayListings = listings.map(normalizeListing);
 	const sidebarCategories = Array.from(
 		new Set(
 			categories.map((cat) => getMainCategory(cat?.name)).filter(Boolean),
 		),
 	).slice(0, 7);
-	const topDeals = displayListings.slice(0, 3);
+	const topDeals = displayListings.slice(0, 8);
+	const topDealsCount = topDeals.length;
+
+	useEffect(() => {
+		if (!topDealsCount) {
+			setTopDealsIndex(0);
+			return;
+		}
+		setTopDealsIndex((prev) => prev % topDealsCount);
+	}, [topDealsCount]);
+
+	const getTopDealAt = (offset) => {
+		if (!topDealsCount) return null;
+		const index = (topDealsIndex + offset + topDealsCount * 5) % topDealsCount;
+		return topDeals[index] || null;
+	};
+
+	const featuredDeal = getTopDealAt(0);
+	const leftDeal = getTopDealAt(-1);
+	const rightDeal = getTopDealAt(1);
+
+	const buildCompareUrl = (...deals) => {
+		const ids = deals
+			.map((deal) => deal?.productId || deal?.id)
+			.filter(Boolean)
+			.slice(0, 4);
+		if (ids.length < 2) return "/compare";
+		return `/compare?ids=${encodeURIComponent(ids.join(","))}`;
+	};
+
+	const launchCompareForDeals = (...deals) => {
+		const validDeals = deals.filter(Boolean);
+		if (validDeals.length < 2) {
+			toast.error("Select at least 2 products to compare");
+			return;
+		}
+
+		const baseCategory = String(validDeals[0]?.category || "").trim();
+		const sameCategoryDeals = validDeals.filter(
+			(deal) => String(deal?.category || "").trim() === baseCategory,
+		);
+
+		if (sameCategoryDeals.length < 2) {
+			toast.error("Choose products from the same category to compare");
+			return;
+		}
+
+		navigate(buildCompareUrl(...sameCategoryDeals));
+	};
+
+	const toggleCompareSelection = (event, item) => {
+		event.preventDefault();
+		event.stopPropagation();
+
+		const itemId = item?.productId || item?.id;
+		if (!itemId) return;
+		const itemCategory = String(item?.category || "").trim();
+
+		setSelectedCompareIds((prev) => {
+			if (prev.includes(itemId)) {
+				const next = prev.filter((id) => id !== itemId);
+				if (!next.length) {
+					setSelectedCompareCategory("");
+				}
+				return next;
+			}
+
+			if (!prev.length) {
+				setSelectedCompareCategory(itemCategory);
+				return [itemId];
+			}
+
+			if (itemCategory !== selectedCompareCategory) {
+				toast.error(
+					`Only ${selectedCompareCategory || "same category"} products can be compared`,
+				);
+				return prev;
+			}
+
+			if (prev.length >= 4) {
+				toast.error("You can compare up to 4 products");
+				return prev;
+			}
+
+			return [...prev, itemId];
+		});
+	};
+
+	const selectedCompareDeals = displayListings.filter((item) =>
+		selectedCompareIds.includes(item?.productId || item?.id),
+	);
+
+	const moveTopDeals = (direction) => {
+		if (topDealsCount < 2) return;
+		setSlideDirection(direction);
+		setTopDealsIndex((prev) => {
+			if (direction === "prev") {
+				return (prev - 1 + topDealsCount) % topDealsCount;
+			}
+			return (prev + 1) % topDealsCount;
+		});
+	};
+
+	const onToggleLike = async (event, item) => {
+		event.preventDefault();
+		event.stopPropagation();
+
+		if (!isAuthenticated) {
+			toast.error("Please log in to save products");
+			navigate("/login");
+			return;
+		}
+
+		const listingId = getListingNumericId(item);
+		if (!listingId || likingByListingId[listingId]) return;
+
+		const currentlyLiked = isListingLiked(item, likedListingIds);
+
+		try {
+			setLikingByListingId((prev) => ({ ...prev, [listingId]: true }));
+
+			const next = await updateListingLikeStatus({
+				listing: item,
+				isLiked: currentlyLiked,
+			});
+
+			setLikedListingIds(next.likedListingIds || []);
+			setListings((prev) =>
+				prev.map((row) => {
+					const rowId = getListingNumericId(row);
+					if (rowId !== listingId) return row;
+					return {
+						...row,
+						isLiked: next.isLiked,
+						likedByCount: next.likedByCount,
+					};
+				}),
+			);
+
+			toast.success(
+				next.isLiked
+					? "Added to liked products"
+					: "Removed from liked products",
+			);
+		} catch (error) {
+			toast.error(error?.response?.data?.message || "Unable to update like");
+		} finally {
+			setLikingByListingId((prev) => {
+				const next = { ...prev };
+				delete next[listingId];
+				return next;
+			});
+		}
+	};
 
 	return (
 		<div className="min-h-screen bg-white font-sans text-black flex flex-col">
@@ -182,9 +394,8 @@ export default function Home() {
 							{/* Left Content */}
 							<div className="flex flex-col justify-center space-y-6 relative z-10">
 								<div className="inline-flex items-center gap-2 rounded-full border border-[#FFD600]/30 bg-[#FFD600]/10 px-3 py-1.5 w-max">
-									<Sparkles size={12} className="text-[#FFD600]" />
 									<span className="text-[0.65rem] font-bold tracking-[0.15em] text-[#FFD600] uppercase">
-										AI-Powered Marketplace
+										Reselling Marketplace
 									</span>
 								</div>
 
@@ -205,8 +416,14 @@ export default function Home() {
 									>
 										Explore Listings
 									</Link>
-									<button className="rounded-full border border-white/20 bg-white/5 px-8 py-3.5 text-sm font-bold text-white hover:bg-white/10 transition">
-										How It Works
+									<button
+										type="button"
+										onClick={() =>
+											launchCompareForDeals(featuredDeal, rightDeal)
+										}
+										className="rounded-full border border-white/20 bg-white/5 px-8 py-3.5 text-sm font-bold text-white hover:bg-white/10 transition"
+									>
+										Compare Top Deals
 									</button>
 								</div>
 							</div>
@@ -221,42 +438,71 @@ export default function Home() {
 										</span>
 									</div>
 
-									<div className="w-full h-full bg-[#1A1A1A] rounded-[28px] overflow-hidden relative group">
+									<div
+										key={`hero-deal-${topDealsIndex}-${slideDirection}`}
+										className={`w-full h-full bg-[#1A1A1A] rounded-[28px] overflow-hidden relative group ${slideDirection === "next" ? "deal-slide-next" : "deal-slide-prev"}`}
+									>
 										<img
-											src="https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&q=80&w=800"
-											alt="Headphones"
+											src={
+												featuredDeal?.image ||
+												"https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&q=80&w=800"
+											}
+											alt={featuredDeal?.title || "Headphones"}
 											className="w-full h-full object-cover opacity-80 mix-blend-luminosity group-hover:scale-105 transition-transform duration-700"
 										/>
 
 										<div className="absolute inset-x-4 bottom-4 rounded-[20px] bg-black/60 backdrop-blur-md border border-white/10 p-5 text-white">
 											<div className="flex items-center justify-between mb-2">
 												<div className="flex items-center gap-1.5 text-[#FFD600] text-xs font-bold">
-													<Star size={12} fill="#FFD600" /> 4.9{" "}
+													<Star size={12} fill="#FFD600" />
+													{Math.min(
+														5,
+														(
+															4.2 +
+															(featuredDeal?.likedByCount || 0) / 60
+														).toFixed(1),
+													)}{" "}
 													<span className="text-white/50 font-normal">
-														(128 reviews)
+														({featuredDeal?.likedByCount || 0} likes)
 													</span>
 												</div>
 												<div className="rounded-full bg-[#FFD600] px-2 py-0.5 text-[0.65rem] font-bold text-black">
-													25% OFF
+													Live Deal
 												</div>
 											</div>
 
 											<h3 className="text-lg font-bold mb-3">
-												Studio Master H1
+												{featuredDeal?.title || "Studio Master H1"}
 											</h3>
 
 											<div className="flex items-end justify-between">
 												<div>
-													<div className="text-xs text-white/50 line-through mb-0.5">
-														$450
-													</div>
 													<div className="font-mono text-2xl font-bold text-[#FFD600] tracking-tight">
-														04:12:56
+														{featuredDeal?.originalPrice || "₹450"}
 													</div>
 												</div>
-												<button className="rounded-full border border-white/20 bg-white/10 px-5 py-2 text-xs font-bold uppercase tracking-wider hover:bg-white/20 transition">
-													Grab Deal
-												</button>
+												<div className="flex gap-2">
+													<button
+														type="button"
+														onClick={() => moveTopDeals("prev")}
+														className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold uppercase tracking-wider hover:bg-white/20 transition"
+													>
+														<ChevronLeft size={14} />
+													</button>
+													<Link
+														to={`/listing/${featuredDeal?.productId || featuredDeal?.id || ""}`}
+														className="rounded-full border border-white/20 bg-white/10 px-5 py-2 text-xs font-bold uppercase tracking-wider hover:bg-white/20 transition"
+													>
+														Grab Deal
+													</Link>
+													<button
+														type="button"
+														onClick={() => moveTopDeals("next")}
+														className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold uppercase tracking-wider hover:bg-white/20 transition"
+													>
+														<ChevronRight size={14} />
+													</button>
+												</div>
 											</div>
 										</div>
 									</div>
@@ -301,57 +547,137 @@ export default function Home() {
 								</Link>
 							</div>
 
-							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-								{displayListings.map((item) => (
-									<Link
-										key={item.id}
-										to={`/listing/${item.productId || item.id}`}
-										className="group cursor-pointer"
-									>
-										<div className="relative aspect-square rounded-[24px] bg-[#F4F4F4] overflow-hidden mb-4 p-6 flex items-center justify-center">
-											<button className="absolute top-4 right-4 z-10 h-8 w-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:scale-110 transition">
-												<Heart size={16} className="text-black" />
-											</button>
+							{/* Reduced columns from 5 to 4 to make the cards significantly wider/larger on big screens */}
+							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+								{displayListings.map((item) => {
+									const listingId = getListingNumericId(item);
+									const compareId = item?.productId || item?.id;
+									const compareSelected =
+										selectedCompareIds.includes(compareId);
+									const compareDisabled =
+										selectedCompareIds.length > 0 &&
+										item?.category !== selectedCompareCategory &&
+										!compareSelected;
+									const liked = isListingLiked(item, likedListingIds);
+									const isLiking = Boolean(
+										listingId && likingByListingId[listingId],
+									);
 
-											<img
-												src={item.image}
-												alt={item.title}
-												className="w-full h-full object-contain mix-blend-darken group-hover:scale-105 transition duration-500"
-											/>
+									return (
+										<Link
+											key={item.id}
+											to={`/listing/${item.productId || item.id}`}
+											className="group flex flex-col rounded-[24px] bg-white p-3 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-[#F0F2F5] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(40,40,90,0.1)]"
+										>
+											{/* Image Section - Adjusted Aspect Ratio from 4/3 to 4/5 for taller, larger images */}
+											<div className="relative aspect-[4/5] w-full overflow-hidden rounded-[16px] bg-[#F4F5F7]">
+												<img
+													src={item.image}
+													alt={item.title}
+													className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+												/>
 
-											<div className="absolute bottom-4 left-4 rounded-full bg-black/80 backdrop-blur-sm px-3 py-1 text-xs font-bold text-white">
-												{item.price}
-											</div>
-										</div>
-
-										<div>
-											<h3 className="font-bold text-black text-[1.05rem] line-clamp-1">
-												{item.title}
-											</h3>
-											<p className="text-[0.65rem] font-bold text-[#888888] tracking-[0.1em] uppercase mt-1 mb-3">
-												{item.category}
-											</p>
-
-											<div className="h-px w-full bg-[#EAEAEA] mb-3" />
-
-											<div className="flex items-center justify-between text-xs">
-												<div className="flex items-center gap-2">
-													<img
-														src={item.seller.avatar}
-														alt="seller"
-														className="w-5 h-5 rounded-full object-cover"
+												<button
+													type="button"
+													onClick={(event) =>
+														toggleCompareSelection(event, item)
+													}
+													disabled={compareDisabled}
+													className={`ml-2 rounded-full border px-4 py-2 text-[0.68rem] font-bold uppercase tracking-[0.14em] transition ${compareSelected ? "border-black bg-black text-white" : "border-[#d8dbe2] bg-white text-[#1E1E38] hover:bg-[#f7f7f7]"} ${compareDisabled ? "cursor-not-allowed opacity-50" : ""}`}
+												>
+													{compareSelected ? "Selected" : "Compare"}
+												</button>
+												{/* Likes Badge */}
+												<div className="absolute bottom-3 right-3 flex items-center rounded-lg bg-[#FFEBEB] px-2.5 py-1.5 shadow-sm">
+													<Heart
+														size={14}
+														className="mx-1.5 fill-[#1E1E38] text-[#1E1E38]"
 													/>
-													<span className="font-bold text-[#666666]">
-														{item.seller.name}
+													<div className="mx-1.5 h-3.5 w-[1.5px] bg-[#1E1E38]/15"></div>
+
+													{selectedCompareIds.length ? (
+														<div className="mt-6 flex flex-col gap-3 rounded-2xl border border-[#EAEAEA] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+															<div>
+																<p className="text-xs font-bold uppercase tracking-[0.12em] text-[#6A6A79]">
+																	Compare Basket
+																</p>
+																<p className="mt-1 text-sm text-[#1E1E38]">
+																	{selectedCompareIds.length} selected from
+																	category:{" "}
+																	{selectedCompareCategory || "General"}
+																</p>
+															</div>
+															<div className="flex items-center gap-2">
+																<button
+																	type="button"
+																	onClick={() => {
+																		setSelectedCompareIds([]);
+																		setSelectedCompareCategory("");
+																	}}
+																	className="rounded-full border border-[#d8dbe2] px-4 py-2 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#1E1E38] hover:bg-[#f8f8f8]"
+																>
+																	Clear
+																</button>
+																<button
+																	type="button"
+																	onClick={() =>
+																		launchCompareForDeals(
+																			...selectedCompareDeals,
+																		)
+																	}
+																	className="rounded-full bg-[#FFD600] px-5 py-2.5 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-black hover:bg-[#efc800]"
+																>
+																	Compare Selected
+																</button>
+															</div>
+														</div>
+													) : null}
+													<span className="text-[0.9rem] font-medium text-[#1E1E38]/80">
+														{item.likedByCount}
 													</span>
 												</div>
-												<span className="text-[#A3A3A3] font-medium">
-													{item.time}
-												</span>
 											</div>
-										</div>
-									</Link>
-								))}
+
+											{/* Content Section */}
+											<div className="flex flex-1 flex-col px-1 pt-4 pb-2">
+												<div>
+													<h3 className="text-[1.15rem] font-bold text-[#1E1E38] line-clamp-1">
+														{item.title}
+													</h3>
+													<p className="mt-1 text-[0.95rem] font-medium text-[#8A8A9E] line-clamp-1">
+														{item.category}
+													</p>
+												</div>
+
+												<div className="my-4 h-px w-full bg-[#F0F2F5]"></div>
+
+												<div className="mt-auto flex items-end justify-between">
+													<div>
+														<div className="flex items-baseline gap-2">
+															<span className="text-[1.4rem] font-bold tracking-tight text-[#1E1E38] leading-none">
+																{item.originalPrice}
+															</span>
+														</div>
+													</div>
+
+													<button
+														type="button"
+														onClick={(event) => onToggleLike(event, item)}
+														disabled={isLiking}
+														className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-all shadow-md ${liked ? "bg-[#E64242] shadow-[#E64242]/25 hover:bg-[#cf3535]" : "bg-[#f5c518] shadow-[#f5c518]/25 hover:bg-[#dfb010]"} ${isLiking ? "opacity-70" : "hover:scale-105"}`}
+													>
+														<Heart
+															size={20}
+															className={
+																liked ? "fill-white text-white" : "text-white"
+															}
+														/>
+													</button>
+												</div>
+											</div>
+										</Link>
+									);
+								})}
 							</div>
 
 							{!loading && !displayListings.length && (
@@ -375,10 +701,29 @@ export default function Home() {
 									Top Deals For You
 								</h2>
 								<div className="flex gap-3">
-									<button className="grid h-12 w-12 place-items-center rounded-full bg-white border border-[#EAEAEA] shadow-sm hover:scale-105 transition">
+									<button
+										type="button"
+										onClick={() =>
+											launchCompareForDeals(featuredDeal, leftDeal, rightDeal)
+										}
+										className="rounded-full border border-[#EAEAEA] bg-white px-5 py-2.5 text-xs font-bold uppercase tracking-[0.16em] text-black transition hover:bg-[#f8f8f8] justify-center flex items-center gap-1.5"
+									>
+										Compare
+									</button>
+									<button
+										type="button"
+										onClick={() => moveTopDeals("prev")}
+										disabled={topDealsCount < 2}
+										className="grid h-12 w-12 place-items-center rounded-full bg-white border border-[#EAEAEA] shadow-sm hover:scale-105 transition disabled:opacity-60"
+									>
 										<ChevronLeft size={20} />
 									</button>
-									<button className="grid h-12 w-12 place-items-center rounded-full bg-white border border-[#EAEAEA] shadow-sm hover:scale-105 transition">
+									<button
+										type="button"
+										onClick={() => moveTopDeals("next")}
+										disabled={topDealsCount < 2}
+										className="grid h-12 w-12 place-items-center rounded-full bg-white border border-[#EAEAEA] shadow-sm hover:scale-105 transition disabled:opacity-60"
+									>
 										<ChevronRight size={20} />
 									</button>
 								</div>
@@ -386,22 +731,29 @@ export default function Home() {
 
 							<div className="flex items-center justify-center gap-6 relative z-10 min-h-[400px]">
 								{/* Left Faded Item */}
-								<div className="hidden lg:block w-[280px] h-[280px] rounded-[32px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer">
+								<button
+									type="button"
+									onClick={() => moveTopDeals("prev")}
+									className="hidden lg:block w-[280px] h-[280px] rounded-[32px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer"
+								>
 									<img
 										src={
-											topDeals[1]?.image ||
+											leftDeal?.image ||
 											"https://placehold.co/600x600?text=Deal.Post"
 										}
 										className="w-full h-full object-cover"
 										alt="Deal"
 									/>
-								</div>
+								</button>
 
 								{/* Center Active Item */}
-								<div className="w-full max-w-[600px] h-[360px] rounded-[32px] bg-[#111111] overflow-hidden relative shadow-2xl group cursor-pointer">
+								<div
+									key={`carousel-main-${topDealsIndex}-${slideDirection}`}
+									className={`w-full max-w-[600px] h-[360px] rounded-[32px] bg-[#111111] overflow-hidden relative shadow-2xl group cursor-pointer ${slideDirection === "next" ? "deal-slide-next" : "deal-slide-prev"}`}
+								>
 									<img
 										src={
-											topDeals[0]?.image ||
+											featuredDeal?.image ||
 											"https://placehold.co/800x600?text=Deal.Post"
 										}
 										className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition duration-700"
@@ -420,48 +772,47 @@ export default function Home() {
 
 										<div>
 											<h3 className="text-white text-2xl font-bold mb-1">
-												{topDeals[0]?.title || "Featured Deal"}
+												{featuredDeal?.title || "Featured Deal"}
 											</h3>
 											<div className="text-[3.5rem] font-bold text-white leading-none tracking-tighter mb-6">
-												{topDeals[0]?.price || "$0"}
+												{featuredDeal?.originalPrice || "₹0"}
 											</div>
-											<button className="rounded-full border border-white/30 bg-white/10 backdrop-blur-md px-8 py-3 text-sm font-bold text-white hover:bg-white/20 transition uppercase tracking-wider">
-												Grab Deal
-											</button>
+											<div className="flex flex-wrap gap-3">
+												<Link
+													to={`/listing/${featuredDeal?.productId || featuredDeal?.id || ""}`}
+													className="rounded-full border border-white/30 bg-white/10 backdrop-blur-md px-8 py-3 text-sm font-bold text-white hover:bg-white/20 transition uppercase tracking-wider"
+												>
+													Grab Deal
+												</Link>
+												<button
+													type="button"
+													onClick={() =>
+														launchCompareForDeals(featuredDeal, leftDeal, rightDeal)
+													}
+													className="rounded-full border border-[#FFD600]/80 bg-[#FFD600] px-8 py-3 text-sm font-bold text-black transition hover:bg-[#f2c700] uppercase tracking-wider"
+												>
+													Compare Now
+												</button>
+											</div>
 										</div>
 									</div>
 								</div>
 
 								{/* Right Faded Item */}
-								<div className="hidden md:block w-[280px] h-[280px] rounded-[32px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer">
+								<button
+									type="button"
+									onClick={() => moveTopDeals("next")}
+									className="hidden md:block w-[280px] h-[280px] rounded-[32px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer"
+								>
 									<img
 										src={
-											topDeals[2]?.image ||
+											rightDeal?.image ||
 											"https://placehold.co/600x600?text=Deal.Post"
 										}
 										className="w-full h-full object-cover"
 										alt="Deal"
 									/>
-								</div>
-							</div>
-
-							{/* Search Bar Block */}
-							<div className="max-w-3xl mx-auto mt-12 relative z-10">
-								<div className="flex items-center rounded-full bg-white p-2 pl-6 shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-[#F0F0F0]">
-									<Search size={20} className="text-[#A3A3A3]" />
-									<input
-										placeholder="Search deals or ask AI..."
-										className="w-full bg-transparent px-4 py-3 text-[#111111] outline-none placeholder:text-[#A3A3A3] text-lg font-medium"
-									/>
-									<button className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FFD600] hover:bg-[#E6C100] transition text-black shadow-sm">
-										<Sparkles size={20} />
-									</button>
-								</div>
-								<p className="text-center text-[0.65rem] font-bold text-[#A3A3A3] tracking-[0.15em] mt-4 uppercase flex items-center justify-center gap-2">
-									<Sparkles size={12} className="text-[#FFD600]" />
-									Tip: Start with 'Suggest', 'Compare', or 'Find me' to activate
-									AI mode.
-								</p>
+								</button>
 							</div>
 						</section>
 

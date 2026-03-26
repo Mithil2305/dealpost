@@ -27,9 +27,9 @@ const formatTime = (value) => {
 const formatPrice = (value) => {
 	const numeric = Number(value);
 	if (!Number.isFinite(numeric)) return "";
-	return new Intl.NumberFormat("en-US", {
+	return new Intl.NumberFormat("en-IN", {
 		style: "currency",
-		currency: "USD",
+		currency: "INR",
 		maximumFractionDigits: 0,
 	}).format(numeric);
 };

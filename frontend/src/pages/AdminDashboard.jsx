@@ -19,15 +19,18 @@ import AdminSidebar from "../components/AdminSidebar";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
 import {
-	createAdSlot,
-	getAdSlots,
-	removeAdSlot,
-	updateAdSlot,
-} from "../utils/adSlots";
+	createAdminSponsoredAd,
+	deleteAdminSponsoredAd,
+	getAdminGoogleAdsSnippet,
+	getAdminSponsoredAds,
+	saveAdminGoogleAdsSnippet,
+	updateAdminSponsoredAd,
+} from "../utils/sponsoredAds";
 
 const REPORT_PAGE_SIZE = 8;
 const USERS_PAGE_SIZE = 10;
 const LISTINGS_PAGE_SIZE = 10;
+const SPONSORED_PAGE_SIZE = 10;
 
 const formatDate = (value) => {
 	if (!value) return "-";
@@ -80,15 +83,24 @@ export default function AdminDashboard() {
 		phone: user?.phone || "",
 		location: user?.location || "",
 	});
-	const [adSlots, setAdSlots] = useState([]);
-	const [adForm, setAdForm] = useState({
+	const [sponsoredAds, setSponsoredAds] = useState([]);
+	const [sponsoredTotal, setSponsoredTotal] = useState(0);
+	const [sponsoredPage, setSponsoredPage] = useState(1);
+	const [sponsoredStatus, setSponsoredStatus] = useState("all");
+	const [sponsoredSearch, setSponsoredSearch] = useState("");
+	const [loadingSponsored, setLoadingSponsored] = useState(false);
+	const [googleAdsSnippet, setGoogleAdsSnippet] = useState("");
+	const [sponsoredForm, setSponsoredForm] = useState({
 		title: "",
 		description: "",
 		imageUrl: "",
 		targetUrl: "",
+		placement: "any",
 		isActive: true,
+		status: "approved",
+		reviewNotes: "",
 	});
-	const [editingAdId, setEditingAdId] = useState(null);
+	const [editingSponsoredId, setEditingSponsoredId] = useState(null);
 
 	const fetchStats = useCallback(async () => {
 		try {
@@ -172,6 +184,24 @@ export default function AdminDashboard() {
 		}
 	}, []);
 
+	const fetchSponsoredAds = useCallback(async () => {
+		try {
+			setLoadingSponsored(true);
+			const data = await getAdminSponsoredAds({
+				page: sponsoredPage,
+				limit: SPONSORED_PAGE_SIZE,
+				status: sponsoredStatus,
+				search: sponsoredSearch.trim() || undefined,
+			});
+			setSponsoredAds(Array.isArray(data?.ads) ? data.ads : []);
+			setSponsoredTotal(Number(data?.total) || 0);
+		} catch {
+			toast.error("Unable to load sponsored ads");
+		} finally {
+			setLoadingSponsored(false);
+		}
+	}, [sponsoredPage, sponsoredSearch, sponsoredStatus]);
+
 	useEffect(() => {
 		fetchStats();
 	}, [fetchStats]);
@@ -201,6 +231,15 @@ export default function AdminDashboard() {
 	}, [activeSection, fetchCategories]);
 
 	useEffect(() => {
+		if (activeSection === "sponsored") {
+			fetchSponsoredAds();
+			getAdminGoogleAdsSnippet()
+				.then((snippet) => setGoogleAdsSnippet(snippet))
+				.catch(() => setGoogleAdsSnippet(""));
+		}
+	}, [activeSection, fetchSponsoredAds]);
+
+	useEffect(() => {
 		setReportPage(1);
 	}, [reportStatus]);
 
@@ -209,16 +248,16 @@ export default function AdminDashboard() {
 	}, [listingSearch]);
 
 	useEffect(() => {
+		setSponsoredPage(1);
+	}, [sponsoredSearch, sponsoredStatus]);
+
+	useEffect(() => {
 		setAdminProfileForm({
 			name: user?.name || "",
 			phone: user?.phone || "",
 			location: user?.location || "",
 		});
 	}, [user]);
-
-	useEffect(() => {
-		setAdSlots(getAdSlots());
-	}, []);
 
 	const filteredReports = useMemo(() => {
 		const query = reportSearch.trim().toLowerCase();
@@ -453,72 +492,113 @@ export default function AdminDashboard() {
 		}
 	};
 
-	const resetAdForm = () => {
-		setAdForm({
+	const resetSponsoredForm = () => {
+		setSponsoredForm({
 			title: "",
 			description: "",
 			imageUrl: "",
 			targetUrl: "",
+			placement: "any",
 			isActive: true,
+			status: "approved",
+			reviewNotes: "",
 		});
-		setEditingAdId(null);
+		setEditingSponsoredId(null);
 	};
 
-	const saveAdSlot = async (event) => {
+	const saveSponsoredAd = async (event) => {
 		event.preventDefault();
-		if (adForm.title.trim().length < 3) {
+		if (sponsoredForm.title.trim().length < 3) {
 			toast.error("Ad title must be at least 3 characters");
 			return;
 		}
-
-		if (!adForm.imageUrl.trim()) {
+		if (!sponsoredForm.imageUrl.trim()) {
 			toast.error("Ad image URL is required");
 			return;
 		}
 
 		try {
-			if (editingAdId) {
-				updateAdSlot(editingAdId, adForm);
-				toast.success("Ad updated");
+			if (editingSponsoredId) {
+				await runAction(`sponsored-update-${editingSponsoredId}`, async () => {
+					await updateAdminSponsoredAd(editingSponsoredId, sponsoredForm);
+				});
+				toast.success("Sponsored ad updated");
 			} else {
-				createAdSlot(adForm);
-				toast.success("Ad created");
+				await runAction("sponsored-create", async () => {
+					await createAdminSponsoredAd(sponsoredForm);
+				});
+				toast.success("Sponsored ad created");
 			}
-
-			setAdSlots(getAdSlots());
-			resetAdForm();
-		} catch {
-			toast.error("Unable to save ad");
+			resetSponsoredForm();
+			fetchSponsoredAds();
+		} catch (error) {
+			toast.error(
+				error?.response?.data?.message || "Unable to save sponsored ad",
+			);
 		}
 	};
 
-	const startAdEdit = (slot) => {
-		setEditingAdId(slot?.id || null);
-		setAdForm({
-			title: slot?.title || "",
-			description: slot?.description || "",
-			imageUrl: slot?.imageUrl || "",
-			targetUrl: slot?.targetUrl || "",
-			isActive: Boolean(slot?.isActive),
+	const startSponsoredEdit = (entry) => {
+		setEditingSponsoredId(entry?.id || null);
+		setSponsoredForm({
+			title: entry?.title || "",
+			description: entry?.description || "",
+			imageUrl: entry?.imageUrl || "",
+			targetUrl: entry?.targetUrl || "",
+			placement: entry?.placement || "any",
+			isActive: Boolean(entry?.isActive),
+			status: entry?.status || "approved",
+			reviewNotes: entry?.reviewNotes || "",
 		});
 	};
 
-	const deleteAdSlot = (id) => {
-		removeAdSlot(id);
-		setAdSlots(getAdSlots());
-		toast.success("Ad removed");
+	const removeSponsoredAd = async (id) => {
+		if (!id) return;
+		try {
+			await runAction(`sponsored-delete-${id}`, async () => {
+				await deleteAdminSponsoredAd(id);
+			});
+			toast.success("Sponsored ad deleted");
+			fetchSponsoredAds();
+		} catch {
+			toast.error("Unable to delete sponsored ad");
+		}
 	};
 
-	const toggleAdSlotVisibility = (slot) => {
-		if (!slot?.id) return;
-		updateAdSlot(slot.id, { isActive: !slot.isActive });
-		setAdSlots(getAdSlots());
+	const updateSponsoredStatus = async (entry, status) => {
+		if (!entry?.id) return;
+		try {
+			await runAction(`sponsored-status-${entry.id}`, async () => {
+				await updateAdminSponsoredAd(entry.id, { status });
+			});
+			toast.success("Sponsored ad status updated");
+			fetchSponsoredAds();
+		} catch {
+			toast.error("Unable to update sponsored ad status");
+		}
+	};
+
+	const saveGoogleSnippet = async (event) => {
+		event.preventDefault();
+		try {
+			await runAction("google-snippet-save", async () => {
+				const snippet = await saveAdminGoogleAdsSnippet(googleAdsSnippet);
+				setGoogleAdsSnippet(snippet);
+			});
+			toast.success("Google Ads snippet saved");
+		} catch {
+			toast.error("Unable to save Google Ads snippet");
+		}
 	};
 
 	const reportPages = Math.max(Math.ceil(reportsTotal / REPORT_PAGE_SIZE), 1);
 	const userPages = Math.max(Math.ceil(usersTotal / USERS_PAGE_SIZE), 1);
 	const listingPages = Math.max(
 		Math.ceil(listingsTotal / LISTINGS_PAGE_SIZE),
+		1,
+	);
+	const sponsoredPages = Math.max(
+		Math.ceil(sponsoredTotal / SPONSORED_PAGE_SIZE),
 		1,
 	);
 
@@ -556,14 +636,8 @@ export default function AdminDashboard() {
 							<h1 className="text-4xl font-display font-bold sm:text-5xl">
 								Admin Dashboard
 							</h1>
-							<p className="text-gray-500">
-								Real-time marketplace monitoring, moderation, and controls.
-							</p>
 						</div>
 						<div className="flex items-center gap-2">
-							<button className="grid h-11 w-11 place-items-center rounded-full border border-gray-200 bg-white">
-								<Bell size={16} className="text-[#C79A00]" />
-							</button>
 							<button className="rounded-full bg-[#FFF5D1] px-4 py-2 text-sm font-bold text-[#5C4D00]">
 								{activeSection[0].toUpperCase() + activeSection.slice(1)}
 							</button>
@@ -1052,6 +1126,333 @@ export default function AdminDashboard() {
 						</section>
 					)}
 
+					{activeSection === "sponsored" && (
+						<section className="space-y-6">
+							<article className="rounded-3xl border border-gray-200 bg-white p-5">
+								<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+									<h2 className="text-2xl font-display font-bold">
+										Sponsored Ads
+									</h2>
+									<div className="flex flex-wrap items-center gap-2">
+										<select
+											value={sponsoredStatus}
+											onChange={(event) =>
+												setSponsoredStatus(event.target.value)
+											}
+											className="h-10 rounded-full border border-gray-200 bg-white px-3 text-sm"
+										>
+											<option value="all">All</option>
+											<option value="pending">Pending</option>
+											<option value="approved">Approved</option>
+											<option value="rejected">Rejected</option>
+										</select>
+										<div className="flex items-center rounded-full border border-gray-200 bg-white px-3">
+											<Search size={14} className="text-gray-400" />
+											<input
+												value={sponsoredSearch}
+												onChange={(event) =>
+													setSponsoredSearch(event.target.value)
+												}
+												placeholder="Search sponsored ads"
+												className="h-10 w-52 bg-transparent px-2 text-sm outline-none"
+											/>
+										</div>
+									</div>
+								</div>
+
+								<form
+									onSubmit={saveSponsoredAd}
+									className="mb-5 grid gap-3 rounded-2xl border border-gray-200 bg-[#FAFAFA] p-4 lg:grid-cols-2"
+								>
+									<input
+										value={sponsoredForm.title}
+										onChange={(event) =>
+											setSponsoredForm((prev) => ({
+												...prev,
+												title: event.target.value,
+											}))
+										}
+										placeholder="Ad title"
+										className="h-10 rounded-lg border border-gray-200 px-3 text-sm"
+									/>
+									<input
+										value={sponsoredForm.imageUrl}
+										onChange={(event) =>
+											setSponsoredForm((prev) => ({
+												...prev,
+												imageUrl: event.target.value,
+											}))
+										}
+										placeholder="Image URL"
+										className="h-10 rounded-lg border border-gray-200 px-3 text-sm"
+									/>
+									<input
+										value={sponsoredForm.targetUrl}
+										onChange={(event) =>
+											setSponsoredForm((prev) => ({
+												...prev,
+												targetUrl: event.target.value,
+											}))
+										}
+										placeholder="Target URL"
+										className="h-10 rounded-lg border border-gray-200 px-3 text-sm"
+									/>
+									<select
+										value={sponsoredForm.placement}
+										onChange={(event) =>
+											setSponsoredForm((prev) => ({
+												...prev,
+												placement: event.target.value,
+											}))
+										}
+										className="h-10 rounded-lg border border-gray-200 px-3 text-sm"
+									>
+										<option value="any">Any Sidebar</option>
+										<option value="left">Left Sidebar</option>
+										<option value="right">Right Sidebar</option>
+									</select>
+									<textarea
+										value={sponsoredForm.description}
+										onChange={(event) =>
+											setSponsoredForm((prev) => ({
+												...prev,
+												description: event.target.value,
+											}))
+										}
+										rows={2}
+										placeholder="Description"
+										className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+									/>
+									<div className="space-y-2">
+										<div className="flex items-center gap-2">
+											<select
+												value={sponsoredForm.status}
+												onChange={(event) =>
+													setSponsoredForm((prev) => ({
+														...prev,
+														status: event.target.value,
+													}))
+												}
+												className="h-10 rounded-lg border border-gray-200 px-2 text-sm"
+											>
+												<option value="approved">approved</option>
+												<option value="pending">pending</option>
+												<option value="rejected">rejected</option>
+											</select>
+											<label className="inline-flex items-center gap-2 text-sm text-gray-700">
+												<input
+													type="checkbox"
+													checked={sponsoredForm.isActive}
+													onChange={(event) =>
+														setSponsoredForm((prev) => ({
+															...prev,
+															isActive: event.target.checked,
+														}))
+													}
+												/>
+												Active
+											</label>
+										</div>
+										<input
+											value={sponsoredForm.reviewNotes}
+											onChange={(event) =>
+												setSponsoredForm((prev) => ({
+													...prev,
+													reviewNotes: event.target.value,
+												}))
+											}
+											placeholder="Review notes (optional)"
+											className="h-10 rounded-lg border border-gray-200 px-3 text-sm"
+										/>
+									</div>
+									<div className="lg:col-span-2 flex gap-2">
+										<button
+											type="submit"
+											disabled={
+												actionKey === "sponsored-create" ||
+												actionKey === `sponsored-update-${editingSponsoredId}`
+											}
+											className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+										>
+											{editingSponsoredId
+												? "Update Sponsored Ad"
+												: "Create Sponsored Ad"}
+										</button>
+										{editingSponsoredId ? (
+											<button
+												type="button"
+												onClick={resetSponsoredForm}
+												className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700"
+											>
+												Cancel
+											</button>
+										) : null}
+									</div>
+								</form>
+
+								<div className="overflow-x-auto">
+									<table className="min-w-full text-left text-sm">
+										<thead className="text-xs uppercase tracking-[0.12em] text-gray-500">
+											<tr>
+												<th className="px-3 py-3">Ad</th>
+												<th className="px-3 py-3">Submitter</th>
+												<th className="px-3 py-3">Status</th>
+												<th className="px-3 py-3">Placement</th>
+												<th className="px-3 py-3 text-right">Actions</th>
+											</tr>
+										</thead>
+										<tbody>
+											{loadingSponsored ? (
+												<tr>
+													<td className="px-3 py-6 text-gray-500" colSpan={5}>
+														Loading sponsored ads...
+													</td>
+												</tr>
+											) : sponsoredAds.length ? (
+												sponsoredAds.map((entry) => (
+													<tr
+														key={entry.id}
+														className="border-t border-gray-100"
+													>
+														<td className="px-3 py-3">
+															<div className="flex items-center gap-3">
+																<img
+																	src={entry.imageUrl}
+																	alt={entry.title}
+																	className="h-12 w-12 rounded-xl object-cover"
+																/>
+																<div className="min-w-0">
+																	<p className="line-clamp-1 font-semibold text-gray-900">
+																		{entry.title}
+																	</p>
+																	<p className="line-clamp-1 text-xs text-gray-500">
+																		{entry.targetUrl}
+																	</p>
+																</div>
+															</div>
+														</td>
+														<td className="px-3 py-3 text-gray-600">
+															{entry?.submittedBy?.name || "Admin"}
+														</td>
+														<td className="px-3 py-3">
+															<span
+																className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${entry.status === "approved" ? "bg-green-50 text-green-700" : entry.status === "rejected" ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-700"}`}
+															>
+																{entry.status}
+															</span>
+														</td>
+														<td className="px-3 py-3 capitalize text-gray-600">
+															{entry.placement || "any"}
+														</td>
+														<td className="px-3 py-3">
+															<div className="flex justify-end gap-2">
+																<button
+																	type="button"
+																	onClick={() => startSponsoredEdit(entry)}
+																	className="grid h-8 w-8 place-items-center rounded-full border border-gray-200 bg-white text-gray-700"
+																>
+																	<Pencil size={12} />
+																</button>
+																<button
+																	type="button"
+																	disabled={
+																		actionKey === `sponsored-status-${entry.id}`
+																	}
+																	onClick={() =>
+																		updateSponsoredStatus(
+																			entry,
+																			entry.status === "approved"
+																				? "rejected"
+																				: "approved",
+																		)
+																	}
+																	className="grid h-8 w-8 place-items-center rounded-full border border-gray-200 bg-white text-gray-700 disabled:opacity-60"
+																>
+																	<Eye size={12} />
+																</button>
+																<button
+																	type="button"
+																	disabled={
+																		actionKey === `sponsored-delete-${entry.id}`
+																	}
+																	onClick={() => removeSponsoredAd(entry.id)}
+																	className="grid h-8 w-8 place-items-center rounded-full border border-red-200 bg-red-50 text-red-600 disabled:opacity-60"
+																>
+																	<Trash2 size={12} />
+																</button>
+															</div>
+														</td>
+													</tr>
+												))
+											) : (
+												<tr>
+													<td className="px-3 py-6 text-gray-500" colSpan={5}>
+														No sponsored ads found.
+													</td>
+												</tr>
+											)}
+										</tbody>
+									</table>
+								</div>
+								<div className="mt-4 flex items-center justify-end gap-3 text-sm text-gray-600">
+									<button
+										type="button"
+										disabled={sponsoredPage === 1 || loadingSponsored}
+										onClick={() =>
+											setSponsoredPage((prev) => Math.max(prev - 1, 1))
+										}
+										className="disabled:opacity-50"
+									>
+										Previous
+									</button>
+									<span>
+										Page {sponsoredPage} / {sponsoredPages}
+									</span>
+									<button
+										type="button"
+										disabled={
+											sponsoredPage >= sponsoredPages || loadingSponsored
+										}
+										onClick={() => setSponsoredPage((prev) => prev + 1)}
+										className="disabled:opacity-50"
+									>
+										Next
+									</button>
+								</div>
+							</article>
+
+							<article className="rounded-3xl border border-gray-200 bg-white p-5">
+								<h2 className="text-2xl font-display font-bold text-gray-900">
+									Google Ads .js Snippet
+								</h2>
+								<p className="mt-2 text-sm text-gray-500">
+									Paste and save your Google Ads snippet for future ad
+									placements.
+								</p>
+								<form onSubmit={saveGoogleSnippet} className="mt-4 space-y-3">
+									<textarea
+										value={googleAdsSnippet}
+										onChange={(event) =>
+											setGoogleAdsSnippet(event.target.value)
+										}
+										rows={8}
+										placeholder="<script async src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'></script>"
+										className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-mono text-gray-700"
+									/>
+									<button
+										type="submit"
+										disabled={actionKey === "google-snippet-save"}
+										className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+									>
+										{actionKey === "google-snippet-save"
+											? "Saving..."
+											: "Save Snippet"}
+									</button>
+								</form>
+							</article>
+						</section>
+					)}
+
 					{activeSection === "categories" && (
 						<section className="rounded-3xl border border-gray-200 bg-white p-5">
 							<div className="mb-5 flex items-center justify-between gap-3">
@@ -1243,7 +1644,7 @@ export default function AdminDashboard() {
 					)}
 
 					{activeSection === "settings" && (
-						<section className="grid gap-6 lg:grid-cols-2">
+						<section className="grid gap-6 lg:grid-cols-1">
 							<article className="rounded-3xl border border-gray-200 bg-white p-6">
 								<h2 className="text-2xl font-display font-bold text-gray-900">
 									Profile Settings
@@ -1295,149 +1696,10 @@ export default function AdminDashboard() {
 											: "Save Profile"}
 									</button>
 								</form>
-							</article>
-
-							<article className="rounded-3xl border border-gray-200 bg-white p-6">
-								<h2 className="text-2xl font-display font-bold text-gray-900">
-									Ad Container CRUD
-								</h2>
-								<p className="mt-2 text-sm text-gray-500">
-									Manage ads displayed in the side sponsored container.
-								</p>
-								<form onSubmit={saveAdSlot} className="mt-5 space-y-3">
-									<input
-										value={adForm.title}
-										onChange={(event) =>
-											setAdForm((prev) => ({
-												...prev,
-												title: event.target.value,
-											}))
-										}
-										placeholder="Ad title"
-										className="h-11 w-full rounded-xl border border-gray-200 px-3"
-									/>
-									<input
-										value={adForm.description}
-										onChange={(event) =>
-											setAdForm((prev) => ({
-												...prev,
-												description: event.target.value,
-											}))
-										}
-										placeholder="Ad description"
-										className="h-11 w-full rounded-xl border border-gray-200 px-3"
-									/>
-									<input
-										value={adForm.imageUrl}
-										onChange={(event) =>
-											setAdForm((prev) => ({
-												...prev,
-												imageUrl: event.target.value,
-											}))
-										}
-										placeholder="Image URL"
-										className="h-11 w-full rounded-xl border border-gray-200 px-3"
-									/>
-									<input
-										value={adForm.targetUrl}
-										onChange={(event) =>
-											setAdForm((prev) => ({
-												...prev,
-												targetUrl: event.target.value,
-											}))
-										}
-										placeholder="Target URL (e.g. /explore or https://...)"
-										className="h-11 w-full rounded-xl border border-gray-200 px-3"
-									/>
-									<label className="inline-flex items-center gap-2 text-sm text-gray-700">
-										<input
-											type="checkbox"
-											checked={adForm.isActive}
-											onChange={(event) =>
-												setAdForm((prev) => ({
-													...prev,
-													isActive: event.target.checked,
-												}))
-											}
-										/>
-										Active in side rail
-									</label>
-									<div className="flex gap-2">
-										<button
-											type="submit"
-											className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
-										>
-											{editingAdId ? "Update Ad" : "Create Ad"}
-										</button>
-										{editingAdId ? (
-											<button
-												type="button"
-												onClick={resetAdForm}
-												className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700"
-											>
-												Cancel
-											</button>
-										) : null}
-									</div>
-								</form>
-
-								<div className="mt-5 space-y-2">
-									{adSlots.length ? (
-										adSlots.map((slot) => (
-											<div
-												key={slot.id}
-												className="flex items-center gap-3 rounded-2xl border border-gray-200 p-2.5"
-											>
-												<img
-													src={slot.imageUrl}
-													alt={slot.title}
-													className="h-12 w-12 rounded-xl object-cover"
-												/>
-												<div className="min-w-0 flex-1">
-													<p className="truncate text-sm font-semibold text-gray-900">
-														{slot.title}
-													</p>
-													<p className="truncate text-xs text-gray-500">
-														{slot.targetUrl}
-													</p>
-												</div>
-												<span
-													className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
-														slot.isActive
-															? "bg-green-50 text-green-700"
-															: "bg-gray-100 text-gray-600"
-													}`}
-												>
-													{slot.isActive ? "Active" : "Inactive"}
-												</span>
-												<button
-													type="button"
-													onClick={() => startAdEdit(slot)}
-													className="grid h-8 w-8 place-items-center rounded-full border border-gray-200 bg-white text-gray-700"
-												>
-													<Pencil size={12} />
-												</button>
-												<button
-													type="button"
-													onClick={() => toggleAdSlotVisibility(slot)}
-													className="grid h-8 w-8 place-items-center rounded-full border border-gray-200 bg-white text-gray-700"
-												>
-													<Eye size={12} />
-												</button>
-												<button
-													type="button"
-													onClick={() => deleteAdSlot(slot.id)}
-													className="grid h-8 w-8 place-items-center rounded-full border border-red-200 bg-red-50 text-red-600"
-												>
-													<Trash2 size={12} />
-												</button>
-											</div>
-										))
-									) : (
-										<p className="text-sm text-gray-500">
-											No ad slots created yet.
-										</p>
-									)}
+								<div className="mt-5 rounded-2xl border border-[#FFE49A] bg-[#FFF9E5] p-4 text-sm text-[#5C4D00]">
+									All sponsored ad CRUD operations are now managed in the
+									<span className="font-semibold">Sponsored</span> section,
+									including approvals and Google Ads snippet settings.
 								</div>
 							</article>
 						</section>

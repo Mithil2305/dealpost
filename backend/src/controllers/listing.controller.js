@@ -123,6 +123,65 @@ function normalizeLikedListingIds(rawIds) {
 	);
 }
 
+async function buildListingLikeCountMap(listingIds = []) {
+	const uniqueIds = Array.from(
+		new Set(
+			listingIds
+				.map((value) => Number(value))
+				.filter((value) => Number.isFinite(value) && value > 0),
+		),
+	);
+
+	const countMap = new Map(uniqueIds.map((id) => [id, 0]));
+	if (!uniqueIds.length) return countMap;
+
+	const users = await models.User.findAll({ attributes: ["likedListingIds"] });
+	for (const user of users) {
+		const likedIds = normalizeLikedListingIds(user?.likedListingIds);
+		for (const likedId of likedIds) {
+			if (!countMap.has(likedId)) continue;
+			countMap.set(likedId, (countMap.get(likedId) || 0) + 1);
+		}
+	}
+
+	return countMap;
+}
+
+function enrichListingWithLikeMeta(
+	listing,
+	{ countMap, currentUserLikedIds = [] },
+) {
+	if (!listing) return listing;
+
+	const listingId = Number(listing?.id || listing?._id);
+	const likedByCount = Number.isFinite(listingId)
+		? countMap.get(listingId) || 0
+		: 0;
+	const likedIdSet = new Set(normalizeLikedListingIds(currentUserLikedIds));
+
+	return {
+		...listing,
+		likedByCount,
+		isLiked: Number.isFinite(listingId) ? likedIdSet.has(listingId) : false,
+	};
+}
+
+async function enrichListingsWithLikeMeta(listings, currentUserLikedIds = []) {
+	if (!Array.isArray(listings) || !listings.length) return [];
+
+	const listingIds = listings
+		.map((listing) => Number(listing?.id || listing?._id))
+		.filter((id) => Number.isFinite(id) && id > 0);
+	const countMap = await buildListingLikeCountMap(listingIds);
+
+	return listings.map((listing) =>
+		enrichListingWithLikeMeta(listing, {
+			countMap,
+			currentUserLikedIds,
+		}),
+	);
+}
+
 function parseMaybeJson(value, fallback) {
 	if (!value) return fallback;
 	if (typeof value === "object") return value;
@@ -422,9 +481,18 @@ export const getListings = asyncHandler(async (req, res) => {
 			include: listingIncludes(),
 			order: sortMap[sort] || sortMap.Newest,
 		});
+		const currentUserLikedIds = normalizeLikedListingIds(
+			req.user?.likedListingIds,
+		);
+		const countMap = await buildListingLikeCountMap(rows.map((row) => row?.id));
 
 		const withinRadius = rows
-			.map((row) => normalizeListingPayload(row))
+			.map((row) =>
+				enrichListingWithLikeMeta(normalizeListingPayload(row), {
+					countMap,
+					currentUserLikedIds,
+				}),
+			)
 			.map((listing) => {
 				const coords = extractListingCoordinates(listing.location);
 				if (!coords) return null;
@@ -464,9 +532,14 @@ export const getListings = asyncHandler(async (req, res) => {
 		limit: numericLimit,
 		distinct: true, // important for accurate count with includes
 	});
+	const normalizedRows = rows.map(normalizeListingPayload);
+	const enrichedRows = await enrichListingsWithLikeMeta(
+		normalizedRows,
+		req.user?.likedListingIds,
+	);
 
 	res.json({
-		listings: rows.map(normalizeListingPayload),
+		listings: enrichedRows,
 		total: count,
 		page: numericPage,
 		pages: Math.ceil(count / numericLimit),
@@ -488,8 +561,13 @@ export const getMyListings = asyncHandler(async (req, res) => {
 		],
 		order: [["createdAt", "DESC"]],
 	});
+	const normalizedListings = listings.map(normalizeListingPayload);
+	const enrichedListings = await enrichListingsWithLikeMeta(
+		normalizedListings,
+		req.user?.likedListingIds,
+	);
 
-	res.json({ listings: listings.map(normalizeListingPayload) });
+	res.json({ listings: enrichedListings });
 });
 
 // ---------------------------------------------------------------------------
@@ -512,8 +590,13 @@ export const getListingById = asyncHandler(async (req, res) => {
 	const refreshed = await models.Listing.findByPk(listing.id, {
 		include: listingIncludes(),
 	});
+	const normalized = normalizeListingPayload(refreshed);
+	const [enriched] = await enrichListingsWithLikeMeta(
+		[normalized],
+		req.user?.likedListingIds,
+	);
 
-	res.json({ listing: normalizeListingPayload(refreshed) });
+	res.json({ listing: enriched || normalized });
 });
 
 // ---------------------------------------------------------------------------
@@ -625,8 +708,13 @@ export const createListing = asyncHandler(async (req, res) => {
 	const hydrated = await models.Listing.findByPk(listing.id, {
 		include: listingIncludes(["id", "name", "avatar"]),
 	});
+	const normalized = normalizeListingPayload(hydrated);
+	const [enriched] = await enrichListingsWithLikeMeta(
+		[normalized],
+		req.user?.likedListingIds,
+	);
 
-	res.status(201).json({ listing: normalizeListingPayload(hydrated) });
+	res.status(201).json({ listing: enriched || normalized });
 });
 
 // ---------------------------------------------------------------------------
@@ -664,8 +752,13 @@ export const patchListing = asyncHandler(async (req, res) => {
 	const hydrated = await models.Listing.findByPk(listing.id, {
 		include: listingIncludes(["id", "name", "avatar", "email"]),
 	});
+	const normalized = normalizeListingPayload(hydrated);
+	const [enriched] = await enrichListingsWithLikeMeta(
+		[normalized],
+		req.user?.likedListingIds,
+	);
 
-	res.json({ listing: normalizeListingPayload(hydrated) });
+	res.json({ listing: enriched || normalized });
 });
 
 // ---------------------------------------------------------------------------
@@ -782,8 +875,13 @@ export const updateListing = asyncHandler(async (req, res) => {
 	const hydrated = await models.Listing.findByPk(listing.id, {
 		include: listingIncludes(["id", "name", "avatar", "email"]),
 	});
+	const normalized = normalizeListingPayload(hydrated);
+	const [enriched] = await enrichListingsWithLikeMeta(
+		[normalized],
+		req.user?.likedListingIds,
+	);
 
-	res.json({ listing: normalizeListingPayload(hydrated) });
+	res.json({ listing: enriched || normalized });
 });
 
 // ---------------------------------------------------------------------------
@@ -820,8 +918,10 @@ export const likeListing = asyncHandler(async (req, res) => {
 		req.user.likedListingIds = likedIds;
 		await req.user.save();
 	}
+	const countMap = await buildListingLikeCountMap([listing.id]);
+	const likedByCount = countMap.get(Number(listing.id)) || 0;
 
-	res.json({ likedListingIds: likedIds });
+	res.json({ likedListingIds: likedIds, likedByCount });
 });
 
 // ---------------------------------------------------------------------------
@@ -838,8 +938,10 @@ export const unlikeListing = asyncHandler(async (req, res) => {
 	);
 	req.user.likedListingIds = likedIds;
 	await req.user.save();
+	const countMap = await buildListingLikeCountMap([listing.id]);
+	const likedByCount = countMap.get(Number(listing.id)) || 0;
 
-	res.json({ likedListingIds: likedIds });
+	res.json({ likedListingIds: likedIds, likedByCount });
 });
 
 // ---------------------------------------------------------------------------
@@ -861,6 +963,10 @@ export const getMyLikedListings = asyncHandler(async (req, res) => {
 		.map((id) => byId.get(Number(id)))
 		.filter(Boolean)
 		.map((row) => normalizeListingPayload(row));
+	const enriched = await enrichListingsWithLikeMeta(
+		ordered,
+		req.user?.likedListingIds,
+	);
 
-	res.json({ listings: ordered });
+	res.json({ listings: enriched });
 });

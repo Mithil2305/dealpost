@@ -19,6 +19,12 @@ import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/useAuth";
+import {
+	createSponsoredAd,
+	deleteSponsoredAd,
+	getMySponsoredAds,
+	updateSponsoredAd,
+} from "../utils/sponsoredAds";
 
 export default function UserDashboard() {
 	const { user, setCurrentUser, logout } = useAuth();
@@ -41,6 +47,16 @@ export default function UserDashboard() {
 	const [myListings, setMyListings] = useState([]);
 	const [likedListings, setLikedListings] = useState([]);
 	const [messageCount, setMessageCount] = useState(0);
+	const [mySponsoredAds, setMySponsoredAds] = useState([]);
+	const [sponsoredForm, setSponsoredForm] = useState({
+		title: "",
+		description: "",
+		imageUrl: "",
+		targetUrl: "",
+		placement: "any",
+		isActive: true,
+	});
+	const [editingSponsoredId, setEditingSponsoredId] = useState(null);
 
 	useEffect(() => {
 		setProfileForm({
@@ -58,7 +74,7 @@ export default function UserDashboard() {
 		const fetchDashboardData = async () => {
 			try {
 				setDashboardLoading(true);
-				const [listingRes, convoRes, likedRes] = await Promise.all([
+				const [listingRes, convoRes, likedRes, sponsored] = await Promise.all([
 					api.get("/listings", { params: { userId: "me", limit: 40 } }),
 					api
 						.get("/conversations")
@@ -66,6 +82,7 @@ export default function UserDashboard() {
 					api
 						.get("/listings/liked/my")
 						.catch(() => ({ data: { listings: [] } })),
+					getMySponsoredAds().catch(() => []),
 				]);
 
 				if (!active) return;
@@ -83,6 +100,7 @@ export default function UserDashboard() {
 				setMyListings(ownListings);
 				setMessageCount(conversations.length);
 				setLikedListings(liked);
+				setMySponsoredAds(Array.isArray(sponsored) ? sponsored : []);
 			} catch {
 				if (!active) return;
 				toast.error("Unable to load dashboard data");
@@ -212,6 +230,75 @@ export default function UserDashboard() {
 		}
 	};
 
+	const resetSponsoredForm = () => {
+		setSponsoredForm({
+			title: "",
+			description: "",
+			imageUrl: "",
+			targetUrl: "",
+			placement: "any",
+			isActive: true,
+		});
+		setEditingSponsoredId(null);
+	};
+
+	const saveSponsored = async (event) => {
+		event.preventDefault();
+		if (sponsoredForm.title.trim().length < 3) {
+			toast.error("Ad title must be at least 3 characters");
+			return;
+		}
+		if (!sponsoredForm.imageUrl.trim()) {
+			toast.error("Image URL is required");
+			return;
+		}
+
+		try {
+			setBusyAction("sponsored-save");
+			if (editingSponsoredId) {
+				await updateSponsoredAd(editingSponsoredId, sponsoredForm);
+				toast.success("Sponsored ad updated and sent for re-approval");
+			} else {
+				await createSponsoredAd(sponsoredForm);
+				toast.success("Sponsored ad submitted for admin approval");
+			}
+			setMySponsoredAds(await getMySponsoredAds());
+			resetSponsoredForm();
+		} catch (error) {
+			toast.error(
+				error?.response?.data?.message || "Unable to save sponsored ad",
+			);
+		} finally {
+			setBusyAction("");
+		}
+	};
+
+	const startSponsoredEdit = (ad) => {
+		setEditingSponsoredId(ad?.id || null);
+		setSponsoredForm({
+			title: ad?.title || "",
+			description: ad?.description || "",
+			imageUrl: ad?.imageUrl || "",
+			targetUrl: ad?.targetUrl || "",
+			placement: ad?.placement || "any",
+			isActive: Boolean(ad?.isActive),
+		});
+	};
+
+	const removeSponsored = async (id) => {
+		if (!id) return;
+		try {
+			setBusyAction(`sponsored-delete-${id}`);
+			await deleteSponsoredAd(id);
+			setMySponsoredAds(await getMySponsoredAds());
+			toast.success("Sponsored ad removed");
+		} catch {
+			toast.error("Unable to remove sponsored ad");
+		} finally {
+			setBusyAction("");
+		}
+	};
+
 	return (
 		<div className="min-h-screen bg-[#F7F8FA] flex flex-col">
 			<Navbar />
@@ -254,6 +341,17 @@ export default function UserDashboard() {
 								}`}
 							>
 								<KeyRound size={16} /> Security
+							</button>
+							<button
+								type="button"
+								onClick={() => setActiveTab("sponsored")}
+								className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold ${
+									activeTab === "sponsored"
+										? "bg-[#FFF5D1] text-[#5C4D00]"
+										: "text-gray-700 hover:bg-gray-50"
+								}`}
+							>
+								<Megaphone size={16} /> Sponsored Ads
 							</button>
 							<Link
 								to="/messages"
@@ -361,6 +459,14 @@ export default function UserDashboard() {
 										</p>
 										<p className="mt-2 text-3xl font-display font-bold text-black">
 											{dashboardLoading ? "-" : messageCount}
+										</p>
+									</div>
+									<div className="rounded-2xl border border-gray-200 bg-white p-4">
+										<p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">
+											Sponsored Ads
+										</p>
+										<p className="mt-2 text-3xl font-display font-bold text-black">
+											{dashboardLoading ? "-" : mySponsoredAds.length}
 										</p>
 									</div>
 								</div>
@@ -571,6 +677,151 @@ export default function UserDashboard() {
 										: "Change Password"}
 								</button>
 							</form>
+						) : null}
+
+						{activeTab === "sponsored" ? (
+							<section className="space-y-4 rounded-3xl border border-gray-200 bg-white p-6">
+								<h2 className="text-2xl font-display font-bold text-black">
+									Sponsored Ads
+								</h2>
+								<p className="text-sm text-gray-500">
+									Create sponsored ads. They become public only after admin
+									approval.
+								</p>
+								<form
+									onSubmit={saveSponsored}
+									className="grid gap-3 md:grid-cols-2"
+								>
+									<input
+										value={sponsoredForm.title}
+										onChange={(event) =>
+											setSponsoredForm((prev) => ({
+												...prev,
+												title: event.target.value,
+											}))
+										}
+										placeholder="Ad title"
+										className="h-11 rounded-xl border border-gray-200 px-3"
+									/>
+									<input
+										value={sponsoredForm.imageUrl}
+										onChange={(event) =>
+											setSponsoredForm((prev) => ({
+												...prev,
+												imageUrl: event.target.value,
+											}))
+										}
+										placeholder="Image URL"
+										className="h-11 rounded-xl border border-gray-200 px-3"
+									/>
+									<input
+										value={sponsoredForm.targetUrl}
+										onChange={(event) =>
+											setSponsoredForm((prev) => ({
+												...prev,
+												targetUrl: event.target.value,
+											}))
+										}
+										placeholder="Target URL"
+										className="h-11 rounded-xl border border-gray-200 px-3"
+									/>
+									<select
+										value={sponsoredForm.placement}
+										onChange={(event) =>
+											setSponsoredForm((prev) => ({
+												...prev,
+												placement: event.target.value,
+											}))
+										}
+										className="h-11 rounded-xl border border-gray-200 px-3"
+									>
+										<option value="any">Any sidebar</option>
+										<option value="left">Left sidebar</option>
+										<option value="right">Right sidebar</option>
+									</select>
+									<textarea
+										value={sponsoredForm.description}
+										onChange={(event) =>
+											setSponsoredForm((prev) => ({
+												...prev,
+												description: event.target.value,
+											}))
+										}
+										rows={3}
+										placeholder="Description"
+										className="rounded-xl border border-gray-200 px-3 py-2 md:col-span-2"
+									/>
+									<div className="md:col-span-2 flex gap-2">
+										<button
+											type="submit"
+											disabled={busyAction === "sponsored-save"}
+											className="rounded-xl bg-black px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+										>
+											{editingSponsoredId
+												? "Update & Resubmit"
+												: "Submit For Approval"}
+										</button>
+										{editingSponsoredId ? (
+											<button
+												type="button"
+												onClick={resetSponsoredForm}
+												className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-semibold text-gray-700"
+											>
+												Cancel
+											</button>
+										) : null}
+									</div>
+								</form>
+
+								<div className="space-y-2">
+									{mySponsoredAds.length ? (
+										mySponsoredAds.map((ad) => (
+											<div
+												key={ad.id}
+												className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-200 p-3"
+											>
+												<img
+													src={ad.imageUrl}
+													alt={ad.title}
+													className="h-14 w-14 rounded-xl object-cover"
+												/>
+												<div className="min-w-0 flex-1">
+													<p className="line-clamp-1 text-sm font-semibold text-gray-900">
+														{ad.title}
+													</p>
+													<p className="line-clamp-1 text-xs text-gray-500">
+														{ad.targetUrl}
+													</p>
+												</div>
+												<span
+													className={`rounded-full px-2 py-1 text-[10px] font-semibold capitalize ${ad.status === "approved" ? "bg-green-50 text-green-700" : ad.status === "rejected" ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-700"}`}
+												>
+													{ad.status}
+												</span>
+												<button
+													type="button"
+													onClick={() => startSponsoredEdit(ad)}
+													className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700"
+												>
+													Edit
+												</button>
+												<button
+													type="button"
+													disabled={busyAction === `sponsored-delete-${ad.id}`}
+													onClick={() => removeSponsored(ad.id)}
+													className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 disabled:opacity-60"
+												>
+													Delete
+												</button>
+											</div>
+										))
+									) : (
+										<p className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500">
+											No sponsored ads submitted yet.
+										</p>
+									)}
+								</div>
+							</section>
 						) : null}
 					</section>
 				</div>

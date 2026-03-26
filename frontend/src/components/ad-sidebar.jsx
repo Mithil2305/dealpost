@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getActiveAdSlots } from "../utils/adSlots";
+import { getPublicSponsoredAds } from "../utils/sponsoredAds";
 
 const SIDEBAR_LAYOUTS = {
 	left: [
@@ -66,11 +67,46 @@ function AdCard({ ad, fallbackTitle, heightClass }) {
 
 export default function AdSidebar({ side = "left" }) {
 	const layouts = SIDEBAR_LAYOUTS[side] || SIDEBAR_LAYOUTS.left;
-	const ads = getActiveAdSlots(4);
+	const [ads, setAds] = useState([]);
+	const [googleAdsSnippet, setGoogleAdsSnippet] = useState("");
+
+	useEffect(() => {
+		let active = true;
+
+		const fetchAds = async () => {
+			try {
+				const data = await getPublicSponsoredAds({ side, limit: 4 });
+				if (!active) return;
+				setAds(Array.isArray(data?.ads) ? data.ads : []);
+				setGoogleAdsSnippet(String(data?.googleAdsSnippet || ""));
+			} catch {
+				if (!active) return;
+				setAds([]);
+				setGoogleAdsSnippet("");
+			}
+		};
+
+		fetchAds();
+
+		return () => {
+			active = false;
+		};
+	}, [side]);
 
 	return (
 		<aside className="hidden xl:block">
 			<div className="sticky top-24 space-y-4">
+				{googleAdsSnippet ? (
+					<div className="rounded-3xl border border-dashed border-[#E2E2E2] bg-[#FAFAFA] p-4">
+						<p className="text-center text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#A0A0A0]">
+							Google Ad Slot
+						</p>
+						<p className="mt-2 rounded-xl border border-[#E2E2E2] bg-white px-3 py-2 text-[11px] text-[#666666]">
+							Google ad snippet is configured by admin and ready for future
+							placement.
+						</p>
+					</div>
+				) : null}
 				{layouts.map((slot, index) => (
 					<div
 						key={`${side}-${slot.title}-${index}`}

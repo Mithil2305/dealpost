@@ -1,8 +1,10 @@
+import { defineAppSetting } from "./AppSetting.js";
 import { defineCategory } from "./Category.js";
 import { defineConversation } from "./Conversation.js";
 import { defineListing } from "./Listing.js";
 import { defineMessage } from "./Message.js";
 import { defineReport } from "./Report.js";
+import { defineSponsoredAd } from "./SponsoredAd.js";
 import { defineUser } from "./User.js";
 
 export function initModels(sequelize) {
@@ -12,6 +14,8 @@ export function initModels(sequelize) {
 	const Conversation = defineConversation(sequelize);
 	const Message = defineMessage(sequelize);
 	const Report = defineReport(sequelize);
+	const SponsoredAd = defineSponsoredAd(sequelize);
+	const AppSetting = defineAppSetting(sequelize);
 
 	Category.hasMany(Listing, { foreignKey: "categoryId", as: "listings" });
 	Listing.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
@@ -50,6 +54,23 @@ export function initModels(sequelize) {
 	Conversation.belongsTo(User, { foreignKey: "buyerId", as: "buyer" });
 	Conversation.belongsTo(User, { foreignKey: "sellerId", as: "seller" });
 
+	User.hasMany(SponsoredAd, {
+		foreignKey: "submittedById",
+		as: "submittedSponsoredAds",
+	});
+	User.hasMany(SponsoredAd, {
+		foreignKey: "reviewedById",
+		as: "reviewedSponsoredAds",
+	});
+	SponsoredAd.belongsTo(User, {
+		foreignKey: "submittedById",
+		as: "submitter",
+	});
+	SponsoredAd.belongsTo(User, {
+		foreignKey: "reviewedById",
+		as: "reviewer",
+	});
+
 	return {
 		User,
 		Category,
@@ -57,5 +78,7 @@ export function initModels(sequelize) {
 		Conversation,
 		Message,
 		Report,
+		SponsoredAd,
+		AppSetting,
 	};
 }
