@@ -3,6 +3,8 @@ import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const GOOGLE_ADS_SNIPPET_KEY = "google_ads_snippet";
+const ALLOWED_SNIPPET_PATTERN =
+	/^(?:\s*|<script[^>]*src=["']https:\/\/pagead2\.googlesyndication\.com[^"']*["'][^>]*><\/script>\s*)$/i;
 
 function normalizePlacement(value) {
 	const next = String(value || "any").toLowerCase();
@@ -388,7 +390,13 @@ export const getAdminGoogleAdsSnippet = asyncHandler(async (_req, res) => {
 });
 
 export const upsertAdminGoogleAdsSnippet = asyncHandler(async (req, res) => {
-	const snippet = String(req.body?.googleAdsSnippet || "");
+	const snippet = String(req.body?.googleAdsSnippet || "").trim();
+
+	if (snippet && !ALLOWED_SNIPPET_PATTERN.test(snippet)) {
+		return res
+			.status(400)
+			.json({ message: "Invalid Google Ads snippet format" });
+	}
 
 	const existing = await models.AppSetting.findOne({
 		where: { key: GOOGLE_ADS_SNIPPET_KEY },

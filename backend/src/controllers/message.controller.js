@@ -2,6 +2,8 @@ import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { encryptMessage, decryptMessage } from "../utils/encryption.js";
 
+const MAX_MESSAGE_LENGTH = 2000;
+
 // ---------------------------------------------------------------------------
 // POST /api/messages  — quick "contact seller" from ProductDetail page
 // Creates/finds a conversation and sends the first message, encrypted.
@@ -15,6 +17,12 @@ export const quickMessage = asyncHandler(async (req, res) => {
 
 	if (!text.trim()) {
 		return res.status(400).json({ message: "Message text cannot be empty" });
+	}
+
+	if (String(text).trim().length > MAX_MESSAGE_LENGTH) {
+		return res.status(400).json({
+			message: `Message cannot exceed ${MAX_MESSAGE_LENGTH} characters`,
+		});
 	}
 
 	const numericListingId = Number(listingId);

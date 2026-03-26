@@ -128,6 +128,7 @@ export default function Messages() {
 		fetchConversations(true);
 
 		const intervalId = window.setInterval(() => {
+			if (document.hidden) return;
 			fetchConversations(false);
 		}, 9000);
 
@@ -194,6 +195,7 @@ export default function Messages() {
 		fetchMessages(true, false);
 
 		const intervalId = window.setInterval(() => {
+			if (document.hidden) return;
 			fetchMessages(false, true);
 		}, 4000);
 
@@ -426,19 +428,26 @@ export default function Messages() {
 											"Select a conversation"}
 									</h2>
 									<div className="flex items-center gap-1.5 mt-0.5">
-										<div className="w-2 h-2 bg-green-500 rounded-full" />
+										<div className="w-2 h-2 bg-gray-400 rounded-full" />
 										<span className="text-xs font-bold text-[#888888] uppercase tracking-wider">
-											Online
+											Presence unavailable
 										</span>
 									</div>
 								</div>
 							</div>
 
 							<div className="flex items-center gap-3">
-								<button className="grid h-10 w-10 place-items-center rounded-full bg-[#F4F4F4] hover:bg-[#EAEAEA] transition text-black">
+								<button
+									type="button"
+									onClick={() => toast("Voice calls coming soon")}
+									className="grid h-10 w-10 place-items-center rounded-full bg-[#F4F4F4] hover:bg-[#EAEAEA] transition text-black"
+								>
 									<Phone size={18} fill="currentColor" className="text-black" />
 								</button>
-								<button className="grid h-10 w-10 place-items-center rounded-full bg-[#F4F4F4] hover:bg-[#EAEAEA] transition text-black">
+								<button
+									type="button"
+									className="grid h-10 w-10 place-items-center rounded-full bg-[#F4F4F4] hover:bg-[#EAEAEA] transition text-black"
+								>
 									<EllipsisVertical size={20} />
 								</button>
 							</div>

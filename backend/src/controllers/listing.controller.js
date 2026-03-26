@@ -3,6 +3,12 @@ import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { createR2PresignedUpload, uploadToR2 } from "../utils/r2Upload.js";
 
+const MAX_SEARCH_LENGTH = 200;
+const MAX_PRICE = 100_000_000;
+const OWNER_ALLOWED_STATUSES = ["active", "sold", "pending"];
+const ADMIN_ALLOWED_STATUSES = ["active", "sold", "pending", "removed"];
+const VALID_SORTS = ["Newest", "Price Low-High", "Price High-Low", "Most Popular"];
+
 // ---------------------------------------------------------------------------
 // Sort map matching the frontend Explore page sort options
 // ---------------------------------------------------------------------------
@@ -192,6 +198,19 @@ function parseMaybeJson(value, fallback) {
 	}
 }
 
+function sanitizeSpecs(raw) {
+	const parsed = parseMaybeJson(raw, {});
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+	const entries = Object.entries(parsed).slice(0, 30);
+	return Object.fromEntries(
+		entries.map(([key, val]) => [
+			String(key || "").trim().slice(0, 100),
+			String(val ?? "").trim().slice(0, 500),
+		]),
+	);
+}
+
 function normalizeIncomingImages(value) {
 	const parsed = parseMaybeJson(value, []);
 	if (!Array.isArray(parsed)) return [];
@@ -311,10 +330,7 @@ const sellerAttributes = [
 	"id",
 	"name",
 	"businessName",
-	"gstOrMsme",
 	"avatar",
-	"phone",
-	"email",
 	"location",
 	"createdAt",
 ];
@@ -332,8 +348,14 @@ function listingIncludes(sellerAttrs = sellerAttributes) {
 // ---------------------------------------------------------------------------
 export const presignListingImageUpload = asyncHandler(async (req, res) => {
 	const { fileName, contentType } = req.body || {};
+	const allowedContentTypes = new Set([
+		"image/jpeg",
+		"image/png",
+		"image/webp",
+		"image/gif",
+	]);
 
-	if (!contentType || !String(contentType).startsWith("image/")) {
+	if (!contentType || !allowedContentTypes.has(String(contentType).toLowerCase())) {
 		return res
 			.status(400)
 			.json({ message: "A valid image contentType is required" });
@@ -383,6 +405,7 @@ export const getListings = asyncHandler(async (req, res) => {
 	} = req.query;
 
 	const where = {};
+	const safeSort = VALID_SORTS.includes(String(sort)) ? String(sort) : "Newest";
 
 	// My Ads: when userId=me, show owner's listings regardless of status
 	if (userId === "me") {
@@ -397,8 +420,8 @@ export const getListings = asyncHandler(async (req, res) => {
 	}
 
 	// Full-text search on title + description
-	const searchTerm = q || search;
-	if (searchTerm) {
+	const searchTerm = String(q || search || "").trim().slice(0, MAX_SEARCH_LENGTH);
+	if (searchTerm.length > 0) {
 		where[Op.or] = [
 			{ title: { [Op.like]: `%${searchTerm}%` } },
 			{ description: { [Op.like]: `%${searchTerm}%` } },
@@ -479,7 +502,7 @@ export const getListings = asyncHandler(async (req, res) => {
 		const rows = await models.Listing.findAll({
 			where,
 			include: listingIncludes(),
-			order: sortMap[sort] || sortMap.Newest,
+			order: sortMap[safeSort],
 		});
 		const currentUserLikedIds = normalizeLikedListingIds(
 			req.user?.likedListingIds,
@@ -527,7 +550,7 @@ export const getListings = asyncHandler(async (req, res) => {
 	const { rows, count } = await models.Listing.findAndCountAll({
 		where,
 		include: listingIncludes(),
-		order: sortMap[sort] || sortMap.Newest,
+		order: sortMap[safeSort],
 		offset,
 		limit: numericLimit,
 		distinct: true, // important for accurate count with includes
@@ -585,12 +608,8 @@ export const getListingById = asyncHandler(async (req, res) => {
 
 	// Increment views atomically
 	await listing.increment("views");
-
-	// Re-fetch to get updated views count
-	const refreshed = await models.Listing.findByPk(listing.id, {
-		include: listingIncludes(),
-	});
-	const normalized = normalizeListingPayload(refreshed);
+	await listing.reload({ include: listingIncludes() });
+	const normalized = normalizeListingPayload(listing);
 	const [enriched] = await enrichListingsWithLikeMeta(
 		[normalized],
 		req.user?.likedListingIds,
@@ -619,13 +638,11 @@ export const createListing = asyncHandler(async (req, res) => {
 		location,
 		condition,
 		additionalNotes,
-		premiumBoost,
 		specs,
 		latitude,
 		longitude,
 		placeId,
 	} = req.body;
-	const directImages = normalizeIncomingImages(req.body?.images);
 
 	if (!title || !description || !price || !(parentCategory || category)) {
 		return res.status(400).json({
@@ -633,8 +650,26 @@ export const createListing = asyncHandler(async (req, res) => {
 		});
 	}
 
-	if (Number(price) <= 0) {
-		return res.status(400).json({ message: "Price must be greater than 0" });
+	const numericPrice = Number(price);
+	if (!Number.isFinite(numericPrice) || numericPrice <= 0 || numericPrice > MAX_PRICE) {
+		return res.status(400).json({
+			message: `Price must be between 1 and ${MAX_PRICE}`,
+		});
+	}
+
+	const numericOriginalPrice =
+		originalPrice !== undefined && originalPrice !== null && originalPrice !== ""
+			? Number(originalPrice)
+			: null;
+	if (
+		numericOriginalPrice !== null &&
+		(!Number.isFinite(numericOriginalPrice) ||
+			numericOriginalPrice <= numericPrice ||
+			numericOriginalPrice > MAX_PRICE)
+	) {
+		return res.status(400).json({
+			message: "Original price must be higher than current price and within range",
+		});
 	}
 
 	const resolvedCategory = await resolveCategorySelection({
@@ -662,11 +697,9 @@ export const createListing = asyncHandler(async (req, res) => {
 			req.files.map((file) => uploadToR2(file, "dealpost/listings")),
 		);
 		images = uploaded;
-	} else if (directImages.length) {
-		images = directImages;
 	}
 
-	const boost = String(premiumBoost) === "true";
+	const boost = false;
 	const parsedLatitude = toFiniteNumber(latitude);
 	const parsedLongitude = toFiniteNumber(longitude);
 	const locationPayload = {
@@ -688,14 +721,14 @@ export const createListing = asyncHandler(async (req, res) => {
 		parentCategory: resolvedCategory.parentCategory,
 		subCategory: resolvedCategory.subCategory,
 		subtitle: subtitle?.trim() || null,
-		price: Number(price),
-		originalPrice: originalPrice ? Number(originalPrice) : null,
+		price: numericPrice,
+		originalPrice: numericOriginalPrice,
 		categoryId,
 		location: locationPayload,
 		condition: condition || "Good",
 		premiumBoost: boost,
 		isFeatured: boost,
-		specs: parseMaybeJson(specs, {}),
+		specs: sanitizeSpecs(specs),
 		images,
 		sellerId: req.user.id,
 	});
@@ -743,6 +776,25 @@ export const patchListing = asyncHandler(async (req, res) => {
 	];
 	for (const field of allowedFields) {
 		if (req.body[field] !== undefined) {
+			if (field === "status") {
+				const nextStatus = String(req.body.status || "");
+				const allowed = isAdmin ? ADMIN_ALLOWED_STATUSES : OWNER_ALLOWED_STATUSES;
+				if (!allowed.includes(nextStatus)) {
+					return res.status(403).json({ message: "You cannot set this status" });
+				}
+				listing.status = nextStatus;
+				continue;
+			}
+
+			if (field === "price") {
+				const numeric = Number(req.body.price);
+				if (!Number.isFinite(numeric) || numeric <= 0 || numeric > MAX_PRICE) {
+					return res.status(400).json({ message: "Invalid price" });
+				}
+				listing.price = numeric;
+				continue;
+			}
+
 			listing[field] = req.body[field];
 		}
 	}
@@ -750,7 +802,7 @@ export const patchListing = asyncHandler(async (req, res) => {
 	await listing.save();
 
 	const hydrated = await models.Listing.findByPk(listing.id, {
-		include: listingIncludes(["id", "name", "avatar", "email"]),
+		include: listingIncludes(["id", "name", "avatar"]),
 	});
 	const normalized = normalizeListingPayload(hydrated);
 	const [enriched] = await enrichListingsWithLikeMeta(
@@ -802,11 +854,36 @@ export const updateListing = asyncHandler(async (req, res) => {
 			: null;
 	}
 	if (subtitle !== undefined) listing.subtitle = subtitle?.trim() || null;
-	if (price !== undefined) listing.price = Number(price);
-	if (originalPrice !== undefined)
-		listing.originalPrice = originalPrice ? Number(originalPrice) : null;
+	if (price !== undefined) {
+		const numericPrice = Number(price);
+		if (!Number.isFinite(numericPrice) || numericPrice <= 0 || numericPrice > MAX_PRICE) {
+			return res.status(400).json({ message: "Invalid price" });
+		}
+		listing.price = numericPrice;
+	}
+	if (originalPrice !== undefined) {
+		if (originalPrice === null || originalPrice === "") {
+			listing.originalPrice = null;
+		} else {
+			const numericOriginal = Number(originalPrice);
+			if (
+				!Number.isFinite(numericOriginal) ||
+				numericOriginal <= Number(listing.price) ||
+				numericOriginal > MAX_PRICE
+			) {
+				return res.status(400).json({ message: "Invalid originalPrice" });
+			}
+			listing.originalPrice = numericOriginal;
+		}
+	}
 	if (condition !== undefined) listing.condition = condition;
-	if (status !== undefined) listing.status = status;
+	if (status !== undefined) {
+		const nextStatus = String(status || "");
+		if (!OWNER_ALLOWED_STATUSES.includes(nextStatus)) {
+			return res.status(403).json({ message: "You cannot set this status" });
+		}
+		listing.status = nextStatus;
+	}
 	if (
 		address !== undefined ||
 		location !== undefined ||
@@ -836,7 +913,7 @@ export const updateListing = asyncHandler(async (req, res) => {
 		listing.location = nextLocation;
 	}
 	if (specs !== undefined) {
-		listing.specs = parseMaybeJson(specs, listing.specs || {});
+		listing.specs = sanitizeSpecs(specs);
 	}
 
 	if (
@@ -866,14 +943,12 @@ export const updateListing = asyncHandler(async (req, res) => {
 			req.files.map((file) => uploadToR2(file, "dealpost/listings")),
 		);
 		listing.images = uploaded;
-	} else if (req.body?.images !== undefined) {
-		listing.images = normalizeIncomingImages(req.body.images);
 	}
 
 	await listing.save();
 
 	const hydrated = await models.Listing.findByPk(listing.id, {
-		include: listingIncludes(["id", "name", "avatar", "email"]),
+		include: listingIncludes(["id", "name", "avatar"]),
 	});
 	const normalized = normalizeListingPayload(hydrated);
 	const [enriched] = await enrichListingsWithLikeMeta(

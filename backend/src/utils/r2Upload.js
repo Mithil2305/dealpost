@@ -20,6 +20,8 @@ function sanitizeFolder(folder) {
 		.replace(/\/+$/, "");
 }
 
+const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif"]);
+
 export async function createR2PresignedUpload({
 	folder = "dealpost/listings",
 	fileName,
@@ -41,7 +43,12 @@ export async function createR2PresignedUpload({
 			?.toLowerCase()
 			?.replace(/[^a-z0-9]/g, "") || resolveExtensionFromMime(contentType);
 
-	const safeExtension = extension || resolveExtensionFromMime(contentType);
+	const mimeExtension = resolveExtensionFromMime(contentType);
+	const safeExtension = ALLOWED_EXTENSIONS.has(extension)
+		? extension
+		: ALLOWED_EXTENSIONS.has(mimeExtension)
+			? mimeExtension
+			: "jpg";
 	const key = `${sanitizeFolder(folder)}/${Date.now()}-${randomUUID()}.${safeExtension}`;
 
 	const command = new PutObjectCommand({
@@ -108,6 +115,9 @@ export async function uploadToR2(file, folder = "dealpost/listings") {
 	}
 
 	if (!r2Enabled || !r2Client) {
+		if (process.env.NODE_ENV === "production") {
+			throw new Error("R2 storage is not configured");
+		}
 		return {
 			url: "https://placehold.co/1200x800?text=DealPost",
 			public_id: `local-${Date.now()}`,

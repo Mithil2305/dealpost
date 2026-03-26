@@ -249,6 +249,7 @@ export default function PostAd({ variant = "personal" }) {
 	const [fallbackQuery, setFallbackQuery] = useState("");
 	const [fallbackSuggestions, setFallbackSuggestions] = useState([]);
 	const [fallbackSearching, setFallbackSearching] = useState(false);
+	const [previews, setPreviews] = useState([null, null, null]);
 	const autocompleteContainerRef = useRef(null);
 	const [curatedSpecs, setCuratedSpecs] = useState({});
 	const [form, setForm] = useState({
@@ -298,10 +299,18 @@ export default function PostAd({ variant = "personal" }) {
 		}));
 	}, [isBusinessFlow, user?.businessName, user?.gstOrMsme, user?.location]);
 
-	const previews = useMemo(
-		() => files.map((file) => (file ? URL.createObjectURL(file) : null)),
-		[files],
-	);
+	useEffect(() => {
+		const nextPreviews = files.map((file) =>
+			file ? URL.createObjectURL(file) : null,
+		);
+		setPreviews(nextPreviews);
+
+		return () => {
+			nextPreviews.forEach((url) => {
+				if (url) URL.revokeObjectURL(url);
+			});
+		};
+	}, [files]);
 
 	useEffect(() => {
 		let active = true;

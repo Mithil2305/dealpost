@@ -38,8 +38,8 @@ export default function Login() {
 	const [showPassword, setShowPassword] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [form, setForm] = useState({
-		email: "dev@123",
-		password: "123456",
+		email: "",
+		password: "",
 	});
 
 	const onChange = (event) => {

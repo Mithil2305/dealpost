@@ -31,12 +31,17 @@ function getKey() {
 /**
  * Encrypt a plaintext message string.
  * Returns a compact string: "iv:authTag:ciphertext" (hex-encoded).
- * If no key is configured, returns the original text prefixed with "plain:" 
+ * If no key is configured, returns the original text prefixed with "plain:"
  * so decryptMessage knows not to decrypt it.
  */
 export function encryptMessage(plaintext) {
 	const key = getKey();
 	if (!key) {
+		if (process.env.NODE_ENV === "production") {
+			throw new Error(
+				"MESSAGE_ENCRYPTION_KEY must be configured in production",
+			);
+		}
 		// No key configured — store as-is (dev/test only)
 		return "plain:" + plaintext;
 	}

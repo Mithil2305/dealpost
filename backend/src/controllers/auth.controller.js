@@ -2,6 +2,8 @@ import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { signToken } from "../utils/jwt.js";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 // ---------------------------------------------------------------------------
 // POST /api/auth/register
 // ---------------------------------------------------------------------------
@@ -46,14 +48,14 @@ export const register = asyncHandler(async (req, res) => {
 			.json({ message: "Name must be at least 2 characters" });
 	}
 
-	if (!email || !String(email).includes("@")) {
+	if (!email || !EMAIL_REGEX.test(String(email))) {
 		return res.status(400).json({ message: "A valid email is required" });
 	}
 
-	if (!password || String(password).length < 6) {
+	if (!password || String(password).length < 8) {
 		return res
 			.status(400)
-			.json({ message: "Password must be at least 6 characters" });
+			.json({ message: "Password must be at least 8 characters" });
 	}
 
 	if (normalizedAccountType === "business") {

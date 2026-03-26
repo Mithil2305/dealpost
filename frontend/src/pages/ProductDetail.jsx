@@ -14,11 +14,7 @@ import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../context/useAuth";
-import {
-	fetchMyLikedListingIds,
-	getListingLikedCount,
-	updateListingLikeStatus,
-} from "../utils/likes";
+import { getListingLikedCount, updateListingLikeStatus } from "../utils/likes";
 
 const formatPrice = (price) =>
 	new Intl.NumberFormat("en-IN", {
@@ -63,24 +59,6 @@ export default function ProductDetail() {
 
 		fetchListing();
 	}, [id]);
-
-	useEffect(() => {
-		const fetchLikedStatus = async () => {
-			if (!isAuthenticated || !listing?.id) {
-				setIsLiked(false);
-				return;
-			}
-
-			try {
-				const likedIds = await fetchMyLikedListingIds();
-				setIsLiked(likedIds.includes(Number(listing.id)));
-			} catch {
-				setIsLiked(false);
-			}
-		};
-
-		fetchLikedStatus();
-	}, [isAuthenticated, listing?.id]);
 
 	const allImages = useMemo(() => {
 		const images =
@@ -249,9 +227,11 @@ export default function ProductDetail() {
 										className="h-[360px] w-full object-cover sm:h-[460px] lg:h-[560px]"
 									/>
 									<div className="absolute left-4 top-4 flex flex-wrap gap-2">
-										<span className="rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold shadow-sm">
-											Verified
-										</span>
+										{listing?.isVerified && (
+											<span className="rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold shadow-sm">
+												Verified
+											</span>
+										)}
 
 										{listing?.productId ? (
 											<span className="rounded-full bg-black/85 px-3 py-1 text-[10px] font-semibold tracking-[0.08em] text-white">

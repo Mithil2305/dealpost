@@ -3,6 +3,8 @@ import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { encryptMessage, decryptMessage } from "../utils/encryption.js";
 
+const MAX_MESSAGE_LENGTH = 2000;
+
 // ---------------------------------------------------------------------------
 // Helper: decrypt a message row and return a plain object with text decrypted
 // ---------------------------------------------------------------------------
@@ -16,6 +18,7 @@ function decryptMessageRow(msg) {
 // GET /api/conversations  — list all conversations for the current user
 // ---------------------------------------------------------------------------
 export const getMyConversations = asyncHandler(async (req, res) => {
+	const limit = Math.min(Number(req.query.limit) || 50, 50);
 	const conversations = await models.Conversation.findAll({
 		where: {
 			[Op.or]: [{ buyerId: req.user.id }, { sellerId: req.user.id }],
@@ -52,6 +55,7 @@ export const getMyConversations = asyncHandler(async (req, res) => {
 			},
 		],
 		order: [["updatedAt", "DESC"]],
+		limit,
 	});
 
 	const normalized = conversations.map((conv) => {
@@ -81,6 +85,19 @@ export const startConversation = asyncHandler(async (req, res) => {
 
 	const buyerId = req.user.id;
 	const sellerId = Number(recipientId);
+	const listing = await models.Listing.findByPk(Number(listingId), {
+		attributes: ["id", "sellerId"],
+	});
+
+	if (!listing) {
+		return res.status(404).json({ message: "Listing not found" });
+	}
+
+	if (Number(listing.sellerId) !== sellerId) {
+		return res
+			.status(400)
+			.json({ message: "Recipient is not the seller of this listing" });
+	}
 
 	const [conversation] = await models.Conversation.findOrCreate({
 		where: {
@@ -125,11 +142,15 @@ export const getMessages = asyncHandler(async (req, res) => {
 				attributes: ["id", "name", "avatar"],
 			},
 		],
-		order: [["createdAt", "ASC"]],
+		order: [["createdAt", "DESC"]],
+		limit: Math.min(Number(req.query.limit) || 50, 100),
+		offset:
+			(Math.max(Number(req.query.page) || 1, 1) - 1) *
+			Math.min(Number(req.query.limit) || 50, 100),
 	});
 
 	// Decrypt every message before sending to client
-	const decrypted = messages.map(decryptMessageRow);
+	const decrypted = messages.map(decryptMessageRow).reverse();
 
 	res.json({ messages: decrypted });
 });
@@ -154,6 +175,12 @@ export const sendMessage = asyncHandler(async (req, res) => {
 	const { text } = req.body;
 	if (!text || !text.trim()) {
 		return res.status(400).json({ message: "Message text is required" });
+	}
+
+	if (String(text).trim().length > MAX_MESSAGE_LENGTH) {
+		return res.status(400).json({
+			message: `Message cannot exceed ${MAX_MESSAGE_LENGTH} characters`,
+		});
 	}
 
 	// Encrypt before writing to DB

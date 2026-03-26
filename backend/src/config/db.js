@@ -118,8 +118,13 @@ async function ensureUserBusinessColumns() {
 export async function connectDB() {
 	await sequelize.authenticate();
 	await sequelize.sync();
-	await ensureListingCategoryColumns();
-	await ensureListingIdentityColumns();
-	await ensureUserBusinessColumns();
+
+	// These legacy schema guards are intentionally skipped in production.
+	// Use explicit migrations for production-safe schema evolution.
+	if (process.env.NODE_ENV !== "production") {
+		await ensureListingCategoryColumns();
+		await ensureListingIdentityColumns();
+		await ensureUserBusinessColumns();
+	}
 	console.log("MySQL connected and models synced");
 }

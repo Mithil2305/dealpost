@@ -1,4 +1,5 @@
-import { encryptMessage, decryptMessage } from "../utils/encryption.js";
+import { models } from "../config/db.js";
+import { verifyToken } from "../utils/jwt.js";
 
 /**
  * Socket.IO real-time chat handler.
@@ -22,15 +23,54 @@ export function registerSocketHandlers(io) {
 	// Track connected users: userId → socketId
 	const connectedUsers = new Map();
 
+	io.use(async (socket, next) => {
+		try {
+			const raw = socket.handshake.auth?.token || "";
+			const token = String(raw)
+				.replace(/^Bearer\s+/i, "")
+				.trim();
+			if (!token) return next(new Error("Authentication required"));
+
+			const payload = verifyToken(token);
+			const user = await models.User.findByPk(payload.id);
+			if (!user || !user.isActive) {
+				return next(new Error("Unauthorized"));
+			}
+
+			socket.user = { id: Number(user.id), name: user.name || "User" };
+			next();
+		} catch {
+			next(new Error("Invalid token"));
+		}
+	});
+
 	io.on("connection", (socket) => {
-		const userId = socket.handshake.auth?.userId;
+		const userId = socket.user?.id;
 		if (userId) {
 			connectedUsers.set(String(userId), socket.id);
+			io.emit("user_online", { userId: Number(userId) });
 		}
 
 		// Join a conversation room
-		socket.on("join_conversation", (conversationId) => {
-			socket.join(String(conversationId));
+		socket.on("join_conversation", async (conversationId) => {
+			const numericId = Number(conversationId);
+			if (!Number.isFinite(numericId) || numericId <= 0) {
+				socket.emit("socket_error", { message: "Invalid conversation id" });
+				return;
+			}
+
+			const conversation = await models.Conversation.findByPk(numericId);
+			const isParticipant =
+				conversation &&
+				(Number(conversation.buyerId) === Number(userId) ||
+					Number(conversation.sellerId) === Number(userId));
+
+			if (!isParticipant) {
+				socket.emit("socket_error", { message: "Forbidden" });
+				return;
+			}
+
+			socket.join(String(numericId));
 		});
 
 		// Leave a conversation room
@@ -44,19 +84,30 @@ export function registerSocketHandlers(io) {
 		 * by POST /api/conversations/:id/messages.
 		 * We do NOT re-encrypt here — TLS handles transport security.
 		 */
-		socket.on("send_message", ({ conversationId, message }) => {
-			socket
-				.to(String(conversationId))
-				.emit("receive_message", message);
+		socket.on("send_message", async ({ conversationId, message }) => {
+			const numericId = Number(conversationId);
+			if (!Number.isFinite(numericId) || numericId <= 0) return;
+
+			const conversation = await models.Conversation.findByPk(numericId);
+			const isParticipant =
+				conversation &&
+				(Number(conversation.buyerId) === Number(userId) ||
+					Number(conversation.sellerId) === Number(userId));
+			if (!isParticipant) return;
+
+			socket.to(String(numericId)).emit("receive_message", message);
 		});
 
 		// Typing indicator
-		socket.on("typing", ({ conversationId, userId: typingUserId, userName }) => {
-			socket.to(String(conversationId)).emit("user_typing", {
-				userId: typingUserId,
-				userName,
-			});
-		});
+		socket.on(
+			"typing",
+			({ conversationId, userId: typingUserId, userName }) => {
+				socket.to(String(conversationId)).emit("user_typing", {
+					userId: typingUserId,
+					userName,
+				});
+			},
+		);
 
 		// Stop typing indicator
 		socket.on("stop_typing", ({ conversationId, userId: typingUserId }) => {
@@ -76,6 +127,7 @@ export function registerSocketHandlers(io) {
 		socket.on("disconnect", () => {
 			if (userId) {
 				connectedUsers.delete(String(userId));
+				io.emit("user_offline", { userId: Number(userId) });
 			}
 		});
 	});

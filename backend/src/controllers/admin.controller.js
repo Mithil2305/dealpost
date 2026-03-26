@@ -156,10 +156,13 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 	const offset = (numericPage - 1) * numericLimit;
 
 	const where = {};
-	if (search) {
+	const searchTerm = String(search || "")
+		.trim()
+		.slice(0, 200);
+	if (searchTerm) {
 		where[Op.or] = [
-			{ name: { [Op.like]: `%${search}%` } },
-			{ email: { [Op.like]: `%${search}%` } },
+			{ name: { [Op.like]: `%${searchTerm}%` } },
+			{ email: { [Op.like]: `%${searchTerm}%` } },
 		];
 	}
 

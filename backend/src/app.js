@@ -1,5 +1,7 @@
 import cors from "cors";
+import { randomUUID } from "crypto";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import morgan from "morgan";
 import { env } from "./config/env.js";
@@ -17,15 +19,65 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 
 const app = express();
 
-app.use(helmet());
+const allowedOrigins = String(env.CLIENT_URL || "")
+	.split(",")
+	.map((origin) => origin.trim())
+	.filter(Boolean);
+
+if (process.env.NODE_ENV === "production" && !allowedOrigins.length) {
+	throw new Error("CLIENT_URL must be configured for production CORS");
+}
+
+const authLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000,
+	max: 10,
+	message: { message: "Too many attempts. Try again later." },
+	standardHeaders: true,
+	legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+	windowMs: 60 * 1000,
+	max: 120,
+	standardHeaders: true,
+	legacyHeaders: false,
+});
+
 app.use(
-	cors({
-		origin: env.CLIENT_URL,
-		credentials: true,
+	helmet({
+		crossOriginEmbedderPolicy: false,
+		contentSecurityPolicy: {
+			directives: {
+				defaultSrc: ["'self'"],
+				frameAncestors: ["'none'"],
+				objectSrc: ["'none'"],
+			},
+		},
 	}),
 );
-app.use(morgan("dev"));
-app.use(express.json({ limit: "10mb" }));
+app.use(
+	cors({
+		origin(origin, callback) {
+			if (!origin || allowedOrigins.includes(origin)) {
+				callback(null, true);
+				return;
+			}
+			callback(new Error("CORS: origin not allowed"));
+		},
+		credentials: true,
+		methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+	}),
+);
+app.use((req, res, next) => {
+	req.id = randomUUID();
+	res.setHeader("X-Request-Id", req.id);
+	next();
+});
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use("/api", apiLimiter);
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+app.use(express.json({ limit: "50kb" }));
 app.use(express.urlencoded({ extended: true }));
 
 app.get("/api/health", (req, res) => {

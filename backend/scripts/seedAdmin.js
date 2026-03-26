@@ -1,11 +1,17 @@
 import { connectDB, models, sequelize } from "../src/config/db.js";
 
-const ADMIN_EMAIL = "admin@123";
-const ADMIN_PASSWORD = "123456";
-const ADMIN_NAME = "Admin";
+const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
+const ADMIN_NAME = process.env.SEED_ADMIN_NAME || "Admin";
 
 async function run() {
 	try {
+		if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+			throw new Error(
+				"SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be set in env",
+			);
+		}
+
 		await connectDB();
 
 		const existing = await models.User.findOne({
@@ -15,19 +21,14 @@ async function run() {
 		if (!existing) {
 			await models.User.create({
 				name: ADMIN_NAME,
-				email: ADMIN_EMAIL,
+				email: ADMIN_EMAIL.toLowerCase(),
 				password: ADMIN_PASSWORD,
 				role: "admin",
 				isActive: true,
 			});
 			console.log("Admin user created");
 		} else {
-			existing.name = existing.name || ADMIN_NAME;
-			existing.password = ADMIN_PASSWORD;
-			existing.role = "admin";
-			existing.isActive = true;
-			await existing.save();
-			console.log("Admin user updated");
+			console.log("Admin already exists, skipping.");
 		}
 
 		console.log(`Seed complete for ${ADMIN_EMAIL}`);

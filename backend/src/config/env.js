@@ -2,6 +2,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const isProduction = process.env.NODE_ENV === "production";
+
 function getNumber(value, fallback) {
 	const parsed = Number(value);
 	return Number.isFinite(parsed) ? parsed : fallback;
@@ -9,10 +11,10 @@ function getNumber(value, fallback) {
 
 function requireEnv(key) {
 	const value = process.env[key];
-	if (!value) {
-		console.warn(`[env] WARNING: ${key} is not set. Check your .env file.`);
+	if (value === undefined || value === null || String(value).trim() === "") {
+		throw new Error(`FATAL: Required environment variable \"${key}\" is not set.`);
 	}
-	return value || "";
+	return String(value);
 }
 
 export const env = {
@@ -23,11 +25,11 @@ export const env = {
 	DB_HOST: process.env.DB_HOST || "127.0.0.1",
 	DB_PORT: getNumber(process.env.DB_PORT, 3306),
 	DB_NAME: process.env.DB_NAME || "dealpost",
-	DB_USER: process.env.DB_USER || "root",
-	DB_PASSWORD: process.env.DB_PASSWORD ?? "", // empty string is valid for no-password MySQL
+	DB_USER: requireEnv("DB_USER"),
+	DB_PASSWORD: requireEnv("DB_PASSWORD"),
 
 	// JWT
-	JWT_SECRET: process.env.JWT_SECRET || "dev_insecure_secret_change_me",
+	JWT_SECRET: requireEnv("JWT_SECRET"),
 	JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
 
 	// Cloudflare R2
@@ -49,3 +51,7 @@ export const env = {
 	// Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 	MESSAGE_ENCRYPTION_KEY: process.env.MESSAGE_ENCRYPTION_KEY || "",
 };
+
+if (isProduction && !env.CLIENT_URL.startsWith("https://")) {
+	throw new Error("FATAL: CLIENT_URL must be an https URL in production.");
+}

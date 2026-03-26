@@ -6,8 +6,17 @@ import { uploadToR2 } from "../utils/r2Upload.js";
 // GET /api/users/:id  — public profile
 // ---------------------------------------------------------------------------
 export const getUserProfile = asyncHandler(async (req, res) => {
+	const requesterId = Number(req.user?.id || 0);
+	const targetId = Number(req.params.id);
+	const isOwner = requesterId > 0 && requesterId === targetId;
+	const isAdmin = ["admin", "developer"].includes(String(req.user?.role || ""));
+
+	const attributes = isOwner || isAdmin
+		? { exclude: ["password"] }
+		: ["id", "name", "avatar", "accountType", "businessName", "createdAt"];
+
 	const user = await models.User.findByPk(req.params.id, {
-		attributes: { exclude: ["password"] },
+		attributes,
 	});
 
 	if (!user) {
@@ -34,7 +43,10 @@ export const updateProfile = asyncHandler(async (req, res) => {
 		req.user.name = String(name).trim();
 	}
 
-	if (phone !== undefined) req.user.phone = phone;
+	if (phone !== undefined) {
+		const normalizedPhone = String(phone || "").trim().slice(0, 20);
+		req.user.phone = normalizedPhone || null;
+	}
 	if (location !== undefined) req.user.location = location;
 
 	if (accountType !== undefined) {
@@ -78,10 +90,10 @@ export const changePassword = asyncHandler(async (req, res) => {
 			.json({ message: "currentPassword and newPassword are required" });
 	}
 
-	if (String(newPassword).length < 6) {
+	if (String(newPassword).length < 8) {
 		return res
 			.status(400)
-			.json({ message: "New password must be at least 6 characters" });
+			.json({ message: "New password must be at least 8 characters" });
 	}
 
 	const isValid = await req.user.comparePassword(currentPassword);
