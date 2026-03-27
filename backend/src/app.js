@@ -95,7 +95,10 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/businesses", businessRoutes);
 app.use("/api/sponsored-ads", sponsoredAdRoutes);
 
-app.use(notFoundHandler);
-app.use(errorHandler);
+// app.use(notFoundHandler);
+// app.use(errorHandler);
+
+app.use("/api", notFoundHandler);
+app.use("/api", errorHandler);
 
 export default app;
