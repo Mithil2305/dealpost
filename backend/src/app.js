@@ -1,5 +1,6 @@
 import cors from "cors";
 import { randomUUID } from "crypto";
+import compression from "compression";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
@@ -18,6 +19,7 @@ import userRoutes from "./routes/user.routes.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 
 const app = express();
+app.use(compression());
 
 const allowedOrigins = String(env.CLIENT_URL || "")
 	.split(",")
@@ -73,12 +75,12 @@ app.use((req, res, next) => {
 	res.setHeader("X-Request-Id", req.id);
 	next();
 });
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use("/api", apiLimiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
-app.use(express.json({ limit: "50kb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "100kb" }));
+app.use(express.urlencoded({ extended: true, limit: "100kb" }));
 
 app.get("/api/health", (req, res) => {
 	res.json({ ok: true });

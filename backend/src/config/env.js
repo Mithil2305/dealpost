@@ -2,8 +2,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const isProduction = process.env.NODE_ENV === "production";
-
 function getNumber(value, fallback) {
 	const parsed = Number(value);
 	return Number.isFinite(parsed) ? parsed : fallback;
@@ -12,12 +10,15 @@ function getNumber(value, fallback) {
 function requireEnv(key) {
 	const value = process.env[key];
 	if (value === undefined || value === null || String(value).trim() === "") {
-		throw new Error(`FATAL: Required environment variable \"${key}\" is not set.`);
+		throw new Error(
+			`FATAL: Required environment variable \"${key}\" is not set.`,
+		);
 	}
 	return String(value);
 }
 
 export const env = {
+	NODE_ENV: process.env.NODE_ENV || "development",
 	PORT: getNumber(process.env.PORT, 5000),
 	CLIENT_URL: process.env.CLIENT_URL || "http://localhost:5173",
 
@@ -52,6 +53,6 @@ export const env = {
 	MESSAGE_ENCRYPTION_KEY: process.env.MESSAGE_ENCRYPTION_KEY || "",
 };
 
-if (isProduction && !env.CLIENT_URL.startsWith("https://")) {
+if (env.NODE_ENV === "production" && !env.CLIENT_URL.startsWith("https://")) {
 	throw new Error("FATAL: CLIENT_URL must be an https URL in production.");
 }
