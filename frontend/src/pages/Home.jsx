@@ -37,6 +37,28 @@ import {
 
 const CATEGORY_ICONS = [Monitor, Sofa, User, Car, Gem, HomeIcon, Trophy];
 
+// Define your hero slider data
+const HERO_SLIDES = [
+	{
+		id: 1,
+		title: "Revamp Your Living Space",
+		subtitle: "Discover premium furniture collections at unbeatable prices.",
+		image:
+			"https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000",
+		ctaText: "Explore Furniture",
+		ctaLink: "/explore?category=Furniture",
+	},
+	{
+		id: 2,
+		title: "Find Your Dream Ride",
+		subtitle: "Certified pre-owned vehicles with extended warranties.",
+		image:
+			"https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&q=80&w=2000",
+		ctaText: "View Vehicles",
+		ctaLink: "/explore?category=Vehicles",
+	},
+];
+
 const formatPrice = (value) => {
 	const numeric = Number(value || 0);
 	return new Intl.NumberFormat("en-IN", {
@@ -122,6 +144,10 @@ export default function Home() {
 	const [topDealsIndex, setTopDealsIndex] = useState(0);
 	const [slideDirection, setSlideDirection] = useState("next");
 
+	// Hero Slider State
+	const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
+
+	// Fetch Data Effect
 	useEffect(() => {
 		const fetchHomeData = async () => {
 			try {
@@ -156,6 +182,7 @@ export default function Home() {
 		fetchHomeData();
 	}, [search]);
 
+	// Liked Items Effect
 	useEffect(() => {
 		let active = true;
 
@@ -183,6 +210,21 @@ export default function Home() {
 			active = false;
 		};
 	}, [isAuthenticated]);
+
+	// Hero Slider Auto-play Effect
+	useEffect(() => {
+		const timer = setInterval(() => {
+			setCurrentHeroSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+		}, 6000); // Slide every 6 seconds
+		return () => clearInterval(timer);
+	}, []);
+
+	const nextHeroSlide = () =>
+		setCurrentHeroSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+	const prevHeroSlide = () =>
+		setCurrentHeroSlide(
+			(prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length,
+		);
 
 	const displayListings = listings.map(normalizeListing);
 	const sidebarCategories = Array.from(
@@ -390,123 +432,81 @@ export default function Home() {
 						</section>
 
 						{/* Hero Section */}
-						<section className="mt-4 grid gap-6 rounded-[32px] bg-[#111111] p-8 md:p-14 lg:grid-cols-[1.2fr_1fr] overflow-hidden relative">
-							{/* Left Content */}
-							<div className="flex flex-col justify-center space-y-6 relative z-10">
-								<div className="inline-flex items-center gap-2 rounded-full border border-[#FFD600]/30 bg-[#FFD600]/10 px-3 py-1.5 w-max">
-									<span className="text-[0.65rem] font-bold tracking-[0.15em] text-[#FFD600] uppercase">
-										Reselling Marketplace
-									</span>
-								</div>
-
-								<h1 className="text-[3.5rem] leading-[1.05] font-bold tracking-tight text-white md:text-[4.5rem]">
-									Turn your Space into <br />
-									<span className="text-[#FFD600]">Value</span>
-								</h1>
-
-								<p className="max-w-md text-[#888888] text-[1.05rem] leading-relaxed">
-									The world's first curated exchange where high-end design meets
-									effortless peer-to-peer liquidity.
-								</p>
-
-								<div className="flex flex-wrap items-center gap-4 pt-4">
-									<Link
-										className="rounded-full bg-[#FFD600] px-8 py-3.5 text-sm font-bold text-black hover:bg-[#E6C100] transition"
-										to="/explore"
-									>
-										Explore Listings
-									</Link>
-									<button
-										type="button"
-										onClick={() =>
-											launchCompareForDeals(featuredDeal, rightDeal)
-										}
-										className="rounded-full border border-white/20 bg-white/5 px-8 py-3.5 text-sm font-bold text-white hover:bg-white/10 transition"
-									>
-										Compare Top Deals
-									</button>
-								</div>
-							</div>
-
-							{/* Right Content - Featured Deal */}
-							<div className="relative z-10 hidden lg:flex items-center justify-end">
-								<div className="bg-white rounded-[40px] p-6 w-[420px] aspect-square relative shadow-2xl">
-									<div className="absolute top-8 left-8 inline-flex items-center gap-1.5 rounded-full bg-black px-3 py-1 z-20">
-										<Zap size={10} className="text-[#FFD600] fill-[#FFD600]" />
-										<span className="text-[0.6rem] font-bold tracking-[0.15em] text-white uppercase">
-											Top Deals For You
-										</span>
-									</div>
-
+						<section className="mt-4 relative w-full h-[320px] md:h-[450px] lg:h-[500px] rounded-[24px] md:rounded-[32px] overflow-hidden group shadow-lg">
+							{/* Slides Container */}
+							<div
+								className="flex w-full h-full transition-transform duration-700 ease-in-out"
+								style={{ transform: `translateX(-${currentHeroSlide * 100}%)` }}
+							>
+								{HERO_SLIDES.map((slide) => (
 									<div
-										key={`hero-deal-${topDealsIndex}-${slideDirection}`}
-										className={`w-full h-full bg-[#1A1A1A] rounded-[28px] overflow-hidden relative group ${slideDirection === "next" ? "deal-slide-next" : "deal-slide-prev"}`}
+										key={slide.id}
+										className="w-full h-full flex-shrink-0 relative"
 									>
 										<img
-											src={
-												featuredDeal?.image ||
-												"https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&q=80&w=800"
-											}
-											alt={featuredDeal?.title || "Headphones"}
-											className="w-full h-full object-cover opacity-80 mix-blend-luminosity group-hover:scale-105 transition-transform duration-700"
+											src={slide.image}
+											alt={slide.title}
+											className="w-full h-full object-cover"
 										/>
-
-										<div className="absolute inset-x-4 bottom-4 rounded-[20px] bg-black/60 backdrop-blur-md border border-white/10 p-5 text-white">
-											<div className="flex items-center justify-between mb-2">
-												<div className="flex items-center gap-1.5 text-[#FFD600] text-xs font-bold">
-													<Star size={12} fill="#FFD600" />
-													{Math.min(
-														5,
-														(
-															4.2 +
-															(featuredDeal?.likedByCount || 0) / 60
-														).toFixed(1),
-													)}{" "}
-													<span className="text-white/50 font-normal">
-														({featuredDeal?.likedByCount || 0} likes)
-													</span>
-												</div>
-												<div className="rounded-full bg-[#FFD600] px-2 py-0.5 text-[0.65rem] font-bold text-black">
-													Live Deal
-												</div>
-											</div>
-
-											<h3 className="text-lg font-bold mb-3">
-												{featuredDeal?.title || "Studio Master H1"}
-											</h3>
-
-											<div className="flex items-end justify-between">
-												<div>
-													<div className="font-mono text-2xl font-bold text-[#FFD600] tracking-tight">
-														{featuredDeal?.originalPrice || "₹450"}
-													</div>
-												</div>
-												<div className="flex gap-2">
-													<button
-														type="button"
-														onClick={() => moveTopDeals("prev")}
-														className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold uppercase tracking-wider hover:bg-white/20 transition"
-													>
-														<ChevronLeft size={14} />
-													</button>
-													<Link
-														to={`/listing/${featuredDeal?.productId || featuredDeal?.id || ""}`}
-														className="rounded-full border border-white/20 bg-white/10 px-5 py-2 text-xs font-bold uppercase tracking-wider hover:bg-white/20 transition"
-													>
-														Grab Deal
-													</Link>
-													<button
-														type="button"
-														onClick={() => moveTopDeals("next")}
-														className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold uppercase tracking-wider hover:bg-white/20 transition"
-													>
-														<ChevronRight size={14} />
-													</button>
-												</div>
+										{/* Gradient Overlay for better text readability */}
+										<div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent flex flex-col justify-center px-8 md:px-16 lg:px-24">
+											<div className="max-w-xl">
+												<span className="inline-block py-1 px-3 rounded-full bg-[#FFD600] text-black text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
+													Featured Event
+												</span>
+												<h2 className="text-3xl md:text-5xl lg:text-6xl font-bold text-white mb-4 leading-tight">
+													{slide.title}
+												</h2>
+												<p className="text-sm md:text-lg text-white/90 mb-8 font-medium max-w-md">
+													{slide.subtitle}
+												</p>
+												<Link
+													to={slide.ctaLink}
+													className="inline-flex items-center gap-2 bg-white text-black px-8 py-3.5 rounded-full font-bold text-sm hover:bg-[#FFD600] transition-colors shadow-md group/btn"
+												>
+													{slide.ctaText}
+													<ArrowRight
+														size={18}
+														className="group-hover/btn:translate-x-1 transition-transform"
+													/>
+												</Link>
 											</div>
 										</div>
 									</div>
-								</div>
+								))}
+							</div>
+
+							{/* Navigation Arrows */}
+							<button
+								type="button"
+								onClick={prevHeroSlide}
+								className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
+							>
+								<ChevronLeft size={24} />
+							</button>
+							<button
+								type="button"
+								onClick={nextHeroSlide}
+								className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
+							>
+								<ChevronRight size={24} />
+							</button>
+
+							{/* Pagination Dots */}
+							<div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2">
+								{HERO_SLIDES.map((_, index) => (
+									<button
+										key={index}
+										type="button"
+										onClick={() => setCurrentHeroSlide(index)}
+										className={`transition-all duration-300 rounded-full ${
+											currentHeroSlide === index
+												? "w-8 h-2.5 bg-[#FFD600]"
+												: "w-2.5 h-2.5 bg-white/50 hover:bg-white/80"
+										}`}
+										aria-label={`Go to slide ${index + 1}`}
+									/>
+								))}
 							</div>
 						</section>
 
@@ -787,7 +787,11 @@ export default function Home() {
 												<button
 													type="button"
 													onClick={() =>
-														launchCompareForDeals(featuredDeal, leftDeal, rightDeal)
+														launchCompareForDeals(
+															featuredDeal,
+															leftDeal,
+															rightDeal,
+														)
 													}
 													className="rounded-full border border-[#FFD600]/80 bg-[#FFD600] px-8 py-3 text-sm font-bold text-black transition hover:bg-[#f2c700] uppercase tracking-wider"
 												>
