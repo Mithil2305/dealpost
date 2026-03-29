@@ -10,7 +10,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useAuth } from "../context/useAuth";
 import {
@@ -55,7 +55,7 @@ function getReadableLocationLabel(placeLike) {
 
 function BrandLogo() {
 	return (
-		<Link to="/" className="flex items-center gap-2 text-xl">
+		<a href="/" className="flex items-center gap-2 text-xl">
 			<div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFD600]">
 				<MapPin size={16} className="text-black" />
 			</div>
@@ -63,7 +63,7 @@ function BrandLogo() {
 				<span className="font-bold">Deal</span>
 				<span>Post</span>
 			</div>
-		</Link>
+		</a>
 	);
 }
 
@@ -740,12 +740,12 @@ export default function Navbar({ search = "", onSearchChange }) {
 			<div className="border-t border-gray-100 px-6">
 				<div className="flex h-11 items-center gap-5 overflow-x-auto whitespace-nowrap text-sm font-semibold text-gray-600">
 					<div className="inline-flex items-center gap-2">
-						<Link
-							to="/business-listings"
+						<a
+							href="/business-listings"
 							className="transition hover:text-black"
 						>
 							Business Listings
-						</Link>
+						</a>
 						<button
 							type="button"
 							onClick={() => navigate("/post-business-ad")}
@@ -755,39 +755,39 @@ export default function Navbar({ search = "", onSearchChange }) {
 							<Plus size={14} />
 						</button>
 					</div>
-					<Link
-						to="/explore?listingType=auction&sort=Auction%20Ending%20Soon"
+					<a
+						href="/explore?listingType=auction&sort=Auction%20Ending%20Soon"
 						className="transition hover:text-black"
 					>
 						Auctions
-					</Link>
-					<Link to="/explore" className="transition hover:text-black">
+					</a>
+					<a href="/explore" className="transition hover:text-black">
 						Marketplace
-					</Link>
-					<Link to="/my-listings" className="transition hover:text-black">
+					</a>
+					<a href="/my-listings" className="transition hover:text-black">
 						My Listings
-					</Link>
-					<Link to="/categories" className="transition hover:text-black">
+					</a>
+					<a href="/categories" className="transition hover:text-black">
 						Categories
-					</Link>
-					<Link
-						to="/explore?category=Services"
+					</a>
+					<a
+						href="/explore?category=Services"
 						className="transition hover:text-black"
 					>
 						Services
-					</Link>
-					<Link
-						to="/explore?sort=Most%20Popular"
+					</a>
+					<a
+						href="/explore?sort=Most%20Popular"
 						className="transition hover:text-black"
 					>
 						Top Deals
-					</Link>
-					<Link to="/help-center" className="transition hover:text-black">
+					</a>
+					<a href="/help-center" className="transition hover:text-black">
 						Help Center
-					</Link>
-					<Link to="/compare" className="transition hover:text-black">
+					</a>
+					<a href="/compare" className="transition hover:text-black">
 						Compare
-					</Link>
+					</a>
 				</div>
 			</div>
 		</header>

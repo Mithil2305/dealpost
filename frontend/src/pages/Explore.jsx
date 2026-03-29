@@ -196,7 +196,10 @@ export default function Explore() {
 				category: nextCategory,
 			};
 		});
-		setPage(1);
+		const paramsChanged =
+			(parsedParams.get("sort") || defaultFilters.sort) !==
+			(new URLSearchParams(urlStateQuery).get("sort") || defaultFilters.sort);
+		if (paramsChanged) setPage(1);
 	}, [queryString]);
 
 	const urlStateQuery = useMemo(() => {
@@ -217,7 +220,16 @@ export default function Explore() {
 	}, [search, filters.sort, filters.listingType, filters.category]);
 
 	useEffect(() => {
-		if (urlStateQuery !== queryString) {
+		// Normalize: parse both into sorted key=value pairs for comparison
+		const normalize = (qs) => {
+			const params = new URLSearchParams(qs);
+			return [...params.entries()]
+				.sort(([a], [b]) => a.localeCompare(b))
+				.map(([k, v]) => `${k}=${v}`)
+				.join("&");
+		};
+
+		if (normalize(urlStateQuery) !== normalize(queryString)) {
 			setSearchParams(new URLSearchParams(urlStateQuery), { replace: true });
 		}
 	}, [urlStateQuery, queryString, setSearchParams]);
