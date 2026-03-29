@@ -1008,10 +1008,7 @@ export default function PostAd({ variant = "personal" }) {
 											className="input-shell"
 										/>
 										{mapsFailed ? (
-											<p className="px-1 text-xs text-brand-muted">
-												Google location service is unavailable. Using fallback
-												search.
-											</p>
+											<p className="px-1 text-xs text-brand-muted"></p>
 										) : null}
 										{fallbackSearching ? (
 											<div className="px-1 text-xs text-brand-muted">
