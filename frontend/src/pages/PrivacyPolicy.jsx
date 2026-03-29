@@ -45,7 +45,7 @@ export default function PrivacyPolicy() {
 	return (
 		<InfoPageShell
 			title="Privacy Policy"
-			subtitle="This page explains what data Deal.Post processes, why it is processed, and the controls available to you."
+			subtitle="This page explains what data Deal Post processes, why it is processed, and the controls available to you."
 			sections={sections}
 			quickLinks={quickLinks}
 		/>

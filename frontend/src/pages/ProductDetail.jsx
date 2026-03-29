@@ -48,7 +48,7 @@ export default function ProductDetail() {
 				setActiveImage(
 					entry?.images?.[0]?.url ||
 						entry?.image ||
-						"https://placehold.co/1000x700?text=Deal.Post",
+						"https://placehold.co/1000x700?text=Deal Post",
 				);
 			} catch {
 				toast.error("Unable to load listing details");
@@ -221,7 +221,7 @@ export default function ProductDetail() {
 									<img
 										src={
 											activeImage ||
-											"https://placehold.co/1200x820?text=Deal.Post"
+											"https://placehold.co/1200x820?text=Deal Post"
 										}
 										alt={listing?.title || "Listing image"}
 										className="h-[360px] w-full object-cover sm:h-[460px] lg:h-[560px]"

@@ -20,7 +20,7 @@ export default function InfoPageShell({
 					<div className="pointer-events-none absolute -bottom-20 left-20 h-52 w-52 rounded-full bg-[#FFFFFF]/10 blur-3xl" />
 					<div className="relative z-10 max-w-3xl animate-rise-in">
 						<p className="inline-flex items-center gap-2 rounded-full border border-[#FFD600]/40 bg-[#FFD600]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#FFD600]">
-							<Sparkles size={13} /> Deal.Post Guide
+							<Sparkles size={13} /> Deal Post Guide
 						</p>
 						<h1 className="mt-4 text-3xl font-bold leading-tight sm:text-5xl">
 							{title}
@@ -80,7 +80,7 @@ export default function InfoPageShell({
 					<section className="mt-8 rounded-3xl border border-gray-200 bg-white p-6">
 						<h2 className="text-2xl font-bold text-black">Simple Roadmap</h2>
 						<p className="mt-2 text-sm text-gray-600">
-							Follow these steps to get results quickly and safely on Deal.Post.
+							Follow these steps to get results quickly and safely on Deal Post.
 						</p>
 						<div className="mt-5 grid gap-3 md:grid-cols-2">
 							{roadmap.map((step, index) => (

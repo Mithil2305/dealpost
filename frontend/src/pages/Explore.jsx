@@ -1,5 +1,5 @@
-import { Check, Filter, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Check, ChevronDown, ChevronRight, Filter, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useSearchParams } from "react-router-dom";
 import api from "../api/axios";
@@ -75,7 +75,8 @@ export default function Explore() {
 	const [loading, setLoading] = useState(true);
 	const [page, setPage] = useState(1);
 	const [showFilters, setShowFilters] = useState(false);
-	const [hoveredMainCategory, setHoveredMainCategory] = useState("");
+	const [expandedMainCategory, setExpandedMainCategory] = useState("");
+	const mainCategoryRefs = useRef({});
 	const [selectedCoords, setSelectedCoords] = useState(getStoredLocationCoords);
 	const [selectedLocationLabel, setSelectedLocationLabel] = useState(
 		getStoredLocationLabel,
@@ -242,16 +243,35 @@ export default function Explore() {
 
 	useEffect(() => {
 		if (!mainCategoryOptions.length) {
-			setHoveredMainCategory("");
+			setExpandedMainCategory("");
 			return;
 		}
 
-		setHoveredMainCategory((prev) =>
-			prev && mainCategoryOptions.includes(prev)
-				? prev
-				: mainCategoryOptions[0],
-		);
-	}, [mainCategoryOptions]);
+		const selectedMainCategory = filters.category
+			.map((value) => getMainCategory(value))
+			.find((value) => mainCategoryOptions.includes(value));
+
+		setExpandedMainCategory((prev) => {
+			if (selectedMainCategory) return selectedMainCategory;
+			if (prev && mainCategoryOptions.includes(prev)) return prev;
+			return mainCategoryOptions[0];
+		});
+	}, [mainCategoryOptions, filters.category]);
+
+	useEffect(() => {
+		if (!mainCategoryOptions.length) return;
+
+		const selectedMainCategory = filters.category
+			.map((value) => getMainCategory(value))
+			.find((value) => mainCategoryOptions.includes(value));
+		const targetMain = selectedMainCategory || expandedMainCategory;
+		if (!targetMain) return;
+
+		mainCategoryRefs.current[targetMain]?.scrollIntoView({
+			block: "nearest",
+			behavior: "smooth",
+		});
+	}, [filters.category, expandedMainCategory, mainCategoryOptions]);
 
 	const toggleArrayFilter = (key, value) => {
 		setPage(1);
@@ -274,7 +294,7 @@ export default function Explore() {
 				}}
 			/>
 
-			<main className="container-shell py-7 flex-1">
+			<main className="mr-auto w-full max-w-[1440px] px-4 py-7 sm:px-6 lg:px-6 flex-1">
 				<div className="mb-4 flex items-center justify-between lg:hidden">
 					<h1 className="text-3xl font-display font-bold">Explore</h1>
 					<button
@@ -286,7 +306,7 @@ export default function Explore() {
 					</button>
 				</div>
 
-				<div className="grid gap-6 lg:grid-cols-[290px_1fr]">
+				<div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
 					<aside
 						className={`${showFilters ? "block" : "hidden"} rounded-3xl border border-brand-border bg-white p-5 lg:block`}
 					>
@@ -328,86 +348,117 @@ export default function Explore() {
 										{mainCategoryOptions.map((label) => {
 											const selected = filters.category.includes(label);
 											const subItems = subCategoriesByMain.get(label) || [];
-											const showSubItems = hoveredMainCategory === label;
+											const showSubItems = expandedMainCategory === label;
 											return (
 												<div
 													key={label}
 													className="rounded-xl"
-													onMouseEnter={() => setHoveredMainCategory(label)}
+													ref={(node) => {
+														mainCategoryRefs.current[label] = node;
+													}}
 												>
-													<label
+													<div
 														className={`flex cursor-pointer items-center gap-2 rounded-xl border px-2.5 py-2 text-sm transition ${
 															selected
 																? "border-[#FFD600] bg-[#FFF7D6] text-black"
 																: "border-transparent bg-white text-brand-dark hover:border-brand-border"
 														}`}
 													>
-														<input
-															type="checkbox"
-															checked={selected}
-															onChange={() =>
-																toggleArrayFilter("category", label)
-															}
-															className="sr-only"
-														/>
-														<span
-															className={`grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border ${
-																selected
-																	? "border-[#111111] bg-[#111111] text-white"
-																	: "border-[#D5D5D5] bg-white text-transparent"
+														<label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+															<input
+																type="checkbox"
+																checked={selected}
+																onChange={() =>
+																	toggleArrayFilter("category", label)
+																}
+																className="sr-only"
+															/>
+															<span
+																className={`grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border ${
+																	selected
+																		? "border-[#111111] bg-[#111111] text-white"
+																		: "border-[#D5D5D5] bg-white text-transparent"
+																}`}
+															>
+																<Check size={12} />
+															</span>
+															<span className="line-clamp-1">{label}</span>
+														</label>
+														{!!subItems.length && (
+															<>
+																<span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] text-[#7A7A7A]">
+																	{subItems.length}
+																</span>
+																<button
+																	type="button"
+																	onClick={() =>
+																		setExpandedMainCategory((prev) =>
+																			prev === label ? "" : label,
+																		)
+																	}
+																	className="grid h-6 w-6 place-items-center rounded-md border border-brand-border bg-white text-[#6F6F6F] hover:text-black"
+																	aria-label={`Toggle ${label} subcategories`}
+																	aria-expanded={showSubItems}
+																>
+																	{showSubItems ? (
+																		<ChevronDown size={14} />
+																	) : (
+																		<ChevronRight size={14} />
+																	)}
+																</button>
+															</>
+														)}
+													</div>
+
+													{!!subItems.length && (
+														<div
+															className={`overflow-hidden transition-all duration-300 ${
+																showSubItems
+																	? "mt-1.5 max-h-80 opacity-100"
+																	: "max-h-0 opacity-0"
 															}`}
 														>
-															<Check size={12} />
-														</span>
-														<span className="line-clamp-1">{label}</span>
-														{!!subItems.length && (
-															<span className="ml-auto rounded-full bg-white px-1.5 py-0.5 text-[10px] text-[#7A7A7A]">
-																{subItems.length}
-															</span>
-														)}
-													</label>
-
-													{showSubItems && !!subItems.length && (
-														<div className="mt-1.5 rounded-xl border border-brand-border bg-white p-1.5">
-															<div className="max-h-52 space-y-1 overflow-y-auto pr-1">
-																{subItems.map((option) => {
-																	const isSubSelected =
-																		filters.category.includes(option.value);
-																	return (
-																		<label
-																			key={option.value}
-																			className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-xs transition ${
-																				isSubSelected
-																					? "border-[#FFD600] bg-[#FFF7D6] text-black"
-																					: "border-transparent bg-[#FCFCFC] text-brand-dark hover:border-brand-border"
-																			}`}
-																		>
-																			<input
-																				type="checkbox"
-																				checked={isSubSelected}
-																				onChange={() =>
-																					toggleArrayFilter(
-																						"category",
-																						option.value,
-																					)
-																				}
-																				className="sr-only"
-																			/>
-																			<span
-																				className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border ${
+															<div className="rounded-xl border border-brand-border bg-white p-1.5">
+																<div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+																	{subItems.map((option) => {
+																		const isSubSelected =
+																			filters.category.includes(option.value);
+																		return (
+																			<label
+																				key={option.value}
+																				className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-xs transition ${
 																					isSubSelected
-																						? "border-[#111111] bg-[#111111] text-white"
-																						: "border-[#D5D5D5] bg-white text-transparent"
+																						? "border-[#FFD600] bg-[#FFF7D6] text-black"
+																						: "border-transparent bg-[#FCFCFC] text-brand-dark hover:border-brand-border"
 																				}`}
 																			>
-																				<Check size={10} />
-																			</span>
-																			<span className="line-clamp-1">
-																				{option.label}
-																			</span>
-																		</label>
-																	);
-																})}
+																				<input
+																					type="checkbox"
+																					checked={isSubSelected}
+																					onChange={() =>
+																						toggleArrayFilter(
+																							"category",
+																							option.value,
+																						)
+																					}
+																					className="sr-only"
+																				/>
+																				<span
+																					className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border ${
+																						isSubSelected
+																							? "border-[#111111] bg-[#111111] text-white"
+																							: "border-[#D5D5D5] bg-white text-transparent"
+																					}`}
+																				>
+																					<Check size={10} />
+																				</span>
+																				<span className="break-words leading-snug">
+																					{option.label}
+																				</span>
+																			</label>
+																		);
+																	})}
+																</div>
 															</div>
 														</div>
 													)}
@@ -417,7 +468,7 @@ export default function Explore() {
 									</div>
 								</div>
 								<p className="mt-2 text-[11px] text-brand-muted">
-									Hover a main category to display and select its subcategories.
+									Use the arrow button to expand and collapse subcategories.
 								</p>
 							</div>
 
@@ -529,8 +580,8 @@ export default function Explore() {
 					</aside>
 
 					<section>
-						<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-							<div className="flex h-12 items-center rounded-xl border border-brand-border bg-white px-3 sm:w-[420px]">
+						<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+							<div className="flex h-12 items-center rounded-xl border border-brand-border bg-white px-3 sm:flex-1">
 								<Search size={16} className="text-brand-muted" />
 								<input
 									className="ml-2 w-full border-none bg-transparent text-sm outline-none"
@@ -544,7 +595,7 @@ export default function Explore() {
 							</div>
 
 							<select
-								className="h-12 rounded-xl border border-brand-border bg-white px-3 text-sm"
+								className="h-12 rounded-xl border border-brand-border bg-white px-3 text-sm sm:w-[170px]"
 								value={filters.sort}
 								onChange={(event) =>
 									setFilters((prev) => ({ ...prev, sort: event.target.value }))
@@ -607,9 +658,8 @@ export default function Explore() {
 						)}
 					</section>
 				</div>
-
-				<Footer />
 			</main>
+			<Footer />
 		</div>
 	);
 }

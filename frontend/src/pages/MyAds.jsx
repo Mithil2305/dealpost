@@ -155,7 +155,7 @@ export default function MyAds() {
 												src={
 													listing?.images?.[0]?.url ||
 													listing?.image ||
-													"https://placehold.co/600x600?text=Deal.Post"
+													"https://placehold.co/600x600?text=Deal Post"
 												}
 												alt={listing?.title || "Listing"}
 												className="h-full w-full object-cover"

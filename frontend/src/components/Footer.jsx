@@ -34,7 +34,7 @@ export default function Footer({ variant = "default" }) {
 							Contact
 						</Link>
 					</div>
-					<div>© {year} Deal.Post. The Digital Gallery.</div>
+					<div>© {year} Deal Post. The Digital Gallery.</div>
 				</div>
 			</footer>
 		);
@@ -50,12 +50,12 @@ export default function Footer({ variant = "default" }) {
 							<MapPin size={12} className="text-black" fill="black" />
 						</div>
 						<div className="text-white">
-							<span className="font-bold">Deal.</span>
+							<span className="font-bold">Deal</span>
 							<span>Post</span>
 						</div>
 					</Link>
 					<p className="text-[#888888] text-[0.8rem]">
-						© {year} Deal.Post. The Curated Exchange.
+						© {year} Deal Post. The Curated Exchange.
 					</p>
 				</div>
 

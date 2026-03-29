@@ -236,7 +236,7 @@ export default function PostAd({ variant = "personal" }) {
 	const pageSubtitle = isBusinessFlow
 		? "Launch your storefront inventory with verified business details."
 		: "Transform your items into opportunities.";
-	const submitLabel = isBusinessFlow ? "Publish Business Ad" : "Publish Ad";
+	const submitLabel = isBusinessFlow ? "Post Business Deal" : "Post Deal";
 	const premiumTitle = isBusinessFlow ? "Boost Business Reach?" : "Go Premium?";
 	const premiumDescription = isBusinessFlow
 		? "Highlight your business listing in local search and category feeds for 7 days."
@@ -1007,10 +1007,10 @@ export default function PostAd({ variant = "personal" }) {
 
 							<label className="mt-4 flex items-center justify-between rounded-xl border border-white/20 bg-white/5 p-3">
 								<span className="inline-flex items-center gap-2 text-sm">
-									<Rocket size={14} className="text-brand-yellow" /> Deal.Plus
+									<Rocket size={14} className="text-brand-yellow" /> DealPost
 									Boost
 								</span>
-								<span className="font-mono text-brand-yellow">+₹14.99</span>
+								<span className="font-mono text-brand-yellow">+ ₹599</span>
 								<input
 									type="checkbox"
 									checked={form.premiumBoost}

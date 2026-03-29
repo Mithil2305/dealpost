@@ -3,7 +3,7 @@ import InfoPageShell from "../components/InfoPageShell";
 const sections = [
 	{
 		heading: "General Information Only",
-		body: "Deal.Post provides a marketplace platform. Listings are posted by users and may change over time.",
+		body: "Deal Post provides a marketplace platform. Listings are posted by users and may change over time.",
 		points: [
 			"We do not guarantee listing accuracy from third parties",
 			"Buyers and sellers are responsible for independent verification",
@@ -36,7 +36,7 @@ export default function Disclaimer() {
 	return (
 		<InfoPageShell
 			title="Disclaimer"
-			subtitle="Please review this disclaimer before using Deal.Post services and making marketplace decisions."
+			subtitle="Please review this disclaimer before using Deal Post services and making marketplace decisions."
 			sections={sections}
 			quickLinks={quickLinks}
 		/>

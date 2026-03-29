@@ -1,22 +1,27 @@
 import {
 	ArrowRight,
+	Bike,
+	BookOpen,
+	Briefcase,
+	Building2,
+	Car,
 	ChevronRight,
 	Clock,
-	Heart,
-	MapPin,
-	Monitor,
-	Search,
-	Sofa,
-	Sparkles,
-	Star,
-	User,
-	Car,
+	Cpu,
+	Dog,
+	Drill,
 	Gem,
+	Heart,
 	Home as HomeIcon,
-	Trophy,
+	Laptop,
+	MapPin,
+	Shirt,
+	Smartphone,
+	Sofa,
+	Star,
+	Truck,
 	Zap,
 	ChevronLeft,
-	Shield,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -35,7 +40,37 @@ import {
 	updateListingLikeStatus,
 } from "../utils/likes";
 
-const CATEGORY_ICONS = [Monitor, Sofa, User, Car, Gem, HomeIcon, Trophy];
+const CATEGORY_ICON_MAP = {
+	Cars: Car,
+	Bikes: Bike,
+	Properties: Building2,
+	"Electronics & Appliances": Laptop,
+	Mobiles: Smartphone,
+	"Commercial Vehicles & Spares": Truck,
+	Jobs: Briefcase,
+	Furniture: Sofa,
+	Fashion: Shirt,
+	Pets: Dog,
+	"Books, Sports & Hobbies": BookOpen,
+	Services: Drill,
+};
+const DEALS_PER_ROW_DESKTOP = 4;
+const PROMO_EVERY_ROWS = 5;
+const PROMO_INSERT_INTERVAL = DEALS_PER_ROW_DESKTOP * PROMO_EVERY_ROWS;
+const DISPLAY_CATEGORIES = [
+	"Cars",
+	"Bikes",
+	"Properties",
+	"Electronics & Appliances",
+	"Mobiles",
+	"Commercial Vehicles & Spares",
+	"Jobs",
+	"Furniture",
+	"Fashion",
+	"Pets",
+	"Books, Sports & Hobbies",
+	"Services",
+];
 
 // Define your hero slider data
 const HERO_SLIDES = [
@@ -97,6 +132,17 @@ const getEndSubCategory = (value) => {
 	return parts[parts.length - 1] || "General";
 };
 
+const getLocationLabel = (value) => {
+	if (!value) return "Chennai";
+	if (typeof value === "string") return value;
+	if (typeof value === "object") {
+		return (
+			value?.name || value?.label || value?.city || value?.district || "Chennai"
+		);
+	}
+	return String(value);
+};
+
 const normalizeListing = (item) => {
 	const id = item?._id || item?.id;
 	const numericPrice = Number(item?.price || 15006);
@@ -107,6 +153,9 @@ const normalizeListing = (item) => {
 		productId: item?.productId || null,
 		title: item?.title || "Heimer Miller Sofa",
 		category: getEndSubCategory(item?.category),
+		location: getLocationLabel(
+			item?.location || item?.city || item?.district || item?.seller?.location,
+		),
 		price: formatPrice(numericPrice),
 		originalPrice: formatPrice(originalPriceNum),
 		likedByCount: getListingLikedCount(item),
@@ -125,22 +174,14 @@ const normalizeListing = (item) => {
 	};
 };
 
-const getMainCategory = (value) => {
-	if (!value) return "General";
-	return String(value).split(">")[0]?.trim() || "General";
-};
-
 export default function Home() {
 	const navigate = useNavigate();
 	const { isAuthenticated } = useAuth();
 	const [search, setSearch] = useState("");
-	const [categories, setCategories] = useState([]);
 	const [listings, setListings] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [likedListingIds, setLikedListingIds] = useState([]);
 	const [likingByListingId, setLikingByListingId] = useState({});
-	const [selectedCompareIds, setSelectedCompareIds] = useState([]);
-	const [selectedCompareCategory, setSelectedCompareCategory] = useState("");
 	const [topDealsIndex, setTopDealsIndex] = useState(0);
 	const [slideDirection, setSlideDirection] = useState("next");
 
@@ -152,19 +193,9 @@ export default function Home() {
 		const fetchHomeData = async () => {
 			try {
 				setLoading(true);
-				const [categoriesRes, listingsRes] = await Promise.all([
-					api.get("/categories"),
-					api.get("/listings", {
-						params: { limit: 10, sort: "Newest", search: search || undefined },
-					}),
-				]);
-
-				const categoryRows = pickArray(categoriesRes?.data, [
-					"categories",
-					"data",
-					"items",
-				]);
-				setCategories(categoryRows);
+				const listingsRes = await api.get("/listings", {
+					params: { limit: 40, sort: "Newest", search: search || undefined },
+				});
 
 				const listingRows = pickArray(listingsRes?.data, [
 					"listings",
@@ -227,11 +258,28 @@ export default function Home() {
 		);
 
 	const displayListings = listings.map(normalizeListing);
-	const sidebarCategories = Array.from(
-		new Set(
-			categories.map((cat) => getMainCategory(cat?.name)).filter(Boolean),
-		),
-	).slice(0, 7);
+	const dealFeedItems = displayListings.flatMap((item, index) => {
+		const next = [{ type: "deal", item, key: `deal-${item.id || index}` }];
+		if ((index + 1) % PROMO_INSERT_INTERVAL === 0) {
+			next.push({ type: "promo", key: `promo-${index}` });
+		}
+		return next;
+	});
+	const sidebarCategories = DISPLAY_CATEGORIES;
+	const categoryDeals = Object.entries(
+		displayListings.reduce((acc, listing) => {
+			const categoryName = listing?.category || "General";
+			if (!acc[categoryName]) {
+				acc[categoryName] = [];
+			}
+			if (acc[categoryName].length < 8) {
+				acc[categoryName].push(listing);
+			}
+			return acc;
+		}, {}),
+	)
+		.filter(([, rows]) => rows.length >= 2)
+		.slice(0, 4);
 	const topDeals = displayListings.slice(0, 8);
 	const topDealsCount = topDeals.length;
 
@@ -281,48 +329,6 @@ export default function Home() {
 
 		navigate(buildCompareUrl(...sameCategoryDeals));
 	};
-
-	const toggleCompareSelection = (event, item) => {
-		event.preventDefault();
-		event.stopPropagation();
-
-		const itemId = item?.productId || item?.id;
-		if (!itemId) return;
-		const itemCategory = String(item?.category || "").trim();
-
-		setSelectedCompareIds((prev) => {
-			if (prev.includes(itemId)) {
-				const next = prev.filter((id) => id !== itemId);
-				if (!next.length) {
-					setSelectedCompareCategory("");
-				}
-				return next;
-			}
-
-			if (!prev.length) {
-				setSelectedCompareCategory(itemCategory);
-				return [itemId];
-			}
-
-			if (itemCategory !== selectedCompareCategory) {
-				toast.error(
-					`Only ${selectedCompareCategory || "same category"} products can be compared`,
-				);
-				return prev;
-			}
-
-			if (prev.length >= 4) {
-				toast.error("You can compare up to 4 products");
-				return prev;
-			}
-
-			return [...prev, itemId];
-		});
-	};
-
-	const selectedCompareDeals = displayListings.filter((item) =>
-		selectedCompareIds.includes(item?.productId || item?.id),
-	);
 
 	const moveTopDeals = (direction) => {
 		if (topDealsCount < 2) return;
@@ -393,46 +399,46 @@ export default function Home() {
 			<Navbar showSearch search={search} onSearchChange={setSearch} />
 
 			<main className="mx-auto w-full max-w-[1780px] px-4 py-6 sm:px-6 lg:px-8 flex-1">
-				<div className="grid gap-6 xl:grid-cols-[220px_minmax(0,1fr)_220px]">
-					<AdSidebar side="left" />
-
+				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_220px]">
 					<div className="min-w-0">
 						{/* Categories Row */}
-						<div className="flex items-center justify-between mb-4">
-							<h2 className="text-xl font-bold font-display">Fast browse</h2>
-							<Link
-								to="/categories"
-								className="text-sm font-bold text-[#666666] hover:text-black transition-colors"
-							>
-								View All →
-							</Link>
+						<div className="top-20 z-20 -mx-2 mb-4 rounded-2xl bg-white/95 px-2 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+							<div className="mb-3 flex items-center justify-between">
+								<h2 className="text-xl font-bold font-display">Categories</h2>
+								<Link
+									to="/categories"
+									className="text-sm font-bold text-[#666666] hover:text-black transition-colors"
+								>
+									View All →
+								</Link>
+							</div>
+							<section className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+								{sidebarCategories.map((catName, index) => {
+									const Icon = CATEGORY_ICON_MAP[catName] || Cpu;
+									const active = index === 0;
+									return (
+										<Link
+											key={catName || index}
+											to={`/explore?category=${encodeURIComponent(catName || "General")}`}
+											className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
+												active
+													? "bg-[#FFD600] text-black shadow-sm"
+													: "bg-[#F8F8F8] text-[#666666] hover:bg-[#F0F0F0]"
+											}`}
+										>
+											<Icon
+												size={16}
+												className={active ? "text-black" : "text-[#666666]"}
+											/>
+											{catName || "General"}
+										</Link>
+									);
+								})}
+							</section>
 						</div>
-						<section className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
-							{sidebarCategories.map((catName, index) => {
-								const Icon = CATEGORY_ICONS[index % CATEGORY_ICONS.length];
-								const active = index === 0;
-								return (
-									<Link
-										key={catName || index}
-										to={`/explore?category=${encodeURIComponent(catName || "General")}`}
-										className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
-											active
-												? "bg-[#FFD600] text-black shadow-sm"
-												: "bg-[#F8F8F8] text-[#666666] hover:bg-[#F0F0F0]"
-										}`}
-									>
-										<Icon
-											size={16}
-											className={active ? "text-black" : "text-[#666666]"}
-										/>
-										{catName || "General"}
-									</Link>
-								);
-							})}
-						</section>
 
 						{/* Hero Section */}
-						<section className="mt-4 relative w-full h-[320px] md:h-[450px] lg:h-[500px] rounded-[24px] md:rounded-[32px] overflow-hidden group shadow-lg">
+						<section className="mt-4 relative w-full h-[220px] md:h-[260px] lg:h-[300px] rounded-[24px] md:rounded-[28px] overflow-hidden group shadow-lg">
 							{/* Slides Container */}
 							<div
 								className="flex w-full h-full transition-transform duration-700 ease-in-out"
@@ -449,20 +455,20 @@ export default function Home() {
 											className="w-full h-full object-cover"
 										/>
 										{/* Gradient Overlay for better text readability */}
-										<div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent flex flex-col justify-center px-8 md:px-16 lg:px-24">
+										<div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-transparent flex flex-col justify-center px-6 md:px-10 lg:px-14">
 											<div className="max-w-xl">
 												<span className="inline-block py-1 px-3 rounded-full bg-[#FFD600] text-black text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
 													Featured Event
 												</span>
-												<h2 className="text-3xl md:text-5xl lg:text-6xl font-bold text-white mb-4 leading-tight">
+												<h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-3 leading-tight">
 													{slide.title}
 												</h2>
-												<p className="text-sm md:text-lg text-white/90 mb-8 font-medium max-w-md">
+												<p className="text-xs md:text-sm text-white/90 mb-5 font-medium max-w-md">
 													{slide.subtitle}
 												</p>
 												<Link
 													to={slide.ctaLink}
-													className="inline-flex items-center gap-2 bg-white text-black px-8 py-3.5 rounded-full font-bold text-sm hover:bg-[#FFD600] transition-colors shadow-md group/btn"
+													className="inline-flex items-center gap-2 bg-white text-black px-6 py-2.5 rounded-full font-bold text-xs md:text-sm hover:bg-[#FFD600] transition-colors shadow-md group/btn"
 												>
 													{slide.ctaText}
 													<ArrowRight
@@ -480,20 +486,20 @@ export default function Home() {
 							<button
 								type="button"
 								onClick={prevHeroSlide}
-								className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
+								className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
 							>
-								<ChevronLeft size={24} />
+								<ChevronLeft size={20} />
 							</button>
 							<button
 								type="button"
 								onClick={nextHeroSlide}
-								className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
+								className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
 							>
-								<ChevronRight size={24} />
+								<ChevronRight size={20} />
 							</button>
 
 							{/* Pagination Dots */}
-							<div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2">
+							<div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
 								{HERO_SLIDES.map((_, index) => (
 									<button
 										key={index}
@@ -510,26 +516,8 @@ export default function Home() {
 							</div>
 						</section>
 
-						{/* Premium Banner */}
-						<section className="mt-8 flex items-center justify-between rounded-full bg-[#1A1A1A] px-6 py-4 text-white shadow-lg">
-							<div className="flex items-center gap-3">
-								<div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#333333]">
-									<Zap size={16} className="text-[#FFD600] fill-[#FFD600]" />
-								</div>
-								<p className="text-[0.95rem]">
-									<span className="font-bold">Deal Post Premium:</span>{" "}
-									<span className="text-white/80">
-										Boost your ads for 3x more views and faster sales.
-									</span>
-								</p>
-							</div>
-							<button className="rounded-full bg-[#333333] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#444444] transition hidden sm:block">
-								Learn More
-							</button>
-						</section>
-
 						{/* Fresh Recommendations */}
-						<section className="mt-16">
+						<section className="mt-10">
 							<div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
 								<div>
 									<h2 className="text-[2rem] font-bold text-black mb-2">
@@ -549,15 +537,32 @@ export default function Home() {
 
 							{/* Reduced columns from 5 to 4 to make the cards significantly wider/larger on big screens */}
 							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-								{displayListings.map((item) => {
+								{dealFeedItems.map((feedItem) => {
+									if (feedItem.type === "promo") {
+										return (
+											<div
+												key={feedItem.key}
+												className="rounded-[18px] bg-[#3D73E9] p-6 text-white shadow-[0_16px_35px_rgba(61,115,233,0.35)]"
+											>
+												<h3 className="text-[1.9rem] font-bold leading-tight">
+													Want to see your stuff here?
+												</h3>
+												<p className="mt-4 text-[1.05rem] text-white/90">
+													Make some extra cash by selling things in your
+													community. Go on, it is quick and easy.
+												</p>
+												<Link
+													to="/post-ad"
+													className="mt-8 inline-flex w-full justify-center rounded-xl border border-white/70 px-5 py-3 text-lg font-bold text-white transition hover:bg-white/15"
+												>
+													Start selling
+												</Link>
+											</div>
+										);
+									}
+
+									const item = feedItem.item;
 									const listingId = getListingNumericId(item);
-									const compareId = item?.productId || item?.id;
-									const compareSelected =
-										selectedCompareIds.includes(compareId);
-									const compareDisabled =
-										selectedCompareIds.length > 0 &&
-										item?.category !== selectedCompareCategory &&
-										!compareSelected;
 									const liked = isListingLiked(item, likedListingIds);
 									const isLiking = Boolean(
 										listingId && likingByListingId[listingId],
@@ -565,114 +570,42 @@ export default function Home() {
 
 									return (
 										<Link
-											key={item.id}
+											key={feedItem.key}
 											to={`/listing/${item.productId || item.id}`}
-											className="group flex flex-col rounded-[24px] bg-white p-3 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-[#F0F2F5] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(40,40,90,0.1)]"
+											className="group flex flex-col overflow-hidden rounded-2xl border border-[#D9D9D9] bg-white transition hover:shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
 										>
-											{/* Image Section - Adjusted Aspect Ratio from 4/3 to 4/5 for taller, larger images */}
-											<div className="relative aspect-[4/5] w-full overflow-hidden rounded-[16px] bg-[#F4F5F7]">
+											<div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F4F5F7]">
 												<img
 													src={item.image}
 													alt={item.title}
-													className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+													className="h-full w-full object-cover"
 												/>
-
 												<button
 													type="button"
-													onClick={(event) =>
-														toggleCompareSelection(event, item)
-													}
-													disabled={compareDisabled}
-													className={`ml-2 rounded-full border px-4 py-2 text-[0.68rem] font-bold uppercase tracking-[0.14em] transition ${compareSelected ? "border-black bg-black text-white" : "border-[#d8dbe2] bg-white text-[#1E1E38] hover:bg-[#f7f7f7]"} ${compareDisabled ? "cursor-not-allowed opacity-50" : ""}`}
+													onClick={(event) => onToggleLike(event, item)}
+													disabled={isLiking}
+													className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full bg-white text-[#111827] shadow-sm transition hover:bg-[#F7F7F7]"
 												>
-													{compareSelected ? "Selected" : "Compare"}
-												</button>
-												{/* Likes Badge */}
-												<div className="absolute bottom-3 right-3 flex items-center rounded-lg bg-[#FFEBEB] px-2.5 py-1.5 shadow-sm">
 													<Heart
-														size={14}
-														className="mx-1.5 fill-[#1E1E38] text-[#1E1E38]"
+														size={24}
+														className={
+															liked
+																? "fill-[#111827] text-[#111827]"
+																: "text-[#111827]"
+														}
 													/>
-													<div className="mx-1.5 h-3.5 w-[1.5px] bg-[#1E1E38]/15"></div>
-
-													{selectedCompareIds.length ? (
-														<div className="mt-6 flex flex-col gap-3 rounded-2xl border border-[#EAEAEA] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-															<div>
-																<p className="text-xs font-bold uppercase tracking-[0.12em] text-[#6A6A79]">
-																	Compare Basket
-																</p>
-																<p className="mt-1 text-sm text-[#1E1E38]">
-																	{selectedCompareIds.length} selected from
-																	category:{" "}
-																	{selectedCompareCategory || "General"}
-																</p>
-															</div>
-															<div className="flex items-center gap-2">
-																<button
-																	type="button"
-																	onClick={() => {
-																		setSelectedCompareIds([]);
-																		setSelectedCompareCategory("");
-																	}}
-																	className="rounded-full border border-[#d8dbe2] px-4 py-2 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[#1E1E38] hover:bg-[#f8f8f8]"
-																>
-																	Clear
-																</button>
-																<button
-																	type="button"
-																	onClick={() =>
-																		launchCompareForDeals(
-																			...selectedCompareDeals,
-																		)
-																	}
-																	className="rounded-full bg-[#FFD600] px-5 py-2.5 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-black hover:bg-[#efc800]"
-																>
-																	Compare Selected
-																</button>
-															</div>
-														</div>
-													) : null}
-													<span className="text-[0.9rem] font-medium text-[#1E1E38]/80">
-														{item.likedByCount}
-													</span>
-												</div>
+												</button>
 											</div>
-
-											{/* Content Section */}
-											<div className="flex flex-1 flex-col px-1 pt-4 pb-2">
-												<div>
-													<h3 className="text-[1.15rem] font-bold text-[#1E1E38] line-clamp-1">
-														{item.title}
-													</h3>
-													<p className="mt-1 text-[0.95rem] font-medium text-[#8A8A9E] line-clamp-1">
-														{item.category}
-													</p>
-												</div>
-
-												<div className="my-4 h-px w-full bg-[#F0F2F5]"></div>
-
-												<div className="mt-auto flex items-end justify-between">
-													<div>
-														<div className="flex items-baseline gap-2">
-															<span className="text-[1.4rem] font-bold tracking-tight text-[#1E1E38] leading-none">
-																{item.originalPrice}
-															</span>
-														</div>
-													</div>
-
-													<button
-														type="button"
-														onClick={(event) => onToggleLike(event, item)}
-														disabled={isLiking}
-														className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-all shadow-md ${liked ? "bg-[#E64242] shadow-[#E64242]/25 hover:bg-[#cf3535]" : "bg-[#f5c518] shadow-[#f5c518]/25 hover:bg-[#dfb010]"} ${isLiking ? "opacity-70" : "hover:scale-105"}`}
-													>
-														<Heart
-															size={20}
-															className={
-																liked ? "fill-white text-white" : "text-white"
-															}
-														/>
-													</button>
+											<div className="flex flex-1 flex-col p-4">
+												<p className="text-[1.5rem] font-black tracking-tight text-[#08102A] leading-none">
+													{item.originalPrice}
+												</p>
+												<p className="mt-2 line-clamp-1 text-[1rem] font-medium text-[#5C6678]">
+													{item.title}
+												</p>
+												<div className="mt-2 flex items-center justify-between gap-3 text-[0.72rem] font-medium uppercase tracking-[0.03em] text-[#778195]">
+													<span className="line-clamp-1">{item.location}</span>
+													<span className="shrink-0">{item.time}</span>
 												</div>
 											</div>
 										</Link>
@@ -692,6 +625,62 @@ export default function Home() {
 								</button>
 							</div>
 						</section>
+
+						{/* Category Deal Carousels */}
+						{categoryDeals.length ? (
+							<section className="mt-16 space-y-8">
+								<div className="flex items-center justify-between">
+									<h2 className="text-[1.8rem] font-bold text-black">
+										Deals by category
+									</h2>
+									<Link
+										to="/explore"
+										className="inline-flex items-center gap-1 text-sm font-bold text-black hover:text-[#FFD600] transition"
+									>
+										Explore all <ArrowRight size={16} />
+									</Link>
+								</div>
+
+								{categoryDeals.map(([categoryName, items]) => (
+									<div key={categoryName}>
+										<div className="mb-3 flex items-center justify-between">
+											<h3 className="text-xl font-bold text-[#1E1E38]">
+												{categoryName}
+											</h3>
+											<Link
+												to={`/explore?category=${encodeURIComponent(categoryName)}`}
+												className="text-xs font-bold uppercase tracking-[0.13em] text-[#666666] hover:text-black"
+											>
+												View category
+											</Link>
+										</div>
+										<div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+											{items.map((item) => (
+												<Link
+													key={`cat-${categoryName}-${item.id}`}
+													to={`/listing/${item.productId || item.id}`}
+													className="min-w-[220px] max-w-[220px] rounded-2xl border border-[#EAEAEA] bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5"
+												>
+													<div className="aspect-[4/3] overflow-hidden rounded-xl bg-[#F3F3F3]">
+														<img
+															src={item.image}
+															alt={item.title}
+															className="h-full w-full object-cover"
+														/>
+													</div>
+													<p className="mt-3 text-lg font-bold text-[#1E1E38]">
+														{item.originalPrice}
+													</p>
+													<p className="mt-0.5 line-clamp-1 text-sm font-medium text-[#67677C]">
+														{item.title}
+													</p>
+												</Link>
+											))}
+										</div>
+									</div>
+								))}
+							</section>
+						) : null}
 
 						{/* Top Deals For You - Carousel Section */}
 						<section className="mt-16 rounded-[40px] bg-[#FFF9E6] p-8 md:p-14 relative overflow-hidden">
@@ -739,7 +728,7 @@ export default function Home() {
 									<img
 										src={
 											leftDeal?.image ||
-											"https://placehold.co/600x600?text=Deal.Post"
+											"https://placehold.co/600x600?text=Deal Post"
 										}
 										className="w-full h-full object-cover"
 										alt="Deal"
@@ -754,7 +743,7 @@ export default function Home() {
 									<img
 										src={
 											featuredDeal?.image ||
-											"https://placehold.co/800x600?text=Deal.Post"
+											"https://placehold.co/800x600?text=Deal Post"
 										}
 										className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition duration-700"
 										alt="Main Deal"
@@ -811,46 +800,12 @@ export default function Home() {
 									<img
 										src={
 											rightDeal?.image ||
-											"https://placehold.co/600x600?text=Deal.Post"
+											"https://placehold.co/600x600?text=Deal Post"
 										}
 										className="w-full h-full object-cover"
 										alt="Deal"
 									/>
 								</button>
-							</div>
-						</section>
-
-						{/* Trending Text Section */}
-						<section className="mt-20 mb-10 grid gap-8 md:grid-cols-3 border-t border-[#EAEAEA] pt-12">
-							<div>
-								<h4 className="text-lg font-bold text-black mb-4">
-									Trending in Cars:
-								</h4>
-								<p className="text-[0.85rem] text-[#888888] leading-relaxed">
-									Used Honda City, Toyota Fortuner for sale, Pre-owned BMW 3
-									Series, Luxury SUVs in Chennai, Classic Vintage Cars, Electric
-									Vehicles.
-								</p>
-							</div>
-							<div>
-								<h4 className="text-lg font-bold text-black mb-4">
-									Trending in Tech:
-								</h4>
-								<p className="text-[0.85rem] text-[#888888] leading-relaxed">
-									iPhone 15 Pro Max, PS5 Consoles, MacBook Air M1, Gaming
-									Laptops, Mirrorless Cameras, Smart Home Devices, Mechanical
-									Keyboards.
-								</p>
-							</div>
-							<div>
-								<h4 className="text-lg font-bold text-black mb-4">
-									Trending in Living:
-								</h4>
-								<p className="text-[0.85rem] text-[#888888] leading-relaxed">
-									Mid-century Modern Furniture, Persian Rugs, Minimalist Desks,
-									Ergonomic Chairs, Indoor Plants, Abstract Art Prints, Luxury
-									Bedding.
-								</p>
 							</div>
 						</section>
 					</div>

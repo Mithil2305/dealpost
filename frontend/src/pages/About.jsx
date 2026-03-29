@@ -2,8 +2,8 @@ import InfoPageShell from "../components/InfoPageShell";
 
 const sections = [
 	{
-		heading: "What Deal.Post Is",
-		body: "Deal.Post is a local-first marketplace designed to help people list, discover, and buy items with more trust and less friction.",
+		heading: "What Deal Post Is",
+		body: "Deal Post is a local-first marketplace designed to help people list, discover, and buy items with more trust and less friction.",
 		points: [
 			"Location-aware browsing so buyers see what is relevant nearby",
 			"Clear listing details and chat-based communication",
@@ -12,7 +12,7 @@ const sections = [
 	},
 	{
 		heading: "How The Platform Helps You",
-		body: "Whether you are an individual seller, business account, or buyer, Deal.Post gives you focused tools so each action feels predictable.",
+		body: "Whether you are an individual seller, business account, or buyer, Deal Post gives you focused tools so each action feels predictable.",
 		points: [
 			"Sellers can publish and manage ads quickly",
 			"Buyers can shortlist, like, and message from one place",
@@ -59,7 +59,7 @@ const quickLinks = [
 export default function About() {
 	return (
 		<InfoPageShell
-			title="About Deal.Post"
+			title="About Deal Post"
 			subtitle="A practical marketplace built for clear communication, safer trades, and better local discovery."
 			sections={sections}
 			roadmap={roadmap}

@@ -92,7 +92,7 @@ export default function Signup() {
 				throw new Error("Missing user profile in signup response");
 			}
 
-			toast.success("Welcome to Deal.Post");
+			toast.success("Welcome to Deal Post");
 			navigate(form.accountType === "business" ? "/business-listings" : "/");
 		} catch (error) {
 			toast.error(error?.response?.data?.message || "Unable to create account");

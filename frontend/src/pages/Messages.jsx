@@ -467,7 +467,7 @@ export default function Messages() {
 										<img
 											src={
 												getListingImage(activeListing) ||
-												"https://placehold.co/120x90?text=Deal.Post"
+												"https://placehold.co/120x90?text=Deal Post"
 											}
 											alt={activeListing?.title || "Listing"}
 											className="h-16 w-20 rounded-lg object-cover bg-gray-100"

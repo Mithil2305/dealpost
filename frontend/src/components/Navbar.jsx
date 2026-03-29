@@ -5,6 +5,7 @@ import {
 	ExternalLink,
 	MapPin,
 	MessageSquare,
+	Plus,
 	Search,
 	X,
 } from "lucide-react";
@@ -54,7 +55,7 @@ function BrandLogo() {
 				<MapPin size={16} className="text-black" />
 			</div>
 			<div className="text-black">
-				<span className="font-bold">Deal.</span>
+				<span className="font-bold">Deal</span>
 				<span>Post</span>
 			</div>
 		</Link>
@@ -667,17 +668,10 @@ export default function Navbar({ search = "", onSearchChange }) {
 
 					<button
 						type="button"
-						onClick={() => navigate("/business-listings")}
-						className="hidden rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition hover:border-[#FFD600] hover:text-black lg:inline-flex"
-					>
-						Businesses
-					</button>
-					<button
-						type="button"
 						onClick={() => navigate("/post-ad")}
 						className="hidden rounded-full bg-[#FFF5D1] px-5 py-2 text-sm font-bold text-[#5C4D00] transition hover:bg-[#FFEAA3] sm:inline-flex"
 					>
-						START LISTING
+						Post Deal
 					</button>
 					<button
 						type="button"
@@ -709,6 +703,45 @@ export default function Navbar({ search = "", onSearchChange }) {
 							</button>
 						</div>
 					)}
+				</div>
+			</div>
+
+			<div className="border-t border-gray-100 px-6">
+				<div className="flex h-11 items-center gap-5 overflow-x-auto whitespace-nowrap text-sm font-semibold text-gray-600">
+					<div className="inline-flex items-center gap-2">
+						<Link
+							to="/business-listings"
+							className="transition hover:text-black"
+						>
+							Business Listings
+						</Link>
+						<button
+							type="button"
+							onClick={() => navigate("/post-business-ad")}
+							className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:border-[#FFD600] hover:text-black"
+							aria-label="Add business listing"
+						>
+							<Plus size={14} />
+						</button>
+					</div>
+					<Link
+						to="/explore?sort=Newest"
+						className="transition hover:text-black"
+					>
+						Auctions
+					</Link>
+					<Link to="/explore" className="transition hover:text-black">
+						Marketplace
+					</Link>
+					<Link to="/categories" className="transition hover:text-black">
+						Categories
+					</Link>
+					<Link
+						to="/explore?sort=Most%20Popular"
+						className="transition hover:text-black"
+					>
+						Top Deals
+					</Link>
 				</div>
 			</div>
 		</header>

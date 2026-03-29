@@ -120,7 +120,7 @@ export default function HelpCenter() {
 					Guided Platform Walkthrough
 				</h2>
 				<p className="mt-2 text-sm text-gray-600">
-					These cards explain what to do at each stage so you can use Deal.Post
+					These cards explain what to do at each stage so you can use Deal Post
 					confidently and efficiently.
 				</p>
 				<div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -195,7 +195,7 @@ export default function HelpCenter() {
 	return (
 		<InfoPageShell
 			title="Help Center"
-			subtitle="Simple guidance, practical steps, and policy-friendly usage tips to help you succeed on Deal.Post."
+			subtitle="Simple guidance, practical steps, and policy-friendly usage tips to help you succeed on Deal Post."
 			sections={sections}
 			roadmap={roadmap}
 			quickLinks={quickLinks}

@@ -3,7 +3,7 @@ import InfoPageShell from "../components/InfoPageShell";
 const sections = [
 	{
 		heading: "Acceptance Of Terms",
-		body: "By accessing or using Deal.Post, you agree to follow these terms, related policies, and applicable laws.",
+		body: "By accessing or using Deal Post, you agree to follow these terms, related policies, and applicable laws.",
 	},
 	{
 		heading: "Account Responsibilities",
@@ -44,7 +44,7 @@ export default function TermsAndConditions() {
 	return (
 		<InfoPageShell
 			title="Terms & Conditions"
-			subtitle="Clear platform rules that define responsibilities, acceptable usage, and enforcement standards on Deal.Post."
+			subtitle="Clear platform rules that define responsibilities, acceptable usage, and enforcement standards on Deal Post."
 			sections={sections}
 			quickLinks={quickLinks}
 		/>

@@ -11,7 +11,7 @@ export default function ProductCard({ listing }) {
 	const image =
 		listing?.images?.[0]?.url ||
 		listing?.image ||
-		"https://placehold.co/600x600?text=Deal.Post";
+		"https://placehold.co/600x600?text=Deal Post";
 	const numericPrice = Number(listing?.price || 0);
 	const originalPrice = numericPrice > 0 ? numericPrice * 1.43 : 0;
 	const displayPrice = originalPrice > 0 ? originalPrice : numericPrice;
@@ -33,7 +33,7 @@ export default function ProductCard({ listing }) {
 					className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
 					onError={(event) => {
 						event.currentTarget.src =
-							"https://placehold.co/600x600?text=Deal.Post";
+							"https://placehold.co/600x600?text=Deal Post";
 					}}
 				/>
 
