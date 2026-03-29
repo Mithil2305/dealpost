@@ -194,6 +194,8 @@ const SPEC_TEMPLATES = [
 	},
 ];
 
+const DEFAULT_PREVIEW_COORDS = { lat: 13.0827, lng: 80.2707 };
+
 function getCuratedSpecFields(parentCategory, subCategory) {
 	const path = [parentCategory, subCategory].filter(Boolean).join(" > ");
 	if (!path && !parentCategory) {
@@ -251,6 +253,11 @@ export default function PostAd({ variant = "personal" }) {
 	const [fallbackSearching, setFallbackSearching] = useState(false);
 	const [previews, setPreviews] = useState([null, null, null]);
 	const autocompleteContainerRef = useRef(null);
+	const mapPreviewRef = useRef(null);
+	const mapInstanceRef = useRef(null);
+	const mapMarkerRef = useRef(null);
+	const mapGeocoderRef = useRef(null);
+	const mapListenersBoundRef = useRef(false);
 	const [curatedSpecs, setCuratedSpecs] = useState({});
 	const [form, setForm] = useState({
 		title: "",
@@ -360,6 +367,121 @@ export default function PostAd({ variant = "personal" }) {
 			},
 		});
 	}, [mapsReady]);
+
+	useEffect(() => {
+		if (!mapsReady || !mapPreviewRef.current || !window.google?.maps) {
+			return;
+		}
+
+		const latitude = Number(form.latitude);
+		const longitude = Number(form.longitude);
+		const hasCoords = Number.isFinite(latitude) && Number.isFinite(longitude);
+		const center = hasCoords
+			? { lat: latitude, lng: longitude }
+			: DEFAULT_PREVIEW_COORDS;
+
+		if (!mapInstanceRef.current) {
+			mapInstanceRef.current = new window.google.maps.Map(
+				mapPreviewRef.current,
+				{
+					center,
+					zoom: hasCoords ? 15 : 11,
+					mapTypeControl: false,
+					streetViewControl: false,
+					fullscreenControl: false,
+				},
+			);
+			mapGeocoderRef.current = new window.google.maps.Geocoder();
+		}
+
+		const applyPinnedLocation = (lat, lng) => {
+			const geocoder = mapGeocoderRef.current;
+			if (!geocoder) {
+				setForm((prev) => ({
+					...prev,
+					address: prev.address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+					latitude: String(lat),
+					longitude: String(lng),
+					placeId: prev.placeId || "",
+				}));
+				return;
+			}
+
+			geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+				if (status === "OK" && results?.length) {
+					const best = results[0];
+					setForm((prev) => ({
+						...prev,
+						address:
+							best.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+						latitude: String(lat),
+						longitude: String(lng),
+						placeId: best.place_id || "",
+					}));
+					return;
+				}
+
+				setForm((prev) => ({
+					...prev,
+					address: prev.address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+					latitude: String(lat),
+					longitude: String(lng),
+					placeId: prev.placeId || "",
+				}));
+			});
+		};
+
+		if (!mapListenersBoundRef.current) {
+			mapInstanceRef.current.addListener("click", (event) => {
+				const lat = event?.latLng?.lat?.();
+				const lng = event?.latLng?.lng?.();
+				if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+				const position = { lat, lng };
+				if (!mapMarkerRef.current) {
+					mapMarkerRef.current = new window.google.maps.Marker({
+						position,
+						map: mapInstanceRef.current,
+						draggable: true,
+					});
+					mapMarkerRef.current.addListener("dragend", (dragEvent) => {
+						const dragLat = dragEvent?.latLng?.lat?.();
+						const dragLng = dragEvent?.latLng?.lng?.();
+						if (!Number.isFinite(dragLat) || !Number.isFinite(dragLng)) return;
+						applyPinnedLocation(dragLat, dragLng);
+					});
+				} else {
+					mapMarkerRef.current.setPosition(position);
+				}
+
+				mapInstanceRef.current.setCenter(position);
+				mapInstanceRef.current.setZoom(15);
+				applyPinnedLocation(lat, lng);
+			});
+			mapListenersBoundRef.current = true;
+		}
+
+		if (hasCoords) {
+			const nextPos = { lat: latitude, lng: longitude };
+			if (!mapMarkerRef.current) {
+				mapMarkerRef.current = new window.google.maps.Marker({
+					position: nextPos,
+					map: mapInstanceRef.current,
+					draggable: true,
+				});
+				mapMarkerRef.current.addListener("dragend", (dragEvent) => {
+					const dragLat = dragEvent?.latLng?.lat?.();
+					const dragLng = dragEvent?.latLng?.lng?.();
+					if (!Number.isFinite(dragLat) || !Number.isFinite(dragLng)) return;
+					applyPinnedLocation(dragLat, dragLng);
+				});
+			} else {
+				mapMarkerRef.current.setPosition(nextPos);
+			}
+			mapInstanceRef.current.setCenter(nextPos);
+			mapInstanceRef.current.setZoom(15);
+		}
+	}, [mapsReady, form.latitude, form.longitude]);
 
 	useEffect(() => {
 		if (!mapsFailed) {
@@ -594,7 +716,9 @@ export default function PostAd({ variant = "personal" }) {
 		}
 		if (!form.address.trim()) return toast.error("Pickup location is required");
 		if (!form.latitude || !form.longitude) {
-			return toast.error("Please choose a valid location from suggestions");
+			return toast.error(
+				"Please choose a valid location from suggestions or pin it on map",
+			);
 		}
 		if (!files[0]) return toast.error("Please add a hero image");
 
@@ -685,10 +809,9 @@ export default function PostAd({ variant = "personal" }) {
 
 	const lat = Number(form.latitude);
 	const lng = Number(form.longitude);
-	const mapEmbedUrl =
-		Number.isFinite(lat) && Number.isFinite(lng)
-			? `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(`${lng - 0.01},${lat - 0.01},${lng + 0.01},${lat + 0.01}`)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lng}`)}`
-			: null;
+	const previewLat = Number.isFinite(lat) ? lat : DEFAULT_PREVIEW_COORDS.lat;
+	const previewLng = Number.isFinite(lng) ? lng : DEFAULT_PREVIEW_COORDS.lng;
+	const mapEmbedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(`${previewLat},${previewLng}`)}&z=${Number.isFinite(lat) && Number.isFinite(lng) ? 15 : 11}&output=embed`;
 
 	return (
 		<div className="min-h-screen bg-brand-bg flex flex-col">
@@ -1004,7 +1127,7 @@ export default function PostAd({ variant = "personal" }) {
 													placeId: "",
 												}));
 											}}
-											placeholder="Search location (fallback mode)"
+											placeholder="Search location"
 											className="input-shell"
 										/>
 										{mapsFailed ? (
@@ -1041,7 +1164,9 @@ export default function PostAd({ variant = "personal" }) {
 								</div>
 							) : null}
 							<div className="mt-3 overflow-hidden rounded-2xl border border-brand-border bg-white">
-								{mapEmbedUrl ? (
+								{mapsReady ? (
+									<div ref={mapPreviewRef} className="h-56 w-full" />
+								) : mapEmbedUrl ? (
 									<iframe
 										title="Selected pickup location preview"
 										src={mapEmbedUrl}
@@ -1056,7 +1181,8 @@ export default function PostAd({ variant = "personal" }) {
 								)}
 							</div>
 							<p className="mt-2 text-xs text-brand-muted">
-								Only verified map locations are accepted for publishing.
+								Click anywhere on map to pin pickup location. You can drag the
+								pin to fine-tune.
 							</p>
 						</article>
 

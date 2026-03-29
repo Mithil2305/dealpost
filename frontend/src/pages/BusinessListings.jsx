@@ -287,7 +287,7 @@ export default function BusinessListings() {
 				</section>
 
 				{loading ? (
-					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+					<div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
 						{Array.from({ length: 6 }).map((_, index) => (
 							<div
 								key={index}
@@ -296,7 +296,7 @@ export default function BusinessListings() {
 						))}
 					</div>
 				) : filteredStores.length ? (
-					<div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+					<div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
 						{filteredStores.map((item, index) => {
 							const { store, storeListings, name, location, totalValue } = item;
 

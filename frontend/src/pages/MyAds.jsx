@@ -171,7 +171,7 @@ export default function MyAds() {
 					</div>
 
 					{loading && page === 1 ? (
-						<div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+						<div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
 							{Array.from({ length: 4 }).map((_, index) => (
 								<div
 									key={index}
@@ -180,7 +180,7 @@ export default function MyAds() {
 							))}
 						</div>
 					) : filtered.length ? (
-						<div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+						<div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
 							{filtered.map((listing) => {
 								const id = listing?._id || listing?.id;
 								const status = (listing?.status || "active").toLowerCase();

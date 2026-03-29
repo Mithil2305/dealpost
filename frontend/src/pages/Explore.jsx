@@ -747,7 +747,7 @@ export default function Explore() {
 						</p>
 
 						{loading && page === 1 ? (
-							<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+							<div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
 								{Array.from({ length: 6 }).map((_, index) => (
 									<div
 										key={index}
@@ -757,7 +757,7 @@ export default function Explore() {
 							</div>
 						) : results.length ? (
 							<>
-								<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+								<div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
 									{results.map((listing) => (
 										<ProductCard
 											key={listing?._id || listing?.id}

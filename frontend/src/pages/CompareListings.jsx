@@ -297,7 +297,7 @@ export default function CompareListings() {
 								<p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[#666]">
 									Choose products to compare with your selected item
 								</p>
-								<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+								<div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
 									{manualOptions.map((item) => {
 										const itemId = getComparableId(item);
 										const picked = manualSelection.some(
@@ -353,7 +353,7 @@ export default function CompareListings() {
 					</div>
 				) : (
 					<div className="mt-8 grid gap-6">
-						<section className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
+						<section className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
 							{scoredEntries.map(({ entry, score }) => {
 								const entryId = entry?.id || entry?._id;
 								const isLeading = entryId === leadingEntryId;

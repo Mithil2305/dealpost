@@ -52,12 +52,77 @@ export function mountPlaceAutocompleteElement({
 	container,
 	placeholder,
 	onPlaceSelected,
+	onInputChange,
 }) {
-	if (!container || !window.google?.maps?.places?.PlaceAutocompleteElement) {
+	if (!container || !window.google?.maps?.places) {
 		return () => {};
 	}
 
 	container.innerHTML = "";
+
+	const placesApi = window.google.maps.places;
+	const canUseElement = Boolean(placesApi.PlaceAutocompleteElement);
+
+	if (!canUseElement) {
+		const input = document.createElement("input");
+		input.type = "text";
+		input.className =
+			"h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#FFD600]";
+		if (placeholder) {
+			input.placeholder = placeholder;
+		}
+
+		container.appendChild(input);
+
+		if (!placesApi.Autocomplete) {
+			const handleInputFallback = (event) => {
+				onInputChange?.(String(event?.target?.value || ""));
+			};
+			input.addEventListener("input", handleInputFallback);
+			return () => {
+				input.removeEventListener("input", handleInputFallback);
+				if (container.contains(input)) {
+					container.removeChild(input);
+				}
+			};
+		}
+
+		const autocomplete = new placesApi.Autocomplete(input, {
+			fields: ["place_id", "formatted_address", "name", "geometry"],
+			types: ["geocode"],
+		});
+
+		const handleInputFallback = (event) => {
+			onInputChange?.(String(event?.target?.value || ""));
+		};
+		input.addEventListener("input", handleInputFallback);
+
+		const placeListener = autocomplete.addListener("place_changed", () => {
+			const place = autocomplete.getPlace();
+			const lat = place?.geometry?.location?.lat?.();
+			const lng = place?.geometry?.location?.lng?.();
+
+			onPlaceSelected?.({
+				id: readStringValue(place?.place_id),
+				displayName: readStringValue(place?.name),
+				formattedAddress:
+					readStringValue(place?.formatted_address) ||
+					readStringValue(place?.name),
+				lat: Number.isFinite(lat) ? lat : null,
+				lng: Number.isFinite(lng) ? lng : null,
+			});
+		});
+
+		return () => {
+			input.removeEventListener("input", handleInputFallback);
+			if (placeListener?.remove) {
+				placeListener.remove();
+			}
+			if (container.contains(input)) {
+				container.removeChild(input);
+			}
+		};
+	}
 
 	const autocompleteElement =
 		new window.google.maps.places.PlaceAutocompleteElement();
@@ -86,11 +151,23 @@ export function mountPlaceAutocompleteElement({
 		});
 	};
 
+	const handleInput = (event) => {
+		const nextValue = String(event?.target?.value || "");
+		onInputChange?.(nextValue);
+	};
+
 	autocompleteElement.addEventListener("gmp-select", handlePlaceSelect);
+	autocompleteElement.addEventListener("gmp-placeselect", handlePlaceSelect);
+	autocompleteElement.addEventListener("input", handleInput);
 	container.appendChild(autocompleteElement);
 
 	return () => {
 		autocompleteElement.removeEventListener("gmp-select", handlePlaceSelect);
+		autocompleteElement.removeEventListener(
+			"gmp-placeselect",
+			handlePlaceSelect,
+		);
+		autocompleteElement.removeEventListener("input", handleInput);
 		if (container.contains(autocompleteElement)) {
 			container.removeChild(autocompleteElement);
 		}

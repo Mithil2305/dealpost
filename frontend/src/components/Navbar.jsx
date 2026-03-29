@@ -3,6 +3,7 @@ import {
 	ChevronDown,
 	Crosshair,
 	ExternalLink,
+	Heart,
 	MapPin,
 	MessageSquare,
 	Plus,
@@ -10,6 +11,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useAuth } from "../context/useAuth";
@@ -107,6 +109,7 @@ export default function Navbar({ search = "", onSearchChange }) {
 	const [isSavingLocation, setIsSavingLocation] = useState(false);
 	const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 	const [selectedCoordinates, setSelectedCoordinates] = useState(initialCoords);
+	const [selectedPlaceId, setSelectedPlaceId] = useState("");
 
 	const locationWrapperRef = useRef(null);
 	const autocompleteContainerRef = useRef(null);
@@ -186,22 +189,63 @@ export default function Navbar({ search = "", onSearchChange }) {
 	}, []);
 
 	useEffect(() => {
-		if (!isLocationOpen || !mapsReady || !autocompleteContainerRef.current)
+		if (!isLocationOpen || !mapsReady || !autocompleteContainerRef.current) {
 			return;
+		}
 
 		return mountPlaceAutocompleteElement({
 			container: autocompleteContainerRef.current,
 			placeholder: "Search for area, city, or address",
 			onPlaceSelected: (place) => {
-				const nextLocation = getReadableLocationLabel(place) || locationInput;
+				const nextLocation =
+					getReadableLocationLabel(place) ||
+					place.formattedAddress ||
+					place.displayName ||
+					"";
 				setLocationInput(nextLocation);
 				setSelectedCoordinates({
 					lat: Number.isFinite(place.lat) ? place.lat : null,
 					lng: Number.isFinite(place.lng) ? place.lng : null,
 				});
+				setSelectedPlaceId(String(place.id || ""));
 			},
 		});
-	}, [isLocationOpen, locationInput, mapsReady]);
+	}, [isLocationOpen, mapsReady]);
+
+	const geocodeByAddress = async (addressText) => {
+		if (!window.google?.maps?.Geocoder || !String(addressText || "").trim()) {
+			return null;
+		}
+
+		const geocoder = new window.google.maps.Geocoder();
+		return new Promise((resolve) => {
+			geocoder.geocode(
+				{ address: String(addressText).trim() },
+				(results, status) => {
+					if (status !== "OK" || !results?.length) {
+						resolve(null);
+						return;
+					}
+
+					const best = results[0];
+					const lat = best?.geometry?.location?.lat?.();
+					const lng = best?.geometry?.location?.lng?.();
+					if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+						resolve(null);
+						return;
+					}
+
+					resolve({
+						lat,
+						lng,
+						placeId: best?.place_id || "",
+						formattedAddress:
+							best?.formatted_address || String(addressText).trim(),
+					});
+				},
+			);
+		});
+	};
 
 	useEffect(() => {
 		const onClickOutside = (event) => {
@@ -329,34 +373,58 @@ export default function Navbar({ search = "", onSearchChange }) {
 	}, [isSearchFocused, onSearchChange, search]);
 
 	const persistLocation = async () => {
-		const next = locationInput.trim();
+		let next = locationInput.trim();
 		if (!next) return;
 
 		setIsSavingLocation(true);
+
+		let coordsToPersist = { ...selectedCoordinates };
+		let placeIdToPersist = selectedPlaceId;
+		if (
+			mapsReady &&
+			(!Number.isFinite(coordsToPersist.lat) ||
+				!Number.isFinite(coordsToPersist.lng))
+		) {
+			const geocoded = await geocodeByAddress(next);
+			if (geocoded) {
+				next = geocoded.formattedAddress;
+				coordsToPersist = { lat: geocoded.lat, lng: geocoded.lng };
+				placeIdToPersist = geocoded.placeId;
+				setLocationInput(geocoded.formattedAddress);
+				setSelectedCoordinates({ lat: geocoded.lat, lng: geocoded.lng });
+				setSelectedPlaceId(geocoded.placeId);
+			}
+		}
+
 		setDisplayLocation(next);
 		localStorage.setItem("selectedLocation", next);
 
 		if (
-			Number.isFinite(selectedCoordinates.lat) &&
-			Number.isFinite(selectedCoordinates.lng)
+			Number.isFinite(coordsToPersist.lat) &&
+			Number.isFinite(coordsToPersist.lng)
 		) {
 			sessionStorage.setItem(
 				"selectedLocationCoords",
 				JSON.stringify({
-					lat: selectedCoordinates.lat,
-					lng: selectedCoordinates.lng,
+					lat: coordsToPersist.lat,
+					lng: coordsToPersist.lng,
 				}),
 			);
+			if (placeIdToPersist) {
+				sessionStorage.setItem("selectedLocationPlaceId", placeIdToPersist);
+			}
 		} else {
 			sessionStorage.removeItem("selectedLocationCoords");
+			sessionStorage.removeItem("selectedLocationPlaceId");
 		}
 
 		window.dispatchEvent(
 			new CustomEvent("dealpost:location-changed", {
 				detail: {
 					location: next,
-					lat: selectedCoordinates.lat,
-					lng: selectedCoordinates.lng,
+					lat: coordsToPersist.lat,
+					lng: coordsToPersist.lng,
+					placeId: placeIdToPersist || "",
 				},
 			}),
 		);
@@ -383,6 +451,7 @@ export default function Navbar({ search = "", onSearchChange }) {
 				const lat = position.coords.latitude;
 				const lng = position.coords.longitude;
 				setSelectedCoordinates({ lat, lng });
+				setSelectedPlaceId("");
 
 				if (window.google?.maps?.Geocoder) {
 					const geocoder = new window.google.maps.Geocoder();
@@ -419,7 +488,10 @@ export default function Navbar({ search = "", onSearchChange }) {
 				setLocationInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
 				setIsDetectingLocation(false);
 			},
-			() => setIsDetectingLocation(false),
+			() => {
+				setIsDetectingLocation(false);
+				toast.error("Unable to detect current location");
+			},
 		);
 	};
 
@@ -654,6 +726,16 @@ export default function Navbar({ search = "", onSearchChange }) {
 
 					<button
 						type="button"
+						onClick={() => {
+							navigate("/favorites");
+						}}
+						className="text-black transition hover:opacity-70 "
+						aria-label="Notifications"
+					>
+						<Heart size={22} />
+					</button>
+					<button
+						type="button"
 						onClick={openAlertsPopup}
 						className="text-black transition hover:opacity-70"
 						aria-label="Notifications"
@@ -700,9 +782,10 @@ export default function Navbar({ search = "", onSearchChange }) {
 					<button
 						type="button"
 						onClick={() => navigate("/post-ad")}
-						className="hidden rounded-full bg-[#FFF5D1] px-5 py-2 text-sm font-bold text-[#5C4D00] transition hover:bg-[#FFEAA3] sm:inline-flex"
+						className="flex justify-center align-center gap-2 rounded-full bg-[#FFF5D1] px-5 py-2 text-sm font-bold text-[#5C4D00] transition hover:bg-[#FFEAA3] sm:inline-flex"
 					>
-						Post Deal
+						<Plus size={18} />
+						<span>Sell</span>
 					</button>
 					<button
 						type="button"

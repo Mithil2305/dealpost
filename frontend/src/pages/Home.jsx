@@ -23,7 +23,7 @@ import {
 	Zap,
 	ChevronLeft,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
@@ -71,6 +71,25 @@ const DISPLAY_CATEGORIES = [
 	"Books, Sports & Hobbies",
 	"Services",
 ];
+
+const MEGA_CATEGORY_ICON_MAP = {
+	Electronics: Laptop,
+	"Fashion & Beauty": Shirt,
+	Sports: BookOpen,
+	"Pet Supplies": Dog,
+	"Food & Drinks": HomeIcon,
+	"Health & Wellness": Heart,
+	Vehicles: Truck,
+	Property: Building2,
+	Services: Drill,
+	"Hospitals & Clinics": Heart,
+	"Miscellaneous / Other (Extracted from middle/back)": Cpu,
+};
+
+const getMegaCategoryIcon = (categoryName) =>
+	MEGA_CATEGORY_ICON_MAP[categoryName] ||
+	CATEGORY_ICON_MAP[categoryName] ||
+	Cpu;
 
 // Define your hero slider data
 const HERO_SLIDES = [
@@ -188,6 +207,9 @@ export default function Home() {
 	const [likingByListingId, setLikingByListingId] = useState({});
 	const [topDealsIndex, setTopDealsIndex] = useState(0);
 	const [slideDirection, setSlideDirection] = useState("next");
+	const [isMegaMenuOpen, setIsMegaMenuOpen] = useState(false);
+	const [allCategories, setAllCategories] = useState([]);
+	const categoryMenuRef = useRef(null);
 
 	// Hero Slider State
 	const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
@@ -254,6 +276,53 @@ export default function Home() {
 		return () => clearInterval(timer);
 	}, []);
 
+	useEffect(() => {
+		let active = true;
+
+		const fetchCategories = async () => {
+			try {
+				const { data } = await api.get("/categories");
+				const rows = pickArray(data, ["categories", "data", "items"]);
+				if (!active) return;
+				setAllCategories(Array.isArray(rows) ? rows : []);
+			} catch {
+				if (active) {
+					setAllCategories([]);
+				}
+			}
+		};
+
+		fetchCategories();
+
+		return () => {
+			active = false;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!isMegaMenuOpen) return undefined;
+
+		const handleOutsideClick = (event) => {
+			if (!categoryMenuRef.current?.contains(event.target)) {
+				setIsMegaMenuOpen(false);
+			}
+		};
+
+		const handleEscape = (event) => {
+			if (event.key === "Escape") {
+				setIsMegaMenuOpen(false);
+			}
+		};
+
+		document.addEventListener("mousedown", handleOutsideClick);
+		document.addEventListener("keydown", handleEscape);
+
+		return () => {
+			document.removeEventListener("mousedown", handleOutsideClick);
+			document.removeEventListener("keydown", handleEscape);
+		};
+	}, [isMegaMenuOpen]);
+
 	const nextHeroSlide = () =>
 		setCurrentHeroSlide((prev) => (prev + 1) % HERO_SLIDES.length);
 	const prevHeroSlide = () =>
@@ -270,6 +339,47 @@ export default function Home() {
 		return next;
 	});
 	const sidebarCategories = DISPLAY_CATEGORIES;
+	const megaMenuSections = useMemo(() => {
+		const grouped = new Map();
+
+		for (const raw of allCategories) {
+			const rawLabel = String(raw?.name || raw || "").trim();
+			if (!rawLabel || /funeral/i.test(rawLabel)) continue;
+
+			const parts = rawLabel
+				.split(">")
+				.map((entry) => entry.trim())
+				.filter(Boolean);
+			if (!parts.length) continue;
+
+			const mainCategory = parts[0];
+			if (/funeral/i.test(mainCategory)) continue;
+
+			if (!grouped.has(mainCategory)) {
+				grouped.set(mainCategory, new Set());
+			}
+
+			if (parts.length > 1) {
+				grouped.get(mainCategory).add(parts.slice(1).join(" > "));
+			}
+		}
+
+		const ranked = Array.from(grouped.entries())
+			.map(([title, itemSet]) => ({
+				title,
+				items: Array.from(itemSet).sort((a, b) => a.localeCompare(b)),
+			}))
+			.filter((section) => section.items.length > 0)
+			.sort((a, b) => {
+				if (b.items.length !== a.items.length) {
+					return b.items.length - a.items.length;
+				}
+				return a.title.localeCompare(b.title);
+			});
+
+		return ranked.slice(0, 8);
+	}, [allCategories]);
+
 	const auctionHighlights = displayListings
 		.filter(
 			(listing) =>
@@ -400,7 +510,10 @@ export default function Home() {
 				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_220px]">
 					<div className="min-w-0">
 						{/* Categories Row */}
-						<div className="top-20 z-20 -mx-2 mb-4 rounded-2xl bg-white/95 px-2 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+						<div
+							ref={categoryMenuRef}
+							className="top-20 z-20 -mx-2 mb-4 rounded-2xl bg-white/95 px-2 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80"
+						>
 							<div className="mb-3 flex items-center justify-between">
 								<h2 className="text-xl font-bold font-display">Categories</h2>
 								<Link
@@ -411,12 +524,28 @@ export default function Home() {
 								</Link>
 							</div>
 							<section className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+								<button
+									type="button"
+									onClick={() => setIsMegaMenuOpen((prev) => !prev)}
+									className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
+										isMegaMenuOpen
+											? "bg-[#1677ff] text-white shadow-sm"
+											: "bg-[#F8F8F8] text-[#666666] hover:bg-[#F0F0F0]"
+									}`}
+								>
+									<ChevronRight
+										size={16}
+										className={`transition-transform ${isMegaMenuOpen ? "rotate-90" : ""}`}
+									/>
+									All Category
+								</button>
 								{sidebarCategories.map((catName, index) => {
 									const Icon = CATEGORY_ICON_MAP[catName] || Cpu;
-									const active = index === 0;
+									const active = index === 0 && !isMegaMenuOpen;
 									return (
 										<Link
 											key={catName || index}
+											onClick={() => setIsMegaMenuOpen(false)}
 											to={`/explore?category=${encodeURIComponent(catName || "General")}`}
 											className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
 												active
@@ -433,6 +562,65 @@ export default function Home() {
 									);
 								})}
 							</section>
+
+							{isMegaMenuOpen && (
+								<div className="mt-3 rounded-[26px] border border-[#E8E8E8] bg-white p-5 shadow-[0_24px_60px_rgba(0,0,0,0.14)]">
+									<div className="mb-4 flex items-center justify-between">
+										<p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#1677ff]">
+											All Categories
+										</p>
+										<Link
+											onClick={() => setIsMegaMenuOpen(false)}
+											to="/categories"
+											className="text-xs font-bold uppercase tracking-[0.13em] text-[#5f5f5f] hover:text-black"
+										>
+											View full directory
+										</Link>
+									</div>
+
+									{megaMenuSections.length ? (
+										<div className="max-h-[460px] overflow-y-auto pr-1">
+											<div className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
+												{megaMenuSections.map((section) => {
+													const TitleIcon = getMegaCategoryIcon(section.title);
+													return (
+														<div key={section.title}>
+															<Link
+																onClick={() => setIsMegaMenuOpen(false)}
+																to={`/explore?category=${encodeURIComponent(section.title)}`}
+																className="mb-2 inline-flex items-center gap-2 text-sm font-bold text-[#171717] hover:text-[#1677ff]"
+															>
+																<TitleIcon size={15} />
+																{section.title}
+																<span className="rounded-full bg-[#EEF4FF] px-2 py-0.5 text-[10px] font-bold text-[#1677ff]">
+																	{section.items.length}
+																</span>
+															</Link>
+															<ul className="space-y-1.5">
+																{section.items.map((itemLabel) => (
+																	<li key={`${section.title}-${itemLabel}`}>
+																		<Link
+																			onClick={() => setIsMegaMenuOpen(false)}
+																			to={`/explore?category=${encodeURIComponent(`${section.title} > ${itemLabel}`)}`}
+																			className="text-[13px] text-[#666666] hover:text-black"
+																		>
+																			{itemLabel}
+																		</Link>
+																	</li>
+																))}
+															</ul>
+														</div>
+													);
+												})}
+											</div>
+										</div>
+									) : (
+										<div className="rounded-xl border border-dashed border-[#D9D9D9] bg-[#FAFAFA] p-4 text-sm text-[#666666]">
+											Categories are loading. Please try again.
+										</div>
+									)}
+								</div>
+							)}
 						</div>
 
 						{/* Hero Section */}
@@ -577,7 +765,7 @@ export default function Home() {
 							</div>
 
 							{/* Reduced columns from 5 to 4 to make the cards significantly wider/larger on big screens */}
-							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+							<div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
 								{dealFeedItems.map((feedItem) => {
 									if (feedItem.type === "promo") {
 										return (
@@ -744,9 +932,9 @@ export default function Home() {
 						) : null}
 
 						{/* Top Deals For You - Carousel Section */}
-						<section className="mt-16 rounded-[40px] bg-[#FFF9E6] p-8 md:p-14 relative overflow-hidden">
-							<div className="flex items-center justify-between mb-10 relative z-10">
-								<h2 className="flex items-center gap-3 text-[2rem] font-bold text-black">
+						<section className="mt-12 rounded-[28px] bg-[#FFF9E6] p-4 md:p-5 relative overflow-hidden">
+							<div className="flex items-center justify-between mb-4 relative z-10">
+								<h2 className="flex items-center gap-2 text-[1.25rem] font-bold text-black">
 									<Zap size={28} className="text-[#FFD600] fill-[#FFD600]" />
 									Top Deals For You
 								</h2>
@@ -754,7 +942,7 @@ export default function Home() {
 									<button
 										type="button"
 										onClick={() => launchCompareForTopDeal(featuredDeal)}
-										className="rounded-full border border-[#EAEAEA] bg-white px-5 py-2.5 text-xs font-bold uppercase tracking-[0.16em] text-black transition hover:bg-[#f8f8f8] justify-center flex items-center gap-1.5"
+										className="rounded-full border border-[#EAEAEA] bg-white px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-black transition hover:bg-[#f8f8f8] justify-center flex items-center gap-1"
 									>
 										Compare
 									</button>
@@ -762,27 +950,27 @@ export default function Home() {
 										type="button"
 										onClick={() => moveTopDeals("prev")}
 										disabled={topDealsCount < 2}
-										className="grid h-12 w-12 place-items-center rounded-full bg-white border border-[#EAEAEA] shadow-sm hover:scale-105 transition disabled:opacity-60"
+										className="grid h-9 w-9 place-items-center rounded-full bg-white border border-[#EAEAEA] shadow-sm hover:scale-105 transition disabled:opacity-60"
 									>
-										<ChevronLeft size={20} />
+										<ChevronLeft size={17} />
 									</button>
 									<button
 										type="button"
 										onClick={() => moveTopDeals("next")}
 										disabled={topDealsCount < 2}
-										className="grid h-12 w-12 place-items-center rounded-full bg-white border border-[#EAEAEA] shadow-sm hover:scale-105 transition disabled:opacity-60"
+										className="grid h-9 w-9 place-items-center rounded-full bg-white border border-[#EAEAEA] shadow-sm hover:scale-105 transition disabled:opacity-60"
 									>
-										<ChevronRight size={20} />
+										<ChevronRight size={17} />
 									</button>
 								</div>
 							</div>
 
-							<div className="flex items-center justify-center gap-6 relative z-10 min-h-[400px]">
+							<div className="flex items-center justify-center gap-3 relative z-10 min-h-[260px]">
 								{/* Left Faded Item */}
 								<button
 									type="button"
 									onClick={() => moveTopDeals("prev")}
-									className="hidden lg:block w-[280px] h-[280px] rounded-[32px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer"
+									className="hidden lg:block w-[170px] h-[170px] rounded-[20px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer"
 								>
 									<img
 										src={
@@ -797,7 +985,7 @@ export default function Home() {
 								{/* Center Active Item */}
 								<div
 									key={`carousel-main-${topDealsIndex}-${slideDirection}`}
-									className={`w-full max-w-[600px] h-[360px] rounded-[32px] bg-[#111111] overflow-hidden relative shadow-2xl group cursor-pointer ${slideDirection === "next" ? "deal-slide-next" : "deal-slide-prev"}`}
+									className={`w-full max-w-[440px] h-[240px] rounded-[20px] bg-[#111111] overflow-hidden relative shadow-2xl group cursor-pointer ${slideDirection === "next" ? "deal-slide-next" : "deal-slide-prev"}`}
 								>
 									<img
 										src={
@@ -808,34 +996,34 @@ export default function Home() {
 										alt="Main Deal"
 									/>
 
-									<div className="absolute inset-0 p-8 flex flex-col justify-between">
+									<div className="absolute inset-0 p-4 flex flex-col justify-between">
 										<div className="flex justify-between items-start">
-											<div className="inline-flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-md px-3 py-1.5 text-white text-xs font-bold border border-white/10">
+											<div className="inline-flex items-center gap-1 rounded-full bg-black/40 backdrop-blur-md px-2.5 py-1 text-white text-[10px] font-bold border border-white/10">
 												<Clock size={12} /> 1H 45M
 											</div>
-											<div className="inline-flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-md px-3 py-1.5 text-[#FFD600] text-xs font-bold border border-white/10">
+											<div className="inline-flex items-center gap-1 rounded-full bg-black/40 backdrop-blur-md px-2.5 py-1 text-[#FFD600] text-[10px] font-bold border border-white/10">
 												<Star size={12} fill="#FFD600" /> 4.7
 											</div>
 										</div>
 
 										<div>
-											<h3 className="text-white text-2xl font-bold mb-1">
+											<h3 className="text-white text-lg font-bold mb-1 line-clamp-1">
 												{featuredDeal?.title || "Featured Deal"}
 											</h3>
-											<div className="text-[3.5rem] font-bold text-white leading-none tracking-tighter mb-6">
+											<div className="text-[2rem] font-bold text-white leading-none tracking-tighter mb-3">
 												{featuredDeal?.originalPrice || "₹0"}
 											</div>
-											<div className="flex flex-wrap gap-3">
+											<div className="flex flex-wrap gap-2">
 												<Link
 													to={`/listing/${featuredDeal?.productId || featuredDeal?.id || ""}`}
-													className="rounded-full border border-white/30 bg-white/10 backdrop-blur-md px-8 py-3 text-sm font-bold text-white hover:bg-white/20 transition uppercase tracking-wider"
+													className="rounded-full border border-white/30 bg-white/10 backdrop-blur-md px-5 py-2 text-[10px] font-bold text-white hover:bg-white/20 transition uppercase tracking-wider"
 												>
 													Grab Deal
 												</Link>
 												<button
 													type="button"
 													onClick={() => launchCompareForTopDeal(featuredDeal)}
-													className="rounded-full border border-[#FFD600]/80 bg-[#FFD600] px-8 py-3 text-sm font-bold text-black transition hover:bg-[#f2c700] uppercase tracking-wider"
+													className="rounded-full border border-[#FFD600]/80 bg-[#FFD600] px-5 py-2 text-[10px] font-bold text-black transition hover:bg-[#f2c700] uppercase tracking-wider"
 												>
 													Compare Now
 												</button>
@@ -848,7 +1036,7 @@ export default function Home() {
 								<button
 									type="button"
 									onClick={() => moveTopDeals("next")}
-									className="hidden md:block w-[280px] h-[280px] rounded-[32px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer"
+									className="hidden md:block w-[170px] h-[170px] rounded-[20px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer"
 								>
 									<img
 										src={
@@ -859,6 +1047,15 @@ export default function Home() {
 										alt="Deal"
 									/>
 								</button>
+							</div>
+
+							<div className="relative z-10 mt-4 grid gap-2.5 md:grid-cols-2">
+								<div className="h-[74px] rounded-xl border border-dashed border-[#DCCB87] bg-white/70 px-3 flex items-center justify-center text-[10px] font-bold uppercase tracking-[0.13em] text-[#8b7a3a]">
+									Horizontal Ad Slot
+								</div>
+								<div className="h-[74px] rounded-xl border border-dashed border-[#DCCB87] bg-white/70 px-3 flex items-center justify-center text-[10px] font-bold uppercase tracking-[0.13em] text-[#8b7a3a]">
+									Horizontal Ad Slot
+								</div>
 							</div>
 						</section>
 					</div>

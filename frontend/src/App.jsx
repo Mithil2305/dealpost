@@ -20,6 +20,7 @@ import HelpCenter from "./pages/HelpCenter.jsx";
 import PrivacyPolicy from "./pages/PrivacyPolicy.jsx";
 import TermsAndConditions from "./pages/TermsAndConditions.jsx";
 import CompareListings from "./pages/CompareListings.jsx";
+import Likedproducts from "./pages/Likedproducts.jsx";
 import { useAuth } from "./context/useAuth.jsx";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
@@ -120,6 +121,14 @@ function App() {
 					element={
 						<ProtectedRoute>
 							<Profile />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/favorites"
+					element={
+						<ProtectedRoute>
+							<Likedproducts />
 						</ProtectedRoute>
 					}
 				/>
