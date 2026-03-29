@@ -318,33 +318,14 @@ export default function Home() {
 		return `Ends ${endTime.toLocaleDateString()} ${endTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 	};
 
-	const buildCompareUrl = (...deals) => {
-		const ids = deals
-			.map((deal) => deal?.productId || deal?.id)
-			.filter(Boolean)
-			.slice(0, 4);
-		if (ids.length < 2) return "/compare";
-		return `/compare?ids=${encodeURIComponent(ids.join(","))}`;
-	};
-
-	const launchCompareForDeals = (...deals) => {
-		const validDeals = deals.filter(Boolean);
-		if (validDeals.length < 2) {
-			toast.error("Select at least 2 products to compare");
+	const launchCompareForTopDeal = (deal) => {
+		const compareId = deal?.productId || deal?.id;
+		if (!compareId) {
+			toast.error("Unable to start comparison for this product");
 			return;
 		}
 
-		const baseCategory = String(validDeals[0]?.category || "").trim();
-		const sameCategoryDeals = validDeals.filter(
-			(deal) => String(deal?.category || "").trim() === baseCategory,
-		);
-
-		if (sameCategoryDeals.length < 2) {
-			toast.error("Choose products from the same category to compare");
-			return;
-		}
-
-		navigate(buildCompareUrl(...sameCategoryDeals));
+		navigate(`/compare?seed=${encodeURIComponent(compareId)}`);
 	};
 
 	const moveTopDeals = (direction) => {
@@ -772,9 +753,7 @@ export default function Home() {
 								<div className="flex gap-3">
 									<button
 										type="button"
-										onClick={() =>
-											launchCompareForDeals(featuredDeal, leftDeal, rightDeal)
-										}
+										onClick={() => launchCompareForTopDeal(featuredDeal)}
 										className="rounded-full border border-[#EAEAEA] bg-white px-5 py-2.5 text-xs font-bold uppercase tracking-[0.16em] text-black transition hover:bg-[#f8f8f8] justify-center flex items-center gap-1.5"
 									>
 										Compare
@@ -855,13 +834,7 @@ export default function Home() {
 												</Link>
 												<button
 													type="button"
-													onClick={() =>
-														launchCompareForDeals(
-															featuredDeal,
-															leftDeal,
-															rightDeal,
-														)
-													}
+													onClick={() => launchCompareForTopDeal(featuredDeal)}
 													className="rounded-full border border-[#FFD600]/80 bg-[#FFD600] px-8 py-3 text-sm font-bold text-black transition hover:bg-[#f2c700] uppercase tracking-wider"
 												>
 													Compare Now

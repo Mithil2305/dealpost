@@ -84,6 +84,12 @@ export default function CompareListings() {
 	const [searchParams] = useSearchParams();
 	const [loading, setLoading] = useState(true);
 	const [entries, setEntries] = useState([]);
+	const [manualOptions, setManualOptions] = useState([]);
+	const [manualSelection, setManualSelection] = useState([]);
+
+	const seed = useMemo(() => {
+		return String(searchParams.get("seed") || "").trim();
+	}, [searchParams]);
 
 	const ids = useMemo(() => {
 		const raw = searchParams.get("ids") || "";
@@ -95,31 +101,96 @@ export default function CompareListings() {
 			.slice(0, 4);
 	}, [searchParams]);
 
+	const getComparableId = (listing) => {
+		return String(
+			listing?.productId || listing?.id || listing?._id || "",
+		).trim();
+	};
+
+	const extractListingRows = (payload) => {
+		if (!payload) return [];
+		if (Array.isArray(payload)) return payload;
+		if (Array.isArray(payload.listings)) return payload.listings;
+		if (Array.isArray(payload.items)) return payload.items;
+		if (Array.isArray(payload.data)) return payload.data;
+		return [];
+	};
+
 	useEffect(() => {
 		let active = true;
 
 		const fetchListings = async () => {
-			if (ids.length < 2) {
-				setEntries([]);
-				setLoading(false);
-				return;
-			}
-
 			try {
 				setLoading(true);
-				const responses = await Promise.all(
-					ids.map((id) => api.get(`/listings/${id}`)),
-				);
-				const rows = responses
-					.map((response) => response?.data?.listing || response?.data)
-					.filter(Boolean);
+				if (active) {
+					setManualOptions([]);
+					setManualSelection([]);
+				}
+
+				if (ids.length >= 2) {
+					const responses = await Promise.all(
+						ids.map((id) => api.get(`/listings/${id}`)),
+					);
+					const rows = responses
+						.map((response) => response?.data?.listing || response?.data)
+						.filter(Boolean);
+
+					if (active) {
+						setEntries(rows);
+					}
+					return;
+				}
+
+				if (!seed) {
+					if (active) {
+						setEntries([]);
+					}
+					return;
+				}
+
+				const selectedResponse = await api.get(`/listings/${seed}`);
+				const selected =
+					selectedResponse?.data?.listing || selectedResponse?.data || null;
+
+				if (!selected) {
+					if (active) {
+						setEntries([]);
+					}
+					return;
+				}
+
+				const selectedId = getComparableId(selected);
+				const categoryPath = String(selected?.category || "").trim();
+				let relatedRows = [];
+
+				if (categoryPath) {
+					const relatedResponse = await api.get("/listings", {
+						params: {
+							category: categoryPath,
+							limit: 20,
+							sort: "Most Popular",
+						},
+					});
+					relatedRows = extractListingRows(relatedResponse?.data);
+				}
+
+				const alternatives = relatedRows
+					.filter((item) => getComparableId(item) !== selectedId)
+					.slice(0, 3);
 
 				if (active) {
-					setEntries(rows);
+					setEntries([selected]);
+					setManualOptions(alternatives);
+				}
+
+				if (!alternatives.length) {
+					toast.error("No similar products found in the same subcategory");
 				}
 			} catch {
 				if (active) {
 					setEntries([]);
+					setManualOptions([]);
+					setManualSelection([]);
 					toast.error("Unable to load listings for comparison");
 				}
 			} finally {
@@ -134,39 +205,61 @@ export default function CompareListings() {
 		return () => {
 			active = false;
 		};
-	}, [ids]);
+	}, [ids, seed]);
+
+	const toggleManualPick = (entry) => {
+		const id = getComparableId(entry);
+		if (!id) return;
+
+		setManualSelection((prev) => {
+			if (prev.some((item) => getComparableId(item) === id)) {
+				return prev.filter((item) => getComparableId(item) !== id);
+			}
+			if (prev.length >= 3) {
+				toast.error("You can select up to 3 additional products");
+				return prev;
+			}
+			return [...prev, entry];
+		});
+	};
+
+	const selectedEntries = useMemo(() => {
+		if (ids.length >= 2) return entries;
+		if (!seed) return entries;
+		return [...entries, ...manualSelection].slice(0, 4);
+	}, [ids, seed, entries, manualSelection]);
 
 	const scoredEntries = useMemo(() => {
-		return entries
+		return selectedEntries
 			.map((entry) => ({
 				entry,
-				score: scoreDeal(entry, entries),
+				score: scoreDeal(entry, selectedEntries),
 			}))
 			.sort((a, b) => b.score - a.score);
-	}, [entries]);
+	}, [selectedEntries]);
 
 	const leadingEntryId =
 		scoredEntries[0]?.entry?.id || scoredEntries[0]?.entry?._id;
 
 	const specKeys = useMemo(() => {
 		const pool = new Set();
-		entries.forEach((entry) => {
+		selectedEntries.forEach((entry) => {
 			const specs = entry?.specifications || entry?.specs || {};
 			if (!specs || typeof specs !== "object") return;
 			Object.keys(specs).forEach((key) => pool.add(key));
 		});
 		return Array.from(pool).slice(0, 8);
-	}, [entries]);
+	}, [selectedEntries]);
 
 	const comparedCategories = useMemo(() => {
 		return Array.from(
 			new Set(
-				entries
+				selectedEntries
 					.map((entry) => getCategoryLeaf(entry?.category))
 					.filter(Boolean),
 			),
 		);
-	}, [entries]);
+	}, [selectedEntries]);
 
 	const hasMixedCategories = comparedCategories.length > 1;
 
@@ -193,12 +286,48 @@ export default function CompareListings() {
 					<div className="mt-8 rounded-3xl bg-white p-8 shadow-sm border border-[#ececec]">
 						Loading comparison...
 					</div>
-				) : entries.length < 2 ? (
+				) : selectedEntries.length < 2 ? (
 					<div className="mt-8 rounded-3xl bg-white p-8 shadow-sm border border-[#ececec] space-y-3">
 						<h2 className="text-2xl font-bold">Need at least 2 listings</h2>
 						<p className="text-sm text-[#6f6f6f]">
-							Open compare from Top Deals to prefill multiple items.
+							Select one or more products from the same subcategory to continue.
 						</p>
+						{seed && entries.length === 1 && manualOptions.length > 0 ? (
+							<div className="mt-2">
+								<p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[#666]">
+									Choose products to compare with your selected item
+								</p>
+								<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+									{manualOptions.map((item) => {
+										const itemId = getComparableId(item);
+										const picked = manualSelection.some(
+											(row) => getComparableId(row) === itemId,
+										);
+										return (
+											<button
+												key={itemId}
+												type="button"
+												onClick={() => toggleManualPick(item)}
+												className={`rounded-2xl border p-4 text-left transition ${picked ? "border-[#FFD600] bg-[#fff9df]" : "border-[#e8e8e8] bg-white hover:border-[#d6d6d6]"}`}
+											>
+												<p className="line-clamp-1 text-sm font-bold text-black">
+													{item?.title}
+												</p>
+												<p className="mt-1 text-xs text-[#666]">
+													{getCategoryLeaf(item?.category)}
+												</p>
+												<p className="mt-2 text-sm font-semibold text-black">
+													{formatPrice(item?.price)}
+												</p>
+												<p className="mt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8a8a8a]">
+													{picked ? "Selected" : "Tap to select"}
+												</p>
+											</button>
+										);
+									})}
+								</div>
+							</div>
+						) : null}
 						<Link
 							to="/"
 							className="inline-flex items-center gap-2 rounded-full bg-[#FFD600] px-5 py-2.5 text-xs font-bold uppercase tracking-[0.14em] text-black"

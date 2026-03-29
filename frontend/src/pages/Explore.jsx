@@ -98,11 +98,12 @@ export default function Explore() {
 	}, []);
 
 	useEffect(() => {
-		const nextSearch = searchParams.get("search") || "";
-		const nextSort = searchParams.get("sort") || defaultFilters.sort;
+		const parsedParams = new URLSearchParams(queryString);
+		const nextSearch = parsedParams.get("search") || "";
+		const nextSort = parsedParams.get("sort") || defaultFilters.sort;
 		const nextListingType =
-			searchParams.get("listingType") || defaultFilters.listingType;
-		const nextCategory = parseCategoryParam(searchParams.get("category"));
+			parsedParams.get("listingType") || defaultFilters.listingType;
+		const nextCategory = parseCategoryParam(parsedParams.get("category"));
 
 		setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
 		setFilters((prev) => {
@@ -122,9 +123,9 @@ export default function Explore() {
 			};
 		});
 		setPage(1);
-	}, [queryString, searchParams]);
+	}, [queryString]);
 
-	useEffect(() => {
+	const urlStateQuery = useMemo(() => {
 		const nextParams = new URLSearchParams();
 		if (search.trim()) {
 			nextParams.set("search", search.trim());
@@ -138,18 +139,14 @@ export default function Explore() {
 		if (filters.category.length) {
 			nextParams.set("category", filters.category.join(","));
 		}
+		return nextParams.toString();
+	}, [search, filters.sort, filters.listingType, filters.category]);
 
-		if (nextParams.toString() !== queryString) {
-			setSearchParams(nextParams, { replace: true });
+	useEffect(() => {
+		if (urlStateQuery !== queryString) {
+			setSearchParams(new URLSearchParams(urlStateQuery), { replace: true });
 		}
-	}, [
-		search,
-		filters.sort,
-		filters.listingType,
-		filters.category,
-		queryString,
-		setSearchParams,
-	]);
+	}, [urlStateQuery, queryString, setSearchParams]);
 
 	useEffect(() => {
 		const syncSelectedLocation = () => {

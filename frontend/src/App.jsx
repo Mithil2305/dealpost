@@ -100,7 +100,7 @@ function App() {
 					}
 				/>
 				<Route
-					path="/my-ads"
+					path="/my-listings"
 					element={
 						<ProtectedRoute>
 							<MyAds />

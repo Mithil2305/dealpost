@@ -410,7 +410,7 @@ export default function UserDashboard() {
 												<PlusCircle size={16} /> New Ad
 											</Link>
 											<Link
-												to="/my-ads"
+												to="/my-listings"
 												className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700"
 											>
 												<Megaphone size={16} /> Manage Ads
@@ -477,7 +477,7 @@ export default function UserDashboard() {
 											Recent Listings
 										</h2>
 										<Link
-											to="/my-ads"
+											to="/my-listings"
 											className="text-sm font-semibold text-[#8B7322]"
 										>
 											View all
@@ -528,7 +528,7 @@ export default function UserDashboard() {
 																<ShoppingBag size={12} /> View
 															</Link>
 															<Link
-																to="/my-ads"
+																to="/my-listings"
 																className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700"
 															>
 																<BadgeCheck size={12} /> Manage

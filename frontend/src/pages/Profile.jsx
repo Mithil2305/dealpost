@@ -243,7 +243,7 @@ export default function Profile() {
 								</button>
 
 								<Link
-									to="/my-ads"
+									to="/my-listings"
 									className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-black transition-all"
 								>
 									<Star size={18} /> Manage My Ads
@@ -596,7 +596,7 @@ export default function Profile() {
 											Recent Listings
 										</h3>
 										<Link
-											to="/my-ads"
+											to="/my-listings"
 											className="text-sm font-bold text-[#b29500] hover:text-black"
 										>
 											View all →

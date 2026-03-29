@@ -733,8 +733,8 @@ export default function Navbar({ search = "", onSearchChange }) {
 					<Link to="/explore" className="transition hover:text-black">
 						Marketplace
 					</Link>
-					<Link to="/my-ads" className="transition hover:text-black">
-						My Ads
+					<Link to="/my-listings" className="transition hover:text-black">
+						My Listings
 					</Link>
 					<Link to="/categories" className="transition hover:text-black">
 						Categories

@@ -12,6 +12,46 @@ const TABS = [
 	{ label: "Pending", key: "pending" },
 ];
 
+const formatPrice = (value) => {
+	const numeric = Number(value || 0);
+	return new Intl.NumberFormat("en-IN", {
+		style: "currency",
+		currency: "INR",
+		maximumFractionDigits: 0,
+	}).format(numeric);
+};
+
+const timeAgo = (value) => {
+	if (!value) return "Just now";
+	const then = new Date(value);
+	if (Number.isNaN(then.getTime())) return "Just now";
+
+	const diffMs = Date.now() - then.getTime();
+	const diffMins = Math.max(Math.floor(diffMs / 60000), 0);
+
+	if (diffMins < 1) return "Just now";
+	if (diffMins < 60) return `${diffMins}m ago`;
+
+	const diffHours = Math.floor(diffMins / 60);
+	if (diffHours < 24) return `${diffHours}h ago`;
+
+	const diffDays = Math.floor(diffHours / 24);
+	if (diffDays < 30) return `${diffDays}d ago`;
+
+	return then.toLocaleDateString();
+};
+
+const getLocationLabel = (value) => {
+	if (!value) return "Unknown";
+	if (typeof value === "string") return value;
+	if (typeof value === "object") {
+		return (
+			value?.name || value?.label || value?.city || value?.district || "Unknown"
+		);
+	}
+	return String(value);
+};
+
 export default function MyAds() {
 	const [tab, setTab] = useState("all");
 	const [search, setSearch] = useState("");
@@ -95,7 +135,7 @@ export default function MyAds() {
 			<Navbar />
 
 			<main className="container-shell py-6 flex-1">
-				<h1 className="text-5xl font-display font-bold">My Ads</h1>
+				<h1 className="text-5xl font-display font-bold">My Deals</h1>
 				<p className="mt-2 text-brand-muted">
 					Manage your gallery of curated listings
 				</p>
@@ -144,13 +184,20 @@ export default function MyAds() {
 							{filtered.map((listing) => {
 								const id = listing?._id || listing?.id;
 								const status = (listing?.status || "active").toLowerCase();
+								const listingLocation = getLocationLabel(
+									listing?.location ||
+										listing?.city ||
+										listing?.district ||
+										listing?.seller?.location,
+								);
+								const listedTime = timeAgo(listing?.createdAt);
 
 								return (
 									<article
 										key={id}
-										className="overflow-hidden rounded-2xl border border-brand-border bg-white"
+										className="group flex flex-col overflow-hidden rounded-2xl border border-[#D9D9D9] bg-white transition hover:shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
 									>
-										<div className="relative h-52 bg-[#ececec]">
+										<div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F4F5F7]">
 											<img
 												src={
 													listing?.images?.[0]?.url ||
@@ -160,27 +207,28 @@ export default function MyAds() {
 												alt={listing?.title || "Listing"}
 												className="h-full w-full object-cover"
 											/>
-											<span className="absolute left-3 top-3 rounded-full bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">
+											<span className="absolute left-3 top-3 rounded-full bg-black/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
 												{status}
 											</span>
 										</div>
 
-										<div className="space-y-2 p-4">
-											<div className="flex items-start justify-between gap-2">
-												<h3 className="line-clamp-2 text-xl font-display font-bold">
-													{listing?.title}
-												</h3>
-												<p className="font-mono text-xl font-semibold">
-													${listing?.price || 0}
-												</p>
+										<div className="flex flex-1 flex-col p-4">
+											<p className="text-[1.5rem] font-black tracking-tight text-[#08102A] leading-none">
+												{formatPrice(listing?.price)}
+											</p>
+											<p className="mt-2 line-clamp-1 text-[1rem] font-medium text-[#5C6678]">
+												{listing?.title}
+											</p>
+											<div className="mt-2 flex items-center justify-between gap-3 text-[0.72rem] font-medium uppercase tracking-[0.03em] text-[#778195]">
+												<span className="line-clamp-1">{listingLocation}</span>
+												<span className="shrink-0">{listedTime}</span>
 											</div>
 
-											<p className="line-clamp-2 text-sm text-brand-muted">
-												{listing?.description || "No description available."}
-											</p>
-
-											<div className="mt-3 flex items-center gap-2">
-												<button className="inline-flex h-9 items-center gap-1 rounded-full border border-brand-border px-3 text-xs">
+											<div className="mt-4 flex items-center gap-2 border-t border-[#ececec] pt-3">
+												<button
+													type="button"
+													className="inline-flex h-9 items-center gap-1 rounded-full border border-[#E2E2E2] px-3 text-xs text-[#374151]"
+												>
 													<Pencil size={12} /> Edit
 												</button>
 
@@ -188,7 +236,7 @@ export default function MyAds() {
 													<button
 														type="button"
 														onClick={() => updateStatus(id, "active")}
-														className="inline-flex h-9 items-center gap-1 rounded-full border border-brand-border px-3 text-xs"
+														className="inline-flex h-9 items-center gap-1 rounded-full border border-[#E2E2E2] px-3 text-xs text-[#374151]"
 													>
 														<RotateCw size={12} /> Re-List
 													</button>
@@ -196,7 +244,7 @@ export default function MyAds() {
 													<button
 														type="button"
 														onClick={() => updateStatus(id, "sold")}
-														className="inline-flex h-9 items-center gap-1 rounded-full bg-brand-yellow px-3 text-xs font-semibold"
+														className="inline-flex h-9 items-center gap-1 rounded-full bg-[#FFD600] px-3 text-xs font-semibold text-black"
 													>
 														<Check size={12} /> Sold
 													</button>
@@ -205,7 +253,7 @@ export default function MyAds() {
 												<button
 													type="button"
 													onClick={() => removeListing(id)}
-													className="ml-auto grid h-9 w-9 place-items-center rounded-full text-[#d42d2d]"
+													className="ml-auto grid h-9 w-9 place-items-center rounded-full text-[#d42d2d] hover:bg-[#fff3f3]"
 												>
 													<Trash2 size={13} />
 												</button>
@@ -231,9 +279,8 @@ export default function MyAds() {
 						</button>
 					</div>
 				</section>
-
-				<Footer />
 			</main>
+			<Footer />
 		</div>
 	);
 }
