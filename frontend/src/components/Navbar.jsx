@@ -725,7 +725,7 @@ export default function Navbar({ search = "", onSearchChange }) {
 						</button>
 					</div>
 					<Link
-						to="/explore?sort=Newest"
+						to="/explore?listingType=auction&sort=Auction%20Ending%20Soon"
 						className="transition hover:text-black"
 					>
 						Auctions
@@ -733,14 +733,29 @@ export default function Navbar({ search = "", onSearchChange }) {
 					<Link to="/explore" className="transition hover:text-black">
 						Marketplace
 					</Link>
+					<Link to="/my-ads" className="transition hover:text-black">
+						My Ads
+					</Link>
 					<Link to="/categories" className="transition hover:text-black">
 						Categories
+					</Link>
+					<Link
+						to="/explore?category=Services"
+						className="transition hover:text-black"
+					>
+						Services
 					</Link>
 					<Link
 						to="/explore?sort=Most%20Popular"
 						className="transition hover:text-black"
 					>
 						Top Deals
+					</Link>
+					<Link to="/help-center" className="transition hover:text-black">
+						Help Center
+					</Link>
+					<Link to="/compare" className="transition hover:text-black">
+						Compare
 					</Link>
 				</div>
 			</div>

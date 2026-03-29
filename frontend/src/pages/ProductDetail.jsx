@@ -1,4 +1,6 @@
 import {
+	Clock3,
+	Gavel,
 	Heart,
 	MapPin,
 	MessageSquareText,
@@ -35,6 +37,8 @@ export default function ProductDetail() {
 	const [isLiked, setIsLiked] = useState(false);
 	const [updatingLike, setUpdatingLike] = useState(false);
 	const [likedByCount, setLikedByCount] = useState(0);
+	const [bidAmount, setBidAmount] = useState("");
+	const [placingBid, setPlacingBid] = useState(false);
 
 	useEffect(() => {
 		const fetchListing = async () => {
@@ -128,6 +132,35 @@ export default function ProductDetail() {
 		}
 	};
 
+	const placeBid = async () => {
+		if (!isAuthenticated) {
+			toast.error("Please log in to place bids");
+			navigate("/login");
+			return;
+		}
+
+		const amount = Number(bidAmount);
+		if (!Number.isFinite(amount) || amount <= 0) {
+			toast.error("Enter a valid bid amount");
+			return;
+		}
+
+		try {
+			setPlacingBid(true);
+			const { data } = await api.post(`/listings/${id}/bids`, { amount });
+			const updated = data?.listing;
+			if (updated) {
+				setListing(updated);
+				setBidAmount("");
+				toast.success("Bid placed successfully");
+			}
+		} catch (error) {
+			toast.error(error?.response?.data?.message || "Unable to place bid");
+		} finally {
+			setPlacingBid(false);
+		}
+	};
+
 	const toggleLike = async () => {
 		if (!listing?.id) return;
 		if (!isAuthenticated) {
@@ -187,6 +220,10 @@ export default function ProductDetail() {
 			toast.error("Unable to share this listing");
 		}
 	};
+
+	const auction = listing?.auction;
+	const isAuctionListing =
+		String(listing?.listingType || "").toLowerCase() === "auction";
 
 	return (
 		<div className="min-h-screen bg-brand-bg flex flex-col">
@@ -269,7 +306,14 @@ export default function ProductDetail() {
 
 									<div className="flex items-end gap-3 border-b border-brand-border pb-5">
 										<p className="font-inter text-3xl font-semibold text-brand-dark sm:text-4xl">
-											{formatPrice(listing?.price)}
+											{formatPrice(
+												isAuctionListing
+													? auction?.currentBid ||
+															listing?.currentBid ||
+															listing?.startingBid ||
+															listing?.price
+													: listing?.price,
+											)}
 										</p>
 										{listing?.originalPrice && (
 											<p className="font-mono text-lg text-brand-muted line-through sm:text-xl">
@@ -277,6 +321,54 @@ export default function ProductDetail() {
 											</p>
 										)}
 									</div>
+
+									{isAuctionListing && (
+										<div className="rounded-2xl border border-[#E6D9A7] bg-[#FFF9E5] p-4">
+											<div className="flex items-center justify-between gap-3">
+												<p className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-[0.08em] text-[#8B7322]">
+													<Gavel size={14} /> Live Auction
+												</p>
+												<p className="inline-flex items-center gap-1.5 text-xs text-[#6d5e21]">
+													<Clock3 size={13} />
+													{auction?.isEnded
+														? "Ended"
+														: auction?.endsAt
+															? `Ends ${new Date(auction.endsAt).toLocaleString()}`
+															: "Ending soon"}
+												</p>
+											</div>
+											<p className="mt-2 text-xs text-[#6d5e21]">
+												Starting bid:{" "}
+												{formatPrice(
+													auction?.startingBid ||
+														listing?.startingBid ||
+														listing?.price,
+												)}
+												· Bids: {auction?.bidCount || 0}
+											</p>
+											{!auction?.isEnded && (
+												<div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+													<input
+														type="number"
+														value={bidAmount}
+														onChange={(event) =>
+															setBidAmount(event.target.value)
+														}
+														placeholder={`Min ${auction?.minNextBid || "0"}`}
+														className="h-11 rounded-xl border border-[#e2d399] bg-white px-3 text-sm outline-none"
+													/>
+													<button
+														type="button"
+														onClick={placeBid}
+														disabled={placingBid}
+														className="h-11 rounded-xl bg-[#111111] px-4 text-sm font-semibold text-white hover:bg-black disabled:opacity-60"
+													>
+														{placingBid ? "Placing..." : "Place Bid"}
+													</button>
+												</div>
+											)}
+										</div>
+									)}
 
 									<div className="grid gap-4 rounded-2xl bg-[#F8F8F8] p-4 sm:grid-cols-2">
 										<div>

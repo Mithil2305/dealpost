@@ -86,6 +86,48 @@ async function ensureListingIdentityColumns() {
 	);
 }
 
+async function ensureListingAuctionColumns() {
+	const queryInterface = sequelize.getQueryInterface();
+	const columns = await queryInterface.describeTable("listings");
+
+	if (!columns.listing_type && !columns.listingType) {
+		await queryInterface.addColumn("listings", "listing_type", {
+			type: DataTypes.ENUM("fixed", "auction"),
+			allowNull: false,
+			defaultValue: "fixed",
+		});
+	}
+
+	if (!columns.starting_bid && !columns.startingBid) {
+		await queryInterface.addColumn("listings", "starting_bid", {
+			type: DataTypes.DECIMAL(12, 2),
+			allowNull: true,
+		});
+	}
+
+	if (!columns.current_bid && !columns.currentBid) {
+		await queryInterface.addColumn("listings", "current_bid", {
+			type: DataTypes.DECIMAL(12, 2),
+			allowNull: true,
+		});
+	}
+
+	if (!columns.auction_ends_at && !columns.auctionEndsAt) {
+		await queryInterface.addColumn("listings", "auction_ends_at", {
+			type: DataTypes.DATE,
+			allowNull: true,
+		});
+	}
+
+	if (!columns.auction_bids && !columns.auctionBids) {
+		await queryInterface.addColumn("listings", "auction_bids", {
+			type: DataTypes.JSON,
+			allowNull: false,
+			defaultValue: [],
+		});
+	}
+}
+
 async function ensureUserBusinessColumns() {
 	const queryInterface = sequelize.getQueryInterface();
 	const columns = await queryInterface.describeTable("users");
@@ -130,6 +172,7 @@ export async function connectDB() {
 	if (process.env.NODE_ENV !== "production") {
 		await ensureListingCategoryColumns();
 		await ensureListingIdentityColumns();
+		await ensureListingAuctionColumns();
 		await ensureUserBusinessColumns();
 	}
 	console.log("MySQL connected and models synced");

@@ -39,6 +39,28 @@ export function defineListing(sequelize) {
 				type: DataTypes.DECIMAL(12, 2),
 				allowNull: false,
 			},
+			listingType: {
+				type: DataTypes.ENUM("fixed", "auction"),
+				allowNull: false,
+				defaultValue: "fixed",
+			},
+			startingBid: {
+				type: DataTypes.DECIMAL(12, 2),
+				allowNull: true,
+			},
+			currentBid: {
+				type: DataTypes.DECIMAL(12, 2),
+				allowNull: true,
+			},
+			auctionEndsAt: {
+				type: DataTypes.DATE,
+				allowNull: true,
+			},
+			auctionBids: {
+				type: DataTypes.JSON,
+				allowNull: false,
+				defaultValue: [],
+			},
 			originalPrice: {
 				type: DataTypes.DECIMAL(12, 2),
 			},

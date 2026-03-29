@@ -12,9 +12,21 @@ export default function ProductCard({ listing }) {
 		listing?.images?.[0]?.url ||
 		listing?.image ||
 		"https://placehold.co/600x600?text=Deal Post";
+	const isAuction =
+		String(listing?.listingType || "").toLowerCase() === "auction";
+	const auctionCurrentBid = Number(
+		listing?.auction?.currentBid ||
+			listing?.currentBid ||
+			listing?.startingBid ||
+			0,
+	);
 	const numericPrice = Number(listing?.price || 0);
 	const originalPrice = numericPrice > 0 ? numericPrice * 1.43 : 0;
-	const displayPrice = originalPrice > 0 ? originalPrice : numericPrice;
+	const displayPrice = isAuction
+		? auctionCurrentBid || numericPrice
+		: originalPrice > 0
+			? originalPrice
+			: numericPrice;
 	const categoryLeaf = String(listing?.category || "General")
 		.split(">")
 		.map((part) => part.trim())
@@ -44,6 +56,11 @@ export default function ProductCard({ listing }) {
 						{Number.isFinite(likedCount) ? likedCount : 0}
 					</span>
 				</div>
+				{isAuction && (
+					<div className="absolute left-3 top-3 rounded-full bg-black/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
+						Auction
+					</div>
+				)}
 			</div>
 
 			<div className="flex flex-1 flex-col px-1 pb-2 pt-4">
@@ -65,6 +82,11 @@ export default function ProductCard({ listing }) {
 							<span className="leading-none text-[1.4rem] font-bold tracking-tight text-[#1E1E38]">
 								{currency.format(displayPrice)}
 							</span>
+							{isAuction && (
+								<span className="text-[0.65rem] font-bold uppercase tracking-[0.08em] text-[#8b7008]">
+									Current bid
+								</span>
+							)}
 						</div>
 					</div>
 

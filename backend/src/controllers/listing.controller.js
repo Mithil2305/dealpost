@@ -7,7 +7,13 @@ const MAX_SEARCH_LENGTH = 200;
 const MAX_PRICE = 100_000_000;
 const OWNER_ALLOWED_STATUSES = ["active", "sold", "pending"];
 const ADMIN_ALLOWED_STATUSES = ["active", "sold", "pending", "removed"];
-const VALID_SORTS = ["Newest", "Price Low-High", "Price High-Low", "Most Popular"];
+const VALID_SORTS = [
+	"Newest",
+	"Price Low-High",
+	"Price High-Low",
+	"Most Popular",
+	"Auction Ending Soon",
+];
 
 // ---------------------------------------------------------------------------
 // Sort map matching the frontend Explore page sort options
@@ -17,7 +23,71 @@ const sortMap = {
 	"Price Low-High": [["price", "ASC"]],
 	"Price High-Low": [["price", "DESC"]],
 	"Most Popular": [["views", "DESC"]],
+	"Auction Ending Soon": [
+		["auctionEndsAt", "ASC"],
+		["createdAt", "DESC"],
+	],
 };
+
+function parseAuctionBids(raw) {
+	const parsed = parseMaybeJson(raw, []);
+	if (!Array.isArray(parsed)) return [];
+
+	return parsed
+		.map((entry) => {
+			if (!entry || typeof entry !== "object") return null;
+			const amount = toFiniteNumber(entry.amount);
+			const userId = toFiniteNumber(entry.userId);
+			const createdAt = entry.createdAt ? new Date(entry.createdAt) : null;
+			if (!Number.isFinite(amount) || !Number.isFinite(userId)) return null;
+			return {
+				userId,
+				amount,
+				createdAt:
+					createdAt && !Number.isNaN(createdAt.getTime())
+						? createdAt.toISOString()
+						: new Date().toISOString(),
+			};
+		})
+		.filter(Boolean)
+		.sort((a, b) => Number(b.amount) - Number(a.amount));
+}
+
+function normalizeListingType(value) {
+	return String(value || "fixed").toLowerCase() === "auction"
+		? "auction"
+		: "fixed";
+}
+
+function computeAuctionMeta(listing) {
+	if (!listing || normalizeListingType(listing.listingType) !== "auction") {
+		return null;
+	}
+
+	const now = Date.now();
+	const endAt = listing.auctionEndsAt ? new Date(listing.auctionEndsAt) : null;
+	const endMs =
+		endAt && !Number.isNaN(endAt.getTime()) ? endAt.getTime() : null;
+	const isEnded = !Number.isFinite(endMs) || endMs <= now;
+	const startingBid = toFiniteNumber(listing.startingBid);
+	const currentBid = toFiniteNumber(listing.currentBid);
+	const bids = parseAuctionBids(listing.auctionBids);
+	const topBid = bids[0]?.amount;
+	const effectiveCurrentBid =
+		currentBid ?? topBid ?? startingBid ?? toFiniteNumber(listing.price);
+	const minNextBid = Number(
+		((effectiveCurrentBid || startingBid || 0) + 1).toFixed(2),
+	);
+
+	return {
+		startingBid,
+		currentBid: effectiveCurrentBid,
+		endsAt: endAt ? endAt.toISOString() : null,
+		isEnded,
+		minNextBid,
+		bidCount: bids.length,
+	};
+}
 
 // ---------------------------------------------------------------------------
 // Normalize a listing row for consistent frontend shape
@@ -85,6 +155,12 @@ function normalizeListingPayload(item) {
 		...listing,
 		_id: listing.id, // frontend uses both _id and id
 		productId: normalizedProductId,
+		listingType: normalizeListingType(listing.listingType),
+		startingBid: toFiniteNumber(listing.startingBid),
+		currentBid: toFiniteNumber(listing.currentBid),
+		auctionEndsAt: listing.auctionEndsAt || null,
+		auctionBids: parseAuctionBids(listing.auctionBids),
+		auction: computeAuctionMeta(listing),
 		category: categoryLabel,
 		parentCategory,
 		subCategory,
@@ -205,8 +281,12 @@ function sanitizeSpecs(raw) {
 	const entries = Object.entries(parsed).slice(0, 30);
 	return Object.fromEntries(
 		entries.map(([key, val]) => [
-			String(key || "").trim().slice(0, 100),
-			String(val ?? "").trim().slice(0, 500),
+			String(key || "")
+				.trim()
+				.slice(0, 100),
+			String(val ?? "")
+				.trim()
+				.slice(0, 500),
 		]),
 	);
 }
@@ -355,7 +435,10 @@ export const presignListingImageUpload = asyncHandler(async (req, res) => {
 		"image/gif",
 	]);
 
-	if (!contentType || !allowedContentTypes.has(String(contentType).toLowerCase())) {
+	if (
+		!contentType ||
+		!allowedContentTypes.has(String(contentType).toLowerCase())
+	) {
 		return res
 			.status(400)
 			.json({ message: "A valid image contentType is required" });
@@ -392,6 +475,7 @@ export const getListings = asyncHandler(async (req, res) => {
 		q,
 		search,
 		category,
+		listingType,
 		radius,
 		originLat,
 		originLng,
@@ -420,7 +504,9 @@ export const getListings = asyncHandler(async (req, res) => {
 	}
 
 	// Full-text search on title + description
-	const searchTerm = String(q || search || "").trim().slice(0, MAX_SEARCH_LENGTH);
+	const searchTerm = String(q || search || "")
+		.trim()
+		.slice(0, MAX_SEARCH_LENGTH);
 	if (searchTerm.length > 0) {
 		where[Op.or] = [
 			{ title: { [Op.like]: `%${searchTerm}%` } },
@@ -479,6 +565,11 @@ export const getListings = asyncHandler(async (req, res) => {
 
 	if (condition) {
 		where.condition = condition;
+	}
+
+	if (listingType) {
+		const normalizedType = normalizeListingType(listingType);
+		where.listingType = normalizedType;
 	}
 
 	if (minPrice || maxPrice) {
@@ -630,6 +721,9 @@ export const createListing = asyncHandler(async (req, res) => {
 		description,
 		subtitle,
 		price,
+		listingType,
+		startingBid,
+		auctionEndsAt,
 		originalPrice,
 		parentCategory,
 		subCategory,
@@ -644,31 +738,63 @@ export const createListing = asyncHandler(async (req, res) => {
 		placeId,
 	} = req.body;
 
-	if (!title || !description || !price || !(parentCategory || category)) {
+	const normalizedListingType = normalizeListingType(listingType);
+	const isAuctionListing = normalizedListingType === "auction";
+
+	if (!title || !description || !(parentCategory || category)) {
 		return res.status(400).json({
-			message: "title, description, price, and parentCategory are required",
+			message: "title, description, and parentCategory are required",
 		});
 	}
 
-	const numericPrice = Number(price);
-	if (!Number.isFinite(numericPrice) || numericPrice <= 0 || numericPrice > MAX_PRICE) {
+	const basePriceInput = isAuctionListing ? startingBid : price;
+	const numericPrice = Number(basePriceInput);
+	if (
+		!Number.isFinite(numericPrice) ||
+		numericPrice <= 0 ||
+		numericPrice > MAX_PRICE
+	) {
 		return res.status(400).json({
-			message: `Price must be between 1 and ${MAX_PRICE}`,
+			message: isAuctionListing
+				? `Starting bid must be between 1 and ${MAX_PRICE}`
+				: `Price must be between 1 and ${MAX_PRICE}`,
 		});
+	}
+
+	let normalizedAuctionEndsAt = null;
+	if (isAuctionListing) {
+		const parsedEndsAt = auctionEndsAt ? new Date(auctionEndsAt) : null;
+		if (!parsedEndsAt || Number.isNaN(parsedEndsAt.getTime())) {
+			return res
+				.status(400)
+				.json({ message: "Auction end date/time is required" });
+		}
+
+		if (parsedEndsAt.getTime() <= Date.now()) {
+			return res
+				.status(400)
+				.json({ message: "Auction end date/time must be in the future" });
+		}
+
+		normalizedAuctionEndsAt = parsedEndsAt;
 	}
 
 	const numericOriginalPrice =
-		originalPrice !== undefined && originalPrice !== null && originalPrice !== ""
+		originalPrice !== undefined &&
+		originalPrice !== null &&
+		originalPrice !== ""
 			? Number(originalPrice)
 			: null;
 	if (
+		!isAuctionListing &&
 		numericOriginalPrice !== null &&
 		(!Number.isFinite(numericOriginalPrice) ||
 			numericOriginalPrice <= numericPrice ||
 			numericOriginalPrice > MAX_PRICE)
 	) {
 		return res.status(400).json({
-			message: "Original price must be higher than current price and within range",
+			message:
+				"Original price must be higher than current price and within range",
 		});
 	}
 
@@ -718,11 +844,16 @@ export const createListing = asyncHandler(async (req, res) => {
 		title: title.trim(),
 		description: description.trim(),
 		additionalNotes: additionalNotes ? String(additionalNotes).trim() : null,
+		listingType: normalizedListingType,
 		parentCategory: resolvedCategory.parentCategory,
 		subCategory: resolvedCategory.subCategory,
 		subtitle: subtitle?.trim() || null,
 		price: numericPrice,
-		originalPrice: numericOriginalPrice,
+		startingBid: isAuctionListing ? numericPrice : null,
+		currentBid: isAuctionListing ? numericPrice : null,
+		auctionEndsAt: normalizedAuctionEndsAt,
+		auctionBids: [],
+		originalPrice: isAuctionListing ? null : numericOriginalPrice,
 		categoryId,
 		location: locationPayload,
 		condition: condition || "Good",
@@ -778,9 +909,13 @@ export const patchListing = asyncHandler(async (req, res) => {
 		if (req.body[field] !== undefined) {
 			if (field === "status") {
 				const nextStatus = String(req.body.status || "");
-				const allowed = isAdmin ? ADMIN_ALLOWED_STATUSES : OWNER_ALLOWED_STATUSES;
+				const allowed = isAdmin
+					? ADMIN_ALLOWED_STATUSES
+					: OWNER_ALLOWED_STATUSES;
 				if (!allowed.includes(nextStatus)) {
-					return res.status(403).json({ message: "You cannot set this status" });
+					return res
+						.status(403)
+						.json({ message: "You cannot set this status" });
 				}
 				listing.status = nextStatus;
 				continue;
@@ -832,6 +967,9 @@ export const updateListing = asyncHandler(async (req, res) => {
 		additionalNotes,
 		subtitle,
 		price,
+		listingType,
+		startingBid,
+		auctionEndsAt,
 		originalPrice,
 		parentCategory,
 		subCategory,
@@ -846,6 +984,15 @@ export const updateListing = asyncHandler(async (req, res) => {
 		status,
 	} = req.body;
 
+	const nextListingType =
+		listingType !== undefined
+			? normalizeListingType(listingType)
+			: normalizeListingType(listing.listingType);
+	const isAuctionListing = nextListingType === "auction";
+	if (listingType !== undefined) {
+		listing.listingType = nextListingType;
+	}
+
 	if (title !== undefined) listing.title = title.trim();
 	if (description !== undefined) listing.description = description.trim();
 	if (additionalNotes !== undefined) {
@@ -854,15 +1001,61 @@ export const updateListing = asyncHandler(async (req, res) => {
 			: null;
 	}
 	if (subtitle !== undefined) listing.subtitle = subtitle?.trim() || null;
-	if (price !== undefined) {
+	if (price !== undefined && !isAuctionListing) {
 		const numericPrice = Number(price);
-		if (!Number.isFinite(numericPrice) || numericPrice <= 0 || numericPrice > MAX_PRICE) {
+		if (
+			!Number.isFinite(numericPrice) ||
+			numericPrice <= 0 ||
+			numericPrice > MAX_PRICE
+		) {
 			return res.status(400).json({ message: "Invalid price" });
 		}
 		listing.price = numericPrice;
 	}
+	if (isAuctionListing && (startingBid !== undefined || price !== undefined)) {
+		const numericStartingBid = Number(
+			startingBid !== undefined
+				? startingBid
+				: listing.startingBid || listing.price,
+		);
+		if (
+			!Number.isFinite(numericStartingBid) ||
+			numericStartingBid <= 0 ||
+			numericStartingBid > MAX_PRICE
+		) {
+			return res.status(400).json({ message: "Invalid starting bid" });
+		}
+		listing.startingBid = numericStartingBid;
+		listing.currentBid = Number.isFinite(Number(listing.currentBid))
+			? Math.max(Number(listing.currentBid), numericStartingBid)
+			: numericStartingBid;
+		listing.price = numericStartingBid;
+	}
+
+	if (isAuctionListing && auctionEndsAt !== undefined) {
+		if (!auctionEndsAt) {
+			return res
+				.status(400)
+				.json({ message: "Auction end date/time is required" });
+		}
+
+		const parsedEndsAt = new Date(auctionEndsAt);
+		if (Number.isNaN(parsedEndsAt.getTime())) {
+			return res.status(400).json({ message: "Invalid auction end date/time" });
+		}
+		listing.auctionEndsAt = parsedEndsAt;
+	}
+
+	if (!isAuctionListing) {
+		listing.startingBid = null;
+		listing.currentBid = null;
+		listing.auctionEndsAt = null;
+		listing.auctionBids = [];
+	}
 	if (originalPrice !== undefined) {
-		if (originalPrice === null || originalPrice === "") {
+		if (isAuctionListing) {
+			listing.originalPrice = null;
+		} else if (originalPrice === null || originalPrice === "") {
 			listing.originalPrice = null;
 		} else {
 			const numericOriginal = Number(originalPrice);
@@ -945,10 +1138,97 @@ export const updateListing = asyncHandler(async (req, res) => {
 		listing.images = uploaded;
 	}
 
+	if (isAuctionListing) {
+		const endAt = listing.auctionEndsAt
+			? new Date(listing.auctionEndsAt)
+			: null;
+		if (!endAt || Number.isNaN(endAt.getTime())) {
+			return res
+				.status(400)
+				.json({ message: "Auction listings require a valid end date/time" });
+		}
+	}
+
 	await listing.save();
 
 	const hydrated = await models.Listing.findByPk(listing.id, {
 		include: listingIncludes(["id", "name", "avatar"]),
+	});
+	const normalized = normalizeListingPayload(hydrated);
+	const [enriched] = await enrichListingsWithLikeMeta(
+		[normalized],
+		req.user?.likedListingIds,
+	);
+
+	res.json({ listing: enriched || normalized });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/listings/:id/bids  — place a bid on auction listings
+// ---------------------------------------------------------------------------
+export const placeAuctionBid = asyncHandler(async (req, res) => {
+	const listing = await findListingByIdentifier(
+		req.params.id,
+		listingIncludes(),
+	);
+	if (!listing) {
+		return res.status(404).json({ message: "Listing not found" });
+	}
+
+	if (normalizeListingType(listing.listingType) !== "auction") {
+		return res
+			.status(400)
+			.json({ message: "Bids can only be placed on auction listings" });
+	}
+
+	if (Number(listing.sellerId) === Number(req.user.id)) {
+		return res
+			.status(400)
+			.json({ message: "You cannot bid on your own listing" });
+	}
+
+	if (String(listing.status) !== "active") {
+		return res.status(400).json({ message: "This auction is not active" });
+	}
+
+	const endsAt = listing.auctionEndsAt ? new Date(listing.auctionEndsAt) : null;
+	if (
+		!endsAt ||
+		Number.isNaN(endsAt.getTime()) ||
+		endsAt.getTime() <= Date.now()
+	) {
+		return res.status(400).json({ message: "This auction has ended" });
+	}
+
+	const amount = Number(req.body?.amount);
+	if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_PRICE) {
+		return res.status(400).json({ message: "Please enter a valid bid amount" });
+	}
+
+	const startingBid =
+		toFiniteNumber(listing.startingBid) ?? toFiniteNumber(listing.price) ?? 0;
+	const currentBid = toFiniteNumber(listing.currentBid) ?? startingBid;
+	const minBid = Number((Math.max(startingBid, currentBid) + 1).toFixed(2));
+
+	if (amount < minBid) {
+		return res
+			.status(400)
+			.json({ message: `Your bid must be at least ${minBid}` });
+	}
+
+	const bids = parseAuctionBids(listing.auctionBids).slice(0, 99);
+	bids.unshift({
+		userId: Number(req.user.id),
+		amount,
+		createdAt: new Date().toISOString(),
+	});
+
+	listing.currentBid = amount;
+	listing.auctionBids = bids;
+	await listing.save();
+
+	const hydrated = await models.Listing.findByPk(listing.id, {
+		include: listingIncludes(),
 	});
 	const normalized = normalizeListingPayload(hydrated);
 	const [enriched] = await enrichListingsWithLikeMeta(

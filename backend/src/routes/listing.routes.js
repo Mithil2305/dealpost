@@ -8,6 +8,7 @@ import {
 	getListings,
 	getMyListings,
 	likeListing,
+	placeAuctionBid,
 	patchListing,
 	presignListingImageUpload,
 	unlikeListing,
@@ -33,6 +34,7 @@ router.post(
 );
 router.post("/:id/like", protect, likeListing);
 router.delete("/:id/like", protect, unlikeListing);
+router.post("/:id/bids", protect, placeAuctionBid);
 
 // Public single listing
 router.get("/:id", getListingById);

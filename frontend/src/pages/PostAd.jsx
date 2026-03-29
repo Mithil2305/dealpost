@@ -257,9 +257,12 @@ export default function PostAd({ variant = "personal" }) {
 		gstOrMsme: "",
 		verifiedBusinessName: "",
 		verifiedBusinessAddress: "",
+		listingType: "fixed",
 		parentCategory: "",
 		subCategory: "",
 		price: "",
+		startingBid: "",
+		auctionEndsAt: "",
 		description: "",
 		specifications: "",
 		additionalNotes: "",
@@ -552,14 +555,26 @@ export default function PostAd({ variant = "personal" }) {
 
 	const onSubmit = async (event) => {
 		event.preventDefault();
+		const isAuctionListing = form.listingType === "auction";
 
 		if (!form.title.trim()) return toast.error("Ad title is required");
 		if (!form.parentCategory)
 			return toast.error("Please select a parent category");
 		if (subOptions.length && !form.subCategory)
 			return toast.error("Please select a subcategory");
-		if (!form.price || Number(form.price) <= 0)
+		if (isAuctionListing) {
+			if (!form.startingBid || Number(form.startingBid) <= 0) {
+				return toast.error("Please add a valid starting bid");
+			}
+			if (!form.auctionEndsAt) {
+				return toast.error("Please set auction end date and time");
+			}
+			if (new Date(form.auctionEndsAt).getTime() <= Date.now()) {
+				return toast.error("Auction end date/time must be in the future");
+			}
+		} else if (!form.price || Number(form.price) <= 0) {
 			return toast.error("Please add a valid price");
+		}
 		const hasCuratedSpecs = Object.values(curatedSpecs).some((value) =>
 			String(value || "").trim(),
 		);
@@ -634,9 +649,16 @@ export default function PostAd({ variant = "personal" }) {
 
 			const payload = {
 				title: form.title,
+				listingType: form.listingType,
 				parentCategory: form.parentCategory,
 				...(form.subCategory ? { subCategory: form.subCategory } : {}),
-				price: form.price,
+				price: form.listingType === "auction" ? form.startingBid : form.price,
+				...(form.listingType === "auction"
+					? {
+							startingBid: form.startingBid,
+							auctionEndsAt: form.auctionEndsAt,
+						}
+					: {}),
 				description: form.description,
 				specs: specsObject,
 				additionalNotes: form.additionalNotes,
@@ -788,6 +810,20 @@ export default function PostAd({ variant = "personal" }) {
 								) : null}
 								<div className="grid gap-3 sm:grid-cols-3">
 									<select
+										value={form.listingType}
+										onChange={(event) =>
+											setForm((prev) => ({
+												...prev,
+												listingType: event.target.value,
+											}))
+										}
+										className="input-shell"
+									>
+										<option value="fixed">Fixed Price</option>
+										<option value="auction">Auction</option>
+									</select>
+
+									<select
 										value={form.parentCategory}
 										onChange={(event) =>
 											setForm((prev) => ({
@@ -831,18 +867,46 @@ export default function PostAd({ variant = "personal" }) {
 										))}
 									</select>
 
-									<input
-										value={form.price}
-										onChange={(event) =>
-											setForm((prev) => ({
-												...prev,
-												price: event.target.value,
-											}))
-										}
-										type="number"
-										placeholder="Price"
-										className="input-shell"
-									/>
+									{form.listingType === "auction" ? (
+										<>
+											<input
+												value={form.startingBid}
+												onChange={(event) =>
+													setForm((prev) => ({
+														...prev,
+														startingBid: event.target.value,
+													}))
+												}
+												type="number"
+												placeholder="Starting Bid"
+												className="input-shell"
+											/>
+											<input
+												value={form.auctionEndsAt}
+												onChange={(event) =>
+													setForm((prev) => ({
+														...prev,
+														auctionEndsAt: event.target.value,
+													}))
+												}
+												type="datetime-local"
+												className="input-shell"
+											/>
+										</>
+									) : (
+										<input
+											value={form.price}
+											onChange={(event) =>
+												setForm((prev) => ({
+													...prev,
+													price: event.target.value,
+												}))
+											}
+											type="number"
+											placeholder="Price"
+											className="input-shell"
+										/>
+									)}
 								</div>
 
 								<textarea

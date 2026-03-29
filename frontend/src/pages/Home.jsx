@@ -153,6 +153,10 @@ const normalizeListing = (item) => {
 		productId: item?.productId || null,
 		title: item?.title || "Heimer Miller Sofa",
 		category: getEndSubCategory(item?.category),
+		listingType: item?.listingType || "fixed",
+		auction: item?.auction || null,
+		startingBid: item?.startingBid || null,
+		currentBid: item?.currentBid || null,
 		location: getLocationLabel(
 			item?.location || item?.city || item?.district || item?.seller?.location,
 		),
@@ -266,6 +270,12 @@ export default function Home() {
 		return next;
 	});
 	const sidebarCategories = DISPLAY_CATEGORIES;
+	const auctionHighlights = displayListings
+		.filter(
+			(listing) =>
+				String(listing?.listingType || "").toLowerCase() === "auction",
+		)
+		.slice(0, 2);
 	const categoryDeals = Object.entries(
 		displayListings.reduce((acc, listing) => {
 			const categoryName = listing?.category || "General";
@@ -300,6 +310,13 @@ export default function Home() {
 	const featuredDeal = getTopDealAt(0);
 	const leftDeal = getTopDealAt(-1);
 	const rightDeal = getTopDealAt(1);
+
+	const formatAuctionEndsLabel = (value) => {
+		if (!value) return "Ending soon";
+		const endTime = new Date(value);
+		if (Number.isNaN(endTime.getTime())) return "Ending soon";
+		return `Ends ${endTime.toLocaleDateString()} ${endTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+	};
 
 	const buildCompareUrl = (...deals) => {
 		const ids = deals
@@ -514,6 +531,49 @@ export default function Home() {
 									/>
 								))}
 							</div>
+
+							{auctionHighlights.length > 0 && (
+								<div className="absolute right-3 top-3 hidden max-w-[280px] rounded-2xl border border-white/20 bg-black/45 p-3 text-white backdrop-blur-md md:block">
+									<div className="mb-2 flex items-center justify-between">
+										<p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#FFD600]">
+											Live Auctions
+										</p>
+										<Link
+											to="/explore?listingType=auction&sort=Auction%20Ending%20Soon"
+											className="text-[10px] font-semibold text-white/80 hover:text-white"
+										>
+											View all
+										</Link>
+									</div>
+									<div className="space-y-2">
+										{auctionHighlights.map((auctionItem) => (
+											<Link
+												key={`hero-auction-${auctionItem.id}`}
+												to={`/listing/${auctionItem.productId || auctionItem.id}`}
+												className="block rounded-xl border border-white/15 bg-white/10 p-2 transition hover:bg-white/15"
+											>
+												<p className="line-clamp-1 text-xs font-semibold">
+													{auctionItem.title}
+												</p>
+												<p className="mt-1 text-sm font-bold text-[#FFD600]">
+													{formatPrice(
+														auctionItem?.auction?.currentBid ||
+															auctionItem?.currentBid ||
+															auctionItem?.startingBid ||
+															auctionItem?.price,
+													)}
+												</p>
+												<p className="mt-1 line-clamp-1 text-[10px] text-white/80">
+													{formatAuctionEndsLabel(
+														auctionItem?.auction?.endsAt ||
+															auctionItem?.auctionEndsAt,
+													)}
+												</p>
+											</Link>
+										))}
+									</div>
+								</div>
+							)}
 						</section>
 
 						{/* Fresh Recommendations */}
@@ -564,6 +624,16 @@ export default function Home() {
 									const item = feedItem.item;
 									const listingId = getListingNumericId(item);
 									const liked = isListingLiked(item, likedListingIds);
+									const isAuction =
+										String(item?.listingType || "").toLowerCase() === "auction";
+									const displayPrice = isAuction
+										? formatPrice(
+												item?.auction?.currentBid ||
+													item?.currentBid ||
+													item?.startingBid ||
+													item?.price,
+											)
+										: item.originalPrice;
 									const isLiking = Boolean(
 										listingId && likingByListingId[listingId],
 									);
@@ -595,11 +665,21 @@ export default function Home() {
 														}
 													/>
 												</button>
+												{isAuction && (
+													<div className="absolute left-3 top-3 rounded-full bg-black/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
+														Auction
+													</div>
+												)}
 											</div>
 											<div className="flex flex-1 flex-col p-4">
 												<p className="text-[1.5rem] font-black tracking-tight text-[#08102A] leading-none">
-													{item.originalPrice}
+													{displayPrice}
 												</p>
+												{isAuction && (
+													<p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.08em] text-[#8b7008]">
+														Current bid
+													</p>
+												)}
 												<p className="mt-2 line-clamp-1 text-[1rem] font-medium text-[#5C6678]">
 													{item.title}
 												</p>

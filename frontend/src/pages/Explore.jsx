@@ -10,6 +10,7 @@ import { pickArray } from "../utils/api";
 
 const defaultFilters = {
 	category: [],
+	listingType: "",
 	minPrice: "",
 	maxPrice: "",
 	condition: "",
@@ -68,6 +69,7 @@ export default function Explore() {
 	const [filters, setFilters] = useState(() => ({
 		...defaultFilters,
 		category: parseCategoryParam(searchParams.get("category")),
+		listingType: searchParams.get("listingType") || defaultFilters.listingType,
 		sort: searchParams.get("sort") || defaultFilters.sort,
 	}));
 	const [search, setSearch] = useState(searchParams.get("search") || "");
@@ -98,12 +100,15 @@ export default function Explore() {
 	useEffect(() => {
 		const nextSearch = searchParams.get("search") || "";
 		const nextSort = searchParams.get("sort") || defaultFilters.sort;
+		const nextListingType =
+			searchParams.get("listingType") || defaultFilters.listingType;
 		const nextCategory = parseCategoryParam(searchParams.get("category"));
 
 		setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
 		setFilters((prev) => {
 			if (
 				prev.sort === nextSort &&
+				prev.listingType === nextListingType &&
 				areSameArrays(prev.category, nextCategory)
 			) {
 				return prev;
@@ -112,6 +117,7 @@ export default function Explore() {
 			return {
 				...prev,
 				sort: nextSort,
+				listingType: nextListingType,
 				category: nextCategory,
 			};
 		});
@@ -126,6 +132,9 @@ export default function Explore() {
 		if (filters.sort && filters.sort !== defaultFilters.sort) {
 			nextParams.set("sort", filters.sort);
 		}
+		if (filters.listingType) {
+			nextParams.set("listingType", filters.listingType);
+		}
 		if (filters.category.length) {
 			nextParams.set("category", filters.category.join(","));
 		}
@@ -133,7 +142,14 @@ export default function Explore() {
 		if (nextParams.toString() !== queryString) {
 			setSearchParams(nextParams, { replace: true });
 		}
-	}, [search, filters.sort, filters.category, queryString, setSearchParams]);
+	}, [
+		search,
+		filters.sort,
+		filters.listingType,
+		filters.category,
+		queryString,
+		setSearchParams,
+	]);
 
 	useEffect(() => {
 		const syncSelectedLocation = () => {
@@ -158,6 +174,7 @@ export default function Explore() {
 				setLoading(true);
 				const params = {
 					category: filters.category.join(",") || undefined,
+					listingType: filters.listingType || undefined,
 					minPrice: filters.minPrice || undefined,
 					maxPrice: filters.maxPrice || undefined,
 					condition: filters.condition || undefined,
@@ -190,6 +207,7 @@ export default function Explore() {
 		() =>
 			Boolean(
 				filters.category.length ||
+				filters.listingType ||
 				filters.minPrice ||
 				filters.maxPrice ||
 				filters.condition ||
@@ -474,6 +492,26 @@ export default function Explore() {
 
 							<div>
 								<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
+									Listing Type
+								</p>
+								<select
+									className="input-shell"
+									value={filters.listingType}
+									onChange={(event) =>
+										setFilters((prev) => ({
+											...prev,
+											listingType: event.target.value,
+										}))
+									}
+								>
+									<option value="">All Listings</option>
+									<option value="fixed">Fixed Price</option>
+									<option value="auction">Auctions</option>
+								</select>
+							</div>
+
+							<div>
+								<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
 									Price Range
 								</p>
 								<div className="grid grid-cols-2 gap-2">
@@ -602,6 +640,7 @@ export default function Explore() {
 								}
 							>
 								<option>Newest</option>
+								<option>Auction Ending Soon</option>
 								<option>Price Low-High</option>
 								<option>Price High-Low</option>
 								<option>Most Popular</option>
