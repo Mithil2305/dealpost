@@ -41,7 +41,13 @@ export default function ProductCard({ listing }) {
 			<div className="relative aspect-square w-full overflow-hidden rounded-[14px] bg-[#F4F5F7] sm:aspect-[4/5] sm:rounded-[16px]">
 				<img
 					src={image}
-					alt={listing?.title || "Listing image"}
+					alt={
+						listing?.title ? `${listing.title} listing image` : "Listing image"
+					}
+					loading="lazy"
+					decoding="async"
+					width="600"
+					height="600"
 					className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
 					onError={(event) => {
 						event.currentTarget.src =
@@ -53,6 +59,7 @@ export default function ProductCard({ listing }) {
 					<Heart
 						size={13}
 						className="mx-1 fill-[#1E1E38] text-[#1E1E38] sm:mx-1.5"
+						aria-hidden="true"
 					/>
 					<div className="mx-1 h-3 w-[1.5px] bg-[#1E1E38]/15 sm:mx-1.5 sm:h-3.5" />
 					<span className="text-xs font-medium text-[#1E1E38]/80 sm:text-[0.9rem]">
@@ -82,7 +89,7 @@ export default function ProductCard({ listing }) {
 				<div className="mt-auto flex items-end justify-between">
 					<div>
 						<div className="flex items-baseline gap-2">
-							<span className="leading-none text-[1rem] font-bold tracking-tight text-[#1E1E38] sm:text-[1.4rem]">
+							<span className="leading-none text-[0.9rem] font-bold tracking-tight text-[#1E1E38] sm:text-[1.4rem]">
 								{currency.format(displayPrice)}
 							</span>
 							{isAuction && (

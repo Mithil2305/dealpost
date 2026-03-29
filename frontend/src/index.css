@@ -27,6 +27,33 @@
 	textarea {
 		@apply font-body;
 	}
+
+	:focus-visible {
+		outline: 2px solid #f5c518;
+		outline-offset: 2px;
+	}
+}
+
+.skip-to-main {
+	position: absolute;
+	left: 1rem;
+	top: 0.75rem;
+	z-index: 120;
+	transform: translateY(-180%);
+	border-radius: 9999px;
+	background: #111111;
+	padding: 0.625rem 0.875rem;
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #f5f5f0;
+	text-decoration: none;
+	transition: transform 150ms ease;
+}
+
+.skip-to-main:focus-visible {
+	transform: translateY(0);
 }
 
 @layer components {
@@ -139,4 +166,15 @@
 
 .deal-slide-prev {
 	animation: dealSlidePrev 0.42s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
 }

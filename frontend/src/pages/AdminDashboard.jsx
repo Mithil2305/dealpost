@@ -630,7 +630,7 @@ export default function AdminDashboard() {
 					onSectionChange={setActiveSection}
 				/>
 
-				<main className="min-h-screen flex-1 p-5 sm:p-7">
+				<main id="main-content" className="min-h-screen flex-1 p-5 sm:p-7">
 					<header className="mb-6 flex flex-wrap items-center justify-between gap-3">
 						<div>
 							<h1 className="text-4xl font-display font-bold sm:text-5xl">
@@ -1709,3 +1709,4 @@ export default function AdminDashboard() {
 		</div>
 	);
 }
+

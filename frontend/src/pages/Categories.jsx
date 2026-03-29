@@ -94,7 +94,7 @@ export default function Categories() {
 		<div className="min-h-screen bg-[#F6F6F6] text-black flex flex-col">
 			<Navbar />
 
-			<main className="flex-1 max-w-[1300px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+			<main id="main-content" className="flex-1 max-w-[1300px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
 				<section className="rounded-[32px] bg-[#111111] px-6 py-10 md:px-10 md:py-14 text-white relative overflow-hidden">
 					<div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#FFD600]/20 blur-3xl" />
 					<div className="pointer-events-none absolute -left-10 -bottom-20 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
@@ -249,3 +249,4 @@ export default function Categories() {
 		</div>
 	);
 }
+

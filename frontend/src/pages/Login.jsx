@@ -3,6 +3,8 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
+import Button from "../components/ui/Button";
+import FormField from "../components/ui/FormField";
 import { useAuth } from "../context/useAuth";
 
 const GoogleIcon = () => (
@@ -37,10 +39,20 @@ export default function Login() {
 	const { login } = useAuth();
 	const [showPassword, setShowPassword] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
+	const [showValidation, setShowValidation] = useState(false);
 	const [form, setForm] = useState({
 		email: "",
 		password: "",
 	});
+
+	const errors = {
+		email: !form.email
+			? "Email is required"
+			: !form.email.includes("@")
+				? "Please enter a valid email"
+				: "",
+		password: !form.password ? "Password is required" : "",
+	};
 
 	const onChange = (event) => {
 		const { name, value } = event.target;
@@ -49,10 +61,10 @@ export default function Login() {
 
 	const onSubmit = async (event) => {
 		event.preventDefault();
+		setShowValidation(true);
 
-		if (!form.email.includes("@"))
-			return toast.error("Please enter a valid email");
-		if (!form.password) return toast.error("Password is required");
+		if (errors.email) return toast.error(errors.email);
+		if (errors.password) return toast.error(errors.password);
 
 		try {
 			setSubmitting(true);
@@ -67,7 +79,10 @@ export default function Login() {
 	};
 
 	return (
-		<main className="min-h-screen bg-[#F6F6F6] flex flex-col justify-between p-4 md:p-8 font-sans">
+		<main
+			id="main-content"
+			className="min-h-[100dvh] bg-[#F6F6F6] flex flex-col justify-between p-4 md:p-8 font-sans"
+		>
 			<div className="flex-1 flex items-center justify-center">
 				<div className="flex w-full max-w-[1100px] bg-white rounded-[32px] overflow-hidden shadow-sm">
 					{/* Left Panel (Dark) */}
@@ -124,7 +139,10 @@ export default function Login() {
 					</aside>
 
 					{/* Right Panel (Form) */}
-					<section className="w-full md:w-[55%] p-8 md:p-14 lg:p-20 flex flex-col justify-center bg-white">
+					<section
+						className="w-full md:w-[55%] p-8 md:p-14 lg:p-20 flex flex-col justify-center bg-white"
+						aria-labelledby="login-heading"
+					>
 						<div className="max-w-md w-full mx-auto">
 							{/* Mobile Logo Fallback */}
 							<div className="flex md:hidden items-center gap-2 mb-10">
@@ -137,7 +155,12 @@ export default function Login() {
 								</div>
 							</div>
 
-							<h2 className="text-[2rem] font-bold text-black mb-2">Log in</h2>
+							<h2
+								id="login-heading"
+								className="text-[2rem] font-bold text-black mb-2"
+							>
+								Log in
+							</h2>
 							<p className="text-[#666666] mb-8 text-[0.95rem]">
 								New here?{" "}
 								<Link
@@ -149,20 +172,22 @@ export default function Login() {
 							</p>
 
 							<div className="grid grid-cols-2 gap-4 mb-8">
-								<button
-									type="button"
+								<Button
+									variant="outline"
+									size="lg"
 									onClick={() => toast("OAuth available soon")}
-									className="flex items-center justify-center gap-2 bg-[#F1F1F1] rounded-xl h-12 text-[0.9rem] font-semibold text-black hover:bg-[#E5E5E5] transition"
+									className="bg-[#F1F1F1]"
 								>
 									<GoogleIcon /> Google
-								</button>
-								<button
-									type="button"
+								</Button>
+								<Button
+									variant="outline"
+									size="lg"
 									onClick={() => toast("OAuth available soon")}
-									className="flex items-center justify-center gap-2 bg-[#F1F1F1] rounded-xl h-12 text-[0.9rem] font-semibold text-black hover:bg-[#E5E5E5] transition"
+									className="bg-[#F1F1F1]"
 								>
 									<AppleIcon /> Apple
-								</button>
+								</Button>
 							</div>
 
 							<div className="flex items-center gap-4 mb-8">
@@ -173,51 +198,64 @@ export default function Login() {
 								<div className="h-px bg-[#E5E5E5] flex-1" />
 							</div>
 
-							<form className="space-y-5" onSubmit={onSubmit}>
-								<div>
-									<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
-										Email Address
-									</label>
-									<input
-										name="email"
-										type="email"
-										value={form.email}
-										onChange={onChange}
-										className="w-full bg-[#F1F1F1] rounded-xl h-12 px-4 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
-										placeholder="name@domain.com"
-									/>
-								</div>
+							<form className="space-y-5" onSubmit={onSubmit} noValidate>
+								{showValidation && (errors.email || errors.password) ? (
+									<div
+										className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+										role="alert"
+										aria-live="polite"
+									>
+										Please fix the highlighted fields.
+									</div>
+								) : null}
 
-								<div>
-									<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
-										Password
-									</label>
-									<div className="relative">
-										<input
-											name="password"
-											type={showPassword ? "text" : "password"}
-											value={form.password}
-											onChange={onChange}
-											className="w-full bg-[#F1F1F1] rounded-xl h-12 pl-4 pr-12 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
-											placeholder="••••••••"
-										/>
+								<FormField
+									id="login-email"
+									name="email"
+									type="email"
+									label="Email Address"
+									autoComplete="email"
+									placeholder="name@domain.com"
+									value={form.email}
+									onChange={onChange}
+									error={showValidation ? errors.email : ""}
+									required
+								/>
+
+								<FormField
+									id="login-password"
+									name="password"
+									type={showPassword ? "text" : "password"}
+									label="Password"
+									autoComplete="current-password"
+									placeholder="********"
+									value={form.password}
+									onChange={onChange}
+									error={showValidation ? errors.password : ""}
+									required
+									rightAdornment={
 										<button
 											type="button"
 											onClick={() => setShowPassword((prev) => !prev)}
-											className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A3A3A3] hover:text-black transition"
+											className="grid h-9 w-9 place-items-center rounded-lg text-[#A3A3A3] transition hover:text-black"
+											aria-label={
+												showPassword ? "Hide password" : "Show password"
+											}
 										>
 											{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
 										</button>
-									</div>
-								</div>
+									}
+								/>
 
-								<button
+								<Button
 									disabled={submitting}
+									isLoading={submitting}
 									type="submit"
-									className="w-full bg-[#FFD600] text-black font-bold text-[0.95rem] rounded-full h-12 mt-2 hover:bg-[#E6C100] transition active:scale-[0.98]"
+									size="lg"
+									className="mt-2 w-full rounded-full"
 								>
 									{submitting ? "Signing In..." : "START LISTING"}
-								</button>
+								</Button>
 							</form>
 						</div>
 					</section>

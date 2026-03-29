@@ -177,7 +177,7 @@ export default function BusinessListings() {
 		<div className="min-h-screen bg-brand-bg text-brand-dark flex flex-col">
 			<Navbar />
 
-			<main className="container-shell py-8 flex-1">
+			<main id="main-content" className="container-shell py-8 flex-1">
 				<section className="relative overflow-hidden rounded-[36px] bg-[#101010] p-6 text-white md:p-10">
 					<div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-brand-yellow/25 blur-3xl" />
 					<div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
@@ -457,3 +457,4 @@ export default function BusinessListings() {
 		</div>
 	);
 }
+

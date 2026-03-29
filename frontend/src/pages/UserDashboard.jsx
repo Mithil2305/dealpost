@@ -302,7 +302,7 @@ export default function UserDashboard() {
 	return (
 		<div className="min-h-screen bg-[#F7F8FA] flex flex-col">
 			<Navbar />
-			<main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-8 sm:px-6 lg:px-8">
+			<main id="main-content" className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-8 sm:px-6 lg:px-8">
 				<div className="grid gap-6 lg:grid-cols-[280px_1fr]">
 					<aside className="rounded-3xl border border-gray-200 bg-white p-4 lg:sticky lg:top-24 lg:h-fit">
 						<p className="px-3 pb-3 text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
@@ -830,3 +830,4 @@ export default function UserDashboard() {
 		</div>
 	);
 }
+

@@ -1,10 +1,12 @@
-import { ImagePlus, MapPin, Rocket } from "lucide-react";
+﻿import { ImagePlus, MapPin, Rocket } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import Button from "../components/ui/Button";
+import FormField from "../components/ui/FormField";
 import { useAuth } from "../context/useAuth";
 import { compressImageFile } from "../utils/imageCompressor";
 import {
@@ -817,7 +819,7 @@ export default function PostAd({ variant = "personal" }) {
 		<div className="min-h-screen bg-brand-bg flex flex-col">
 			<Navbar />
 
-			<main className="container-shell py-6 flex-1">
+			<main id="main-content" className="container-shell py-6 flex-1">
 				<h1 className="text-5xl font-display font-bold">{pageTitle}</h1>
 				<p className="mt-2 text-brand-muted">{pageSubtitle}</p>
 
@@ -872,13 +874,17 @@ export default function PostAd({ variant = "personal" }) {
 							</h2>
 
 							<div className="mt-5 space-y-4">
-								<input
+								<FormField
+									id="postad-title"
+									name="title"
+									label="Ad Title"
+									required
 									value={form.title}
 									onChange={(event) =>
 										setForm((prev) => ({ ...prev, title: event.target.value }))
 									}
 									placeholder="Ad title"
-									className="input-shell"
+									inputClassName="input-shell bg-brand-bg"
 								/>
 								{isBusinessFlow ? (
 									<div className="space-y-3 rounded-2xl border border-[#E7D89F] bg-[#FFF9E5] p-4">
@@ -896,7 +902,10 @@ export default function PostAd({ variant = "personal" }) {
 											</p>
 										)}
 
-										<input
+										<FormField
+											id="postad-gst"
+											name="gstOrMsme"
+											label="GST / MSME Number"
 											value={form.gstOrMsme}
 											onChange={(event) =>
 												setForm((prev) => ({
@@ -905,9 +914,13 @@ export default function PostAd({ variant = "personal" }) {
 												}))
 											}
 											placeholder="GST / MSME Number"
-											className="input-shell"
+											inputClassName="input-shell bg-brand-bg"
 										/>
-										<input
+										<FormField
+											id="postad-business-name"
+											name="verifiedBusinessName"
+											label="Verified Business Name"
+											required
 											value={form.verifiedBusinessName}
 											onChange={(event) =>
 												setForm((prev) => ({
@@ -916,9 +929,13 @@ export default function PostAd({ variant = "personal" }) {
 												}))
 											}
 											placeholder="Verified Business Name"
-											className="input-shell"
+											inputClassName="input-shell bg-brand-bg"
 										/>
-										<input
+										<FormField
+											id="postad-business-address"
+											name="verifiedBusinessAddress"
+											label="Verified Business Address"
+											required
 											value={form.verifiedBusinessAddress}
 											onChange={(event) =>
 												setForm((prev) => ({
@@ -927,12 +944,15 @@ export default function PostAd({ variant = "personal" }) {
 												}))
 											}
 											placeholder="Verified Business Address"
-											className="input-shell"
+											inputClassName="input-shell bg-brand-bg"
 										/>
 									</div>
 								) : null}
 								<div className="grid gap-3 sm:grid-cols-3">
-									<select
+									<FormField
+										id="postad-listing-type"
+										as="select"
+										label="Listing Type"
 										value={form.listingType}
 										onChange={(event) =>
 											setForm((prev) => ({
@@ -940,13 +960,17 @@ export default function PostAd({ variant = "personal" }) {
 												listingType: event.target.value,
 											}))
 										}
-										className="input-shell"
+										inputClassName="input-shell bg-brand-bg"
 									>
 										<option value="fixed">Fixed Price</option>
 										<option value="auction">Auction</option>
-									</select>
+									</FormField>
 
-									<select
+									<FormField
+										id="postad-parent-category"
+										as="select"
+										label="Parent Category"
+										required
 										value={form.parentCategory}
 										onChange={(event) =>
 											setForm((prev) => ({
@@ -955,19 +979,20 @@ export default function PostAd({ variant = "personal" }) {
 												subCategory: "",
 											}))
 										}
-										className="input-shell"
+										inputClassName="input-shell bg-brand-bg"
 									>
 										<option value="">Select Parent Category</option>
-										{parentOptions.map((value) => {
-											return (
-												<option key={value} value={value}>
-													{value}
-												</option>
-											);
-										})}
-									</select>
+										{parentOptions.map((value) => (
+											<option key={value} value={value}>
+												{value}
+											</option>
+										))}
+									</FormField>
 
-									<select
+									<FormField
+										id="postad-sub-category"
+										as="select"
+										label="Subcategory"
 										value={form.subCategory}
 										onChange={(event) =>
 											setForm((prev) => ({
@@ -976,7 +1001,7 @@ export default function PostAd({ variant = "personal" }) {
 											}))
 										}
 										disabled={!form.parentCategory || !subOptions.length}
-										className="input-shell disabled:opacity-70"
+										inputClassName="input-shell bg-brand-bg disabled:opacity-70"
 									>
 										<option value="">
 											{subOptions.length
@@ -988,11 +1013,16 @@ export default function PostAd({ variant = "personal" }) {
 												{value}
 											</option>
 										))}
-									</select>
+									</FormField>
 
 									{form.listingType === "auction" ? (
 										<>
-											<input
+											<FormField
+												id="postad-starting-bid"
+												name="startingBid"
+												label="Starting Bid"
+												type="number"
+												required
 												value={form.startingBid}
 												onChange={(event) =>
 													setForm((prev) => ({
@@ -1000,11 +1030,15 @@ export default function PostAd({ variant = "personal" }) {
 														startingBid: event.target.value,
 													}))
 												}
-												type="number"
 												placeholder="Starting Bid"
-												className="input-shell"
+												inputClassName="input-shell bg-brand-bg"
 											/>
-											<input
+											<FormField
+												id="postad-auction-end"
+												name="auctionEndsAt"
+												label="Auction End"
+												type="datetime-local"
+												required
 												value={form.auctionEndsAt}
 												onChange={(event) =>
 													setForm((prev) => ({
@@ -1012,12 +1046,16 @@ export default function PostAd({ variant = "personal" }) {
 														auctionEndsAt: event.target.value,
 													}))
 												}
-												type="datetime-local"
-												className="input-shell"
+												inputClassName="input-shell bg-brand-bg"
 											/>
 										</>
 									) : (
-										<input
+										<FormField
+											id="postad-price"
+											name="price"
+											label="Price"
+											type="number"
+											required
 											value={form.price}
 											onChange={(event) =>
 												setForm((prev) => ({
@@ -1025,14 +1063,18 @@ export default function PostAd({ variant = "personal" }) {
 													price: event.target.value,
 												}))
 											}
-											type="number"
 											placeholder="Price"
-											className="input-shell"
+											inputClassName="input-shell bg-brand-bg"
 										/>
 									)}
 								</div>
 
-								<textarea
+								<FormField
+									id="postad-description"
+									as="textarea"
+									name="description"
+									label="Description"
+									required
 									value={form.description}
 									onChange={(event) =>
 										setForm((prev) => ({
@@ -1040,8 +1082,8 @@ export default function PostAd({ variant = "personal" }) {
 											description: event.target.value,
 										}))
 									}
-									className="min-h-40 w-full rounded-2xl border border-transparent bg-brand-bg p-4 outline-none ring-brand-yellow transition focus:border-brand-yellow focus:ring-2"
 									placeholder="Tell the story behind this item..."
+									inputClassName="min-h-40 bg-brand-bg"
 								/>
 
 								<div className="rounded-2xl border border-[#E6D9A7] bg-[#FFF9E5] p-4">
@@ -1069,7 +1111,11 @@ export default function PostAd({ variant = "personal" }) {
 									</div>
 								</div>
 
-								<textarea
+								<FormField
+									id="postad-specifications"
+									as="textarea"
+									name="specifications"
+									label="Additional Custom Specs"
 									value={form.specifications}
 									onChange={(event) =>
 										setForm((prev) => ({
@@ -1077,11 +1123,15 @@ export default function PostAd({ variant = "personal" }) {
 											specifications: event.target.value,
 										}))
 									}
-									className="min-h-28 w-full rounded-2xl border border-transparent bg-brand-bg p-4 outline-none ring-brand-yellow transition focus:border-brand-yellow focus:ring-2"
 									placeholder="Additional custom specs (optional, one per line):&#10;Battery Replaced: No&#10;Invoice Available: Yes"
+									inputClassName="min-h-28 bg-brand-bg"
 								/>
 
-								<textarea
+								<FormField
+									id="postad-additional-notes"
+									as="textarea"
+									name="additionalNotes"
+									label="Additional Notes"
 									value={form.additionalNotes}
 									onChange={(event) =>
 										setForm((prev) => ({
@@ -1089,19 +1139,22 @@ export default function PostAd({ variant = "personal" }) {
 											additionalNotes: event.target.value,
 										}))
 									}
-									className="min-h-24 w-full rounded-2xl border border-transparent bg-brand-bg p-4 outline-none ring-brand-yellow transition focus:border-brand-yellow focus:ring-2"
 									placeholder="Additional notes (warranty, pickup terms, extra info)"
+									inputClassName="min-h-24 bg-brand-bg"
 								/>
 							</div>
 
-							<button
+							<Button
 								disabled={submitting}
+								isLoading={submitting}
 								type="submit"
-								className="btn-secondary mt-6 h-14 w-full rounded-2xl text-sm"
+								variant="secondary"
+								size="lg"
+								className="mt-6 h-14 w-full rounded-2xl text-sm"
 							>
 								<Rocket size={16} className="mr-2" />{" "}
 								{submitting ? "Publishing..." : submitLabel}
-							</button>
+							</Button>
 						</article>
 					</section>
 

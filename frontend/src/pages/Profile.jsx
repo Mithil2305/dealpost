@@ -171,7 +171,10 @@ export default function Profile() {
 		<div className="min-h-screen bg-[#F8F9FA] flex flex-col font-sans">
 			<Navbar />
 
-			<main className="flex-1 max-w-[1200px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+			<main
+				id="main-content"
+				className="flex-1 max-w-[1200px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12"
+			>
 				<div className="bg-white rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center md:items-start gap-6 border border-gray-100 shadow-sm relative overflow-hidden">
 					<div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-[#FFD600]/20 to-transparent pointer-events-none" />
 
@@ -547,7 +550,7 @@ export default function Profile() {
 											to="/explore"
 											className="text-sm font-bold text-[#b29500] hover:text-black"
 										>
-											Explore more →
+											Explore more &rarr;
 										</Link>
 									</div>
 
@@ -599,7 +602,7 @@ export default function Profile() {
 											to="/my-listings"
 											className="text-sm font-bold text-[#b29500] hover:text-black"
 										>
-											View all →
+											View all &rarr;
 										</Link>
 									</div>
 

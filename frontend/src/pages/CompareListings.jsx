@@ -267,7 +267,7 @@ export default function CompareListings() {
 		<div className="min-h-screen bg-[#f7f7f4] text-black flex flex-col">
 			<Navbar />
 
-			<main className="mx-auto w-full max-w-[1360px] px-4 py-8 sm:px-6 lg:px-8 flex-1">
+			<main id="main-content" className="mx-auto w-full max-w-[1360px] px-4 py-8 sm:px-6 lg:px-8 flex-1">
 				<section className="rounded-[32px] bg-[#111111] p-8 text-white md:p-12">
 					<div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.14em]">
 						<Sparkles size={12} className="text-[#FFD600]" />
@@ -518,3 +518,4 @@ export default function CompareListings() {
 		</div>
 	);
 }
+

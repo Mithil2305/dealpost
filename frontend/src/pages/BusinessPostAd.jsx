@@ -16,6 +16,8 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import Button from "../components/ui/Button";
+import FormField from "../components/ui/FormField";
 import { pickArray } from "../utils/api";
 import { useAuth } from "../context/useAuth";
 import { compressImageFile } from "../utils/imageCompressor";
@@ -45,6 +47,7 @@ export default function BusinessPostAd() {
 	const [categories, setCategories] = useState([]);
 	const [files, setFiles] = useState([]);
 	const [submitting, setSubmitting] = useState(false);
+	const [showValidation, setShowValidation] = useState(false);
 
 	const [formData, setFormData] = useState({
 		businessName: "",
@@ -168,6 +171,7 @@ export default function BusinessPostAd() {
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
+		setShowValidation(true);
 
 		if (!formData.businessName.trim()) {
 			return toast.error("Business name is required");
@@ -256,7 +260,10 @@ export default function BusinessPostAd() {
 		<div className="min-h-screen bg-[#F8F9FA] font-sans text-black flex flex-col">
 			<Navbar />
 
-			<main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8 flex-1">
+			<main
+				id="main-content"
+				className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8 flex-1"
+			>
 				<div className="mb-8">
 					<div className="inline-flex items-center gap-2 rounded-full border border-[#FFD600]/50 bg-[#FFD600]/10 px-3 py-1.5 mb-4">
 						<Store size={14} className="text-[#D4B200]" />
@@ -282,34 +289,31 @@ export default function BusinessPostAd() {
 						</h2>
 
 						<div className="grid gap-6 sm:grid-cols-2">
-							<div>
-								<label className="block text-sm font-bold text-[#333333] mb-2">
-									Business / Company Name *
-								</label>
-								<input
-									type="text"
-									name="businessName"
-									required
-									value={formData.businessName}
-									onChange={handleChange}
-									placeholder="e.g. Sharma Electronics Ltd."
-									className="w-full rounded-xl border border-[#E0E0E0] bg-[#FAFAFA] px-4 py-3 text-sm focus:border-[#FFD600] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FFD600]/20 transition-all"
-								/>
-							</div>
+							<FormField
+								id="business-name"
+								name="businessName"
+								label="Business / Company Name"
+								required
+								value={formData.businessName}
+								onChange={handleChange}
+								placeholder="e.g. Sharma Electronics Ltd."
+								inputClassName="border border-[#E0E0E0] bg-[#FAFAFA] focus:bg-white"
+								error={
+									showValidation && !formData.businessName.trim()
+										? "Business name is required"
+										: ""
+								}
+							/>
 
-							<div>
-								<label className="block text-sm font-bold text-[#333333] mb-2">
-									GSTIN / Registration Number (Optional)
-								</label>
-								<input
-									type="text"
-									name="gstin"
-									value={formData.gstin}
-									onChange={handleChange}
-									placeholder="e.g. 22AAAAA0000A1Z5"
-									className="w-full rounded-xl border border-[#E0E0E0] bg-[#FAFAFA] px-4 py-3 text-sm focus:border-[#FFD600] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FFD600]/20 transition-all"
-								/>
-							</div>
+							<FormField
+								id="business-gstin"
+								name="gstin"
+								label="GSTIN / Registration Number (Optional)"
+								value={formData.gstin}
+								onChange={handleChange}
+								placeholder="e.g. 22AAAAA0000A1Z5"
+								inputClassName="border border-[#E0E0E0] bg-[#FAFAFA] focus:bg-white"
+							/>
 
 							<div className="sm:col-span-2">
 								<label className="block text-sm font-bold text-[#333333] mb-2">
@@ -318,6 +322,7 @@ export default function BusinessPostAd() {
 								<select
 									name="category"
 									required
+									aria-invalid={showValidation && !formData.category.trim()}
 									value={formData.category}
 									onChange={handleChange}
 									className="w-full rounded-xl border border-[#E0E0E0] bg-[#FAFAFA] px-4 py-3 text-sm focus:border-[#FFD600] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FFD600]/20 transition-all appearance-none"
@@ -333,6 +338,14 @@ export default function BusinessPostAd() {
 										);
 									})}
 								</select>
+								{showValidation && !formData.category.trim() ? (
+									<p
+										className="mt-2 text-xs font-medium text-red-600"
+										role="alert"
+									>
+										Business category is required
+									</p>
+								) : null}
 							</div>
 						</div>
 					</section>
@@ -345,35 +358,39 @@ export default function BusinessPostAd() {
 						</h2>
 
 						<div className="space-y-6">
-							<div>
-								<label className="block text-sm font-bold text-[#333333] mb-2">
-									Ad Title *
-								</label>
-								<input
-									type="text"
-									name="adTitle"
-									required
-									value={formData.adTitle}
-									onChange={handleChange}
-									placeholder="e.g. Brand New Office Chairs - Bulk Order Discount"
-									className="w-full rounded-xl border border-[#E0E0E0] bg-[#FAFAFA] px-4 py-3 text-sm focus:border-[#FFD600] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FFD600]/20 transition-all"
-								/>
-							</div>
+							<FormField
+								id="business-ad-title"
+								name="adTitle"
+								label="Ad Title"
+								required
+								value={formData.adTitle}
+								onChange={handleChange}
+								placeholder="e.g. Brand New Office Chairs - Bulk Order Discount"
+								inputClassName="border border-[#E0E0E0] bg-[#FAFAFA] focus:bg-white"
+								error={
+									showValidation && !formData.adTitle.trim()
+										? "Ad title is required"
+										: ""
+								}
+							/>
 
-							<div>
-								<label className="block text-sm font-bold text-[#333333] mb-2">
-									Description *
-								</label>
-								<textarea
-									name="description"
-									required
-									rows={5}
-									value={formData.description}
-									onChange={handleChange}
-									placeholder="Include key details like specifications, warranty, bulk pricing, and terms of service..."
-									className="w-full rounded-xl border border-[#E0E0E0] bg-[#FAFAFA] px-4 py-3 text-sm focus:border-[#FFD600] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FFD600]/20 transition-all resize-none"
-								/>
-							</div>
+							<FormField
+								id="business-description"
+								as="textarea"
+								name="description"
+								label="Description"
+								required
+								rows={5}
+								value={formData.description}
+								onChange={handleChange}
+								placeholder="Include key details like specifications, warranty, bulk pricing, and terms of service..."
+								inputClassName="border border-[#E0E0E0] bg-[#FAFAFA] focus:bg-white resize-none"
+								error={
+									showValidation && !formData.description.trim()
+										? "Description is required"
+										: ""
+								}
+							/>
 
 							<div>
 								<label className="block text-sm font-bold text-[#333333] mb-2">
@@ -393,6 +410,15 @@ export default function BusinessPostAd() {
 										className="w-full rounded-xl border border-[#E0E0E0] bg-[#FAFAFA] pl-10 pr-4 py-3 text-sm focus:border-[#FFD600] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FFD600]/20 transition-all"
 									/>
 								</div>
+								{showValidation &&
+								(!formData.price || Number(formData.price) <= 0) ? (
+									<p
+										className="mt-1.5 text-xs font-medium text-red-600"
+										role="alert"
+									>
+										Please provide a valid price
+									</p>
+								) : null}
 								<p className="mt-1.5 text-xs text-[#888888]">
 									Leave as 0 if you want buyers to 'Contact for Price'
 								</p>
@@ -439,20 +465,21 @@ export default function BusinessPostAd() {
 						</h2>
 
 						<div className="grid gap-6 sm:grid-cols-2">
-							<div>
-								<label className="block text-sm font-bold text-[#333333] mb-2">
-									Contact Person *
-								</label>
-								<input
-									type="text"
-									name="contactName"
-									required
-									value={formData.contactName}
-									onChange={handleChange}
-									placeholder="e.g. Rahul Verma"
-									className="w-full rounded-xl border border-[#E0E0E0] bg-[#FAFAFA] px-4 py-3 text-sm focus:border-[#FFD600] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FFD600]/20 transition-all"
-								/>
-							</div>
+							<FormField
+								id="business-contact"
+								name="contactName"
+								label="Contact Person"
+								required
+								value={formData.contactName}
+								onChange={handleChange}
+								placeholder="e.g. Rahul Verma"
+								inputClassName="border border-[#E0E0E0] bg-[#FAFAFA] focus:bg-white"
+								error={
+									showValidation && !formData.contactName.trim()
+										? "Contact person is required"
+										: ""
+								}
+							/>
 
 							<div>
 								<label className="block text-sm font-bold text-[#333333] mb-2">
@@ -475,17 +502,22 @@ export default function BusinessPostAd() {
 							</div>
 
 							<div className="sm:col-span-2">
-								<label className="block text-sm font-bold text-[#333333] mb-2">
-									Business Address *
-								</label>
-								<textarea
+								<FormField
+									id="business-address"
+									as="textarea"
 									name="address"
+									label="Business Address"
 									required
 									rows={2}
 									value={formData.address}
 									onChange={handleChange}
 									placeholder="e.g. Shop No. 12, Main Market..."
-									className="w-full rounded-xl border border-[#E0E0E0] bg-[#FAFAFA] px-4 py-3 text-sm focus:border-[#FFD600] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FFD600]/20 transition-all resize-none"
+									inputClassName="border border-[#E0E0E0] bg-[#FAFAFA] focus:bg-white resize-none"
+									error={
+										showValidation && !formData.address.trim()
+											? "Business address is required"
+											: ""
+									}
 								/>
 							</div>
 						</div>
@@ -497,13 +529,15 @@ export default function BusinessPostAd() {
 							<CheckCircle2 size={14} className="text-green-500" />
 							By posting, you agree to our Business Terms & Conditions.
 						</p>
-						<button
+						<Button
 							type="submit"
 							disabled={submitting}
-							className="w-full sm:w-auto rounded-full bg-[#f5c518] px-10 py-4 text-sm font-bold text-black hover:bg-[#dcae10] transition-all shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-[#f5c518]"
+							isLoading={submitting}
+							size="lg"
+							className="w-full sm:w-auto rounded-full px-10"
 						>
 							{submitting ? "Posting..." : "Post Business Ad"}
-						</button>
+						</Button>
 					</div>
 				</form>
 			</main>

@@ -15,6 +15,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import Button from "../components/ui/Button";
 import { useAuth } from "../context/useAuth";
 import { getListingLikedCount, updateListingLikeStatus } from "../utils/likes";
 
@@ -224,14 +225,60 @@ export default function ProductDetail() {
 	const auction = listing?.auction;
 	const isAuctionListing =
 		String(listing?.listingType || "").toLowerCase() === "auction";
+	const tabOptions = [
+		["description", "Description"],
+		["specifications", "Specifications"],
+		["ai", "AI Price Analysis"],
+	];
+
+	const onTabKeyDown = (event, key) => {
+		const currentIndex = tabOptions.findIndex(([tabKey]) => tabKey === key);
+		if (currentIndex < 0) return;
+
+		const focusTabByKey = (nextKey) => {
+			setActiveTab(nextKey);
+			window.requestAnimationFrame(() => {
+				document.getElementById(`tab-${nextKey}`)?.focus();
+			});
+		};
+
+		if (event.key === "ArrowRight") {
+			event.preventDefault();
+			const nextIndex = (currentIndex + 1) % tabOptions.length;
+			focusTabByKey(tabOptions[nextIndex][0]);
+		}
+
+		if (event.key === "ArrowLeft") {
+			event.preventDefault();
+			const prevIndex =
+				(currentIndex - 1 + tabOptions.length) % tabOptions.length;
+			focusTabByKey(tabOptions[prevIndex][0]);
+		}
+
+		if (event.key === "Home") {
+			event.preventDefault();
+			focusTabByKey(tabOptions[0][0]);
+		}
+
+		if (event.key === "End") {
+			event.preventDefault();
+			focusTabByKey(tabOptions[tabOptions.length - 1][0]);
+		}
+	};
 
 	return (
 		<div className="min-h-screen bg-brand-bg flex flex-col">
 			<Navbar />
 
-			<main className="container-shell py-8 flex-1 lg:py-10">
+			<main
+				id="main-content"
+				className="container-shell py-8 flex-1 pb-28 lg:py-10 lg:pb-10"
+			>
 				{loading ? (
-					<div className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
+					<div
+						className="grid gap-6 lg:grid-cols-[1.35fr_1fr]"
+						aria-busy="true"
+					>
 						<div className="h-[560px] animate-pulse rounded-[30px] bg-white" />
 						<div className="h-[560px] animate-pulse rounded-[30px] bg-white" />
 					</div>
@@ -252,7 +299,10 @@ export default function ProductDetail() {
 							</span>
 						</div>
 
-						<section className="grid items-start gap-6 lg:grid-cols-[1.35fr_1fr]">
+						<section
+							className="grid items-start gap-6 lg:grid-cols-[1.35fr_1fr]"
+							aria-label="Listing details"
+						>
 							<div>
 								<div className="relative overflow-hidden rounded-[30px] border border-brand-border bg-white shadow-sm">
 									<img
@@ -284,6 +334,7 @@ export default function ProductDetail() {
 											key={image + index}
 											type="button"
 											onClick={() => setActiveImage(image)}
+											aria-label={`View image ${index + 1}`}
 											className={`overflow-hidden rounded-2xl border transition ${activeImage === image ? "border-brand-yellow ring-1 ring-brand-yellow" : "border-brand-border hover:border-brand-muted"}`}
 										>
 											<img
@@ -344,7 +395,7 @@ export default function ProductDetail() {
 														listing?.startingBid ||
 														listing?.price,
 												)}
-												· Bids: {auction?.bidCount || 0}
+												- Bids: {auction?.bidCount || 0}
 											</p>
 											{!auction?.isEnded && (
 												<div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
@@ -357,14 +408,17 @@ export default function ProductDetail() {
 														placeholder={`Min ${auction?.minNextBid || "0"}`}
 														className="h-11 rounded-xl border border-[#e2d399] bg-white px-3 text-sm outline-none"
 													/>
-													<button
+													<Button
 														type="button"
 														onClick={placeBid}
 														disabled={placingBid}
-														className="h-11 rounded-xl bg-[#111111] px-4 text-sm font-semibold text-white hover:bg-black disabled:opacity-60"
+														isLoading={placingBid}
+														variant="secondary"
+														size="md"
+														className="rounded-xl"
 													>
 														{placingBid ? "Placing..." : "Place Bid"}
-													</button>
+													</Button>
 												</div>
 											)}
 										</div>
@@ -406,22 +460,27 @@ export default function ProductDetail() {
 									</div>
 
 									<div className="grid gap-3 sm:grid-cols-2">
-										<button
+										<Button
 											type="button"
 											disabled={sendingMessage}
 											onClick={sendMessage}
-											className="h-12 rounded-xl border border-brand-border bg-brand-dark px-4 text-sm font-semibold hover:bg-brand-dark/85 text-white disabled:opacity-60"
+											isLoading={sendingMessage}
+											variant="secondary"
+											size="lg"
+											className="rounded-xl"
 										>
 											<MessageSquareText size={16} className="mr-2 inline" />
 											{sendingMessage ? "Opening chat..." : "Message Seller"}
-										</button>
-										<button
+										</Button>
+										<Button
 											type="button"
 											onClick={shareListing}
-											className="h-12 rounded-xl border border-brand-border bg-white px-4 text-sm font-semibold hover:bg-brand-bg"
+											variant="outline"
+											size="lg"
+											className="rounded-xl"
 										>
 											<Share2 size={15} className="mr-2 inline" /> Share Product
-										</button>
+										</Button>
 									</div>
 
 									<div className="flex flex-wrap items-center gap-5 text-sm text-brand-muted">
@@ -450,17 +509,26 @@ export default function ProductDetail() {
 							</div>
 						</section>
 
-						<section className="mt-10 rounded-[30px] border border-brand-border bg-white p-6 shadow-sm sm:p-8">
-							<div className="mb-6 flex flex-wrap gap-2 rounded-2xl bg-[#F6F6F6] p-1.5 text-sm font-semibold uppercase tracking-[0.08em]">
-								{[
-									["description", "Description"],
-									["specifications", "Specifications"],
-									["ai", "AI Price Analysis"],
-								].map(([key, label]) => (
+						<section
+							className="mt-10 rounded-[30px] border border-brand-border bg-white p-6 shadow-sm sm:p-8"
+							aria-label="Listing information panels"
+						>
+							<div
+								className="mb-6 flex flex-wrap gap-2 rounded-2xl bg-[#F6F6F6] p-1.5 text-sm font-semibold uppercase tracking-[0.08em]"
+								role="tablist"
+								aria-label="Listing content tabs"
+							>
+								{tabOptions.map(([key, label]) => (
 									<button
 										key={key}
 										type="button"
 										onClick={() => setActiveTab(key)}
+										onKeyDown={(event) => onTabKeyDown(event, key)}
+										role="tab"
+										aria-selected={activeTab === key}
+										aria-controls={`panel-${key}`}
+										id={`tab-${key}`}
+										tabIndex={activeTab === key ? 0 : -1}
 										className={`rounded-xl px-4 py-2 text-xs transition sm:text-sm ${
 											activeTab === key
 												? "bg-white text-brand-dark shadow-sm"
@@ -476,7 +544,12 @@ export default function ProductDetail() {
 							</div>
 
 							{activeTab === "description" && (
-								<div className="grid gap-5 lg:grid-cols-[1.25fr_1fr]">
+								<div
+									className="grid gap-5 lg:grid-cols-[1.25fr_1fr]"
+									role="tabpanel"
+									id="panel-description"
+									aria-labelledby="tab-description"
+								>
 									<div className="space-y-3 text-brand-muted">
 										<p className="text-sm leading-relaxed">
 											{listing?.description || "No description available."}
@@ -495,7 +568,12 @@ export default function ProductDetail() {
 							)}
 							{activeTab === "specifications" &&
 								(Object.keys(listing?.specs || {}).length ? (
-									<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+									<div
+										className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+										role="tabpanel"
+										id="panel-specifications"
+										aria-labelledby="tab-specifications"
+									>
 										{Object.entries(listing?.specs || {}).map(
 											([key, value]) => (
 												<div
@@ -513,12 +591,22 @@ export default function ProductDetail() {
 										)}
 									</div>
 								) : (
-									<div className="rounded-2xl border border-dashed border-brand-border bg-[#FAFAFA] p-6 text-sm text-brand-muted">
+									<div
+										className="rounded-2xl border border-dashed border-brand-border bg-[#FAFAFA] p-6 text-sm text-brand-muted"
+										role="tabpanel"
+										id="panel-specifications"
+										aria-labelledby="tab-specifications"
+									>
 										No specifications were added for this product yet.
 									</div>
 								))}
 							{activeTab === "ai" && (
-								<div className="rounded-2xl border border-brand-border bg-[#FAFAFA] p-5 text-sm text-brand-muted">
+								<div
+									className="rounded-2xl border border-brand-border bg-[#FAFAFA] p-5 text-sm text-brand-muted"
+									role="tabpanel"
+									id="panel-ai"
+									aria-labelledby="tab-ai"
+								>
 									<p className="font-semibold text-brand-dark">
 										AI Price Analysis
 									</p>
@@ -542,6 +630,48 @@ export default function ProductDetail() {
 					</div>
 				)}
 			</main>
+
+			{listing ? (
+				<div className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-border bg-white/95 p-3 backdrop-blur lg:hidden">
+					<div className="mx-auto flex max-w-5xl items-center gap-2">
+						<Button
+							type="button"
+							onClick={toggleLike}
+							disabled={updatingLike}
+							variant="outline"
+							size="md"
+							className="h-11 flex-1 rounded-xl"
+						>
+							<Heart
+								size={15}
+								className={isLiked ? "mr-1 fill-current text-red-500" : "mr-1"}
+							/>
+							{isLiked ? "Liked" : "Like"}
+						</Button>
+						<Button
+							type="button"
+							onClick={shareListing}
+							variant="outline"
+							size="md"
+							className="h-11 flex-1 rounded-xl"
+						>
+							<Share2 size={15} className="mr-1" /> Share
+						</Button>
+						<Button
+							type="button"
+							onClick={sendMessage}
+							disabled={sendingMessage}
+							isLoading={sendingMessage}
+							variant="secondary"
+							size="md"
+							className="h-11 flex-[1.3] rounded-xl"
+						>
+							<MessageSquareText size={15} className="mr-1" />
+							Message
+						</Button>
+					</div>
+				</div>
+			) : null}
 			<Footer />
 		</div>
 	);

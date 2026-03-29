@@ -3,6 +3,8 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
+import Button from "../components/ui/Button";
+import FormField from "../components/ui/FormField";
 import { useAuth } from "../context/useAuth";
 
 const GoogleIcon = () => (
@@ -37,6 +39,7 @@ export default function Signup() {
 	const { signup } = useAuth();
 	const [showPassword, setShowPassword] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
+	const [showValidation, setShowValidation] = useState(false);
 	const [form, setForm] = useState({
 		name: "",
 		email: "",
@@ -47,26 +50,55 @@ export default function Signup() {
 		location: "",
 	});
 
+	const errors = {
+		name: !form.name.trim() ? "Full name is required" : "",
+		email: !form.email
+			? "Email is required"
+			: !form.email.includes("@")
+				? "A valid email is required"
+				: "",
+		password:
+			form.password.length < 6 ? "Password must be at least 6 characters" : "",
+		businessName:
+			form.accountType === "business" && !form.businessName.trim()
+				? "Business name is required"
+				: "",
+		gstOrMsme:
+			form.accountType === "business" && !form.gstOrMsme.trim()
+				? "GST/MSME number is required"
+				: "",
+		location:
+			form.accountType === "business" && !form.location.trim()
+				? "Business location is required"
+				: "",
+	};
+
 	const onChange = (event) => {
 		const { name, value } = event.target;
 		setForm((prev) => ({ ...prev, [name]: value }));
 	};
 
+	const onAccountTypeKeyDown = (event, currentType) => {
+		if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+			event.preventDefault();
+			setForm((prev) => ({
+				...prev,
+				accountType: currentType === "personal" ? "business" : "personal",
+			}));
+		}
+	};
+
 	const onSubmit = async (event) => {
 		event.preventDefault();
+		setShowValidation(true);
 
-		if (!form.name.trim()) return toast.error("Full name is required");
-		if (!form.email.includes("@"))
-			return toast.error("A valid email is required");
-		if (form.password.length < 6)
-			return toast.error("Password must be at least 6 characters");
+		if (errors.name) return toast.error(errors.name);
+		if (errors.email) return toast.error(errors.email);
+		if (errors.password) return toast.error(errors.password);
 		if (form.accountType === "business") {
-			if (!form.businessName.trim())
-				return toast.error("Business name is required");
-			if (!form.gstOrMsme.trim())
-				return toast.error("GST/MSME number is required");
-			if (!form.location.trim())
-				return toast.error("Business location is required");
+			if (errors.businessName) return toast.error(errors.businessName);
+			if (errors.gstOrMsme) return toast.error(errors.gstOrMsme);
+			if (errors.location) return toast.error(errors.location);
 		}
 
 		try {
@@ -102,7 +134,10 @@ export default function Signup() {
 	};
 
 	return (
-		<main className="min-h-screen bg-[#F6F6F6] flex flex-col justify-between p-4 md:p-8 font-sans">
+		<main
+			id="main-content"
+			className="min-h-[100dvh] bg-[#F6F6F6] flex flex-col justify-between p-4 md:p-8 font-sans"
+		>
 			<div className="flex-1 flex items-center justify-center">
 				<div className="flex w-full max-w-[1100px] bg-white rounded-[32px] overflow-hidden shadow-sm">
 					{/* Left Panel (Dark) */}
@@ -159,7 +194,10 @@ export default function Signup() {
 					</aside>
 
 					{/* Right Panel (Form) */}
-					<section className="w-full md:w-[55%] p-8 md:p-14 lg:p-20 flex flex-col justify-center bg-white">
+					<section
+						className="w-full md:w-[55%] p-8 md:p-14 lg:p-20 flex flex-col justify-center bg-white"
+						aria-labelledby="signup-heading"
+					>
 						<div className="max-w-md w-full mx-auto">
 							{/* Mobile Logo Fallback */}
 							<div className="flex md:hidden items-center gap-2 mb-10">
@@ -172,7 +210,10 @@ export default function Signup() {
 								</div>
 							</div>
 
-							<h2 className="text-[2rem] font-bold text-black mb-2">
+							<h2
+								id="signup-heading"
+								className="text-[2rem] font-bold text-black mb-2"
+							>
 								Create an account
 							</h2>
 							<p className="text-[#666666] mb-8 text-[0.95rem]">
@@ -186,20 +227,22 @@ export default function Signup() {
 							</p>
 
 							<div className="grid grid-cols-2 gap-4 mb-8">
-								<button
-									type="button"
+								<Button
+									variant="outline"
+									size="lg"
 									onClick={() => toast("OAuth available soon")}
-									className="flex items-center justify-center gap-2 bg-[#F1F1F1] rounded-xl h-12 text-[0.9rem] font-semibold text-black hover:bg-[#E5E5E5] transition"
+									className="bg-[#F1F1F1]"
 								>
 									<GoogleIcon /> Google
-								</button>
-								<button
-									type="button"
+								</Button>
+								<Button
+									variant="outline"
+									size="lg"
 									onClick={() => toast("OAuth available soon")}
-									className="flex items-center justify-center gap-2 bg-[#F1F1F1] rounded-xl h-12 text-[0.9rem] font-semibold text-black hover:bg-[#E5E5E5] transition"
+									className="bg-[#F1F1F1]"
 								>
 									<AppleIcon /> Apple
-								</button>
+								</Button>
 							</div>
 
 							<div className="flex items-center gap-4 mb-8">
@@ -210,12 +253,32 @@ export default function Signup() {
 								<div className="h-px bg-[#E5E5E5] flex-1" />
 							</div>
 
-							<form className="space-y-5" onSubmit={onSubmit}>
+							<form className="space-y-5" onSubmit={onSubmit} noValidate>
+								{showValidation &&
+								(errors.name ||
+									errors.email ||
+									errors.password ||
+									errors.businessName ||
+									errors.gstOrMsme ||
+									errors.location) ? (
+									<div
+										className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+										role="alert"
+										aria-live="polite"
+									>
+										Please fix the highlighted fields.
+									</div>
+								) : null}
+
 								<div>
 									<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
 										Profile Type
 									</label>
-									<div className="grid grid-cols-2 gap-2 rounded-xl bg-[#F1F1F1] p-1">
+									<div
+										className="grid grid-cols-2 gap-2 rounded-xl bg-[#F1F1F1] p-1"
+										role="radiogroup"
+										aria-label="Profile type"
+									>
 										<button
 											type="button"
 											onClick={() =>
@@ -224,6 +287,12 @@ export default function Signup() {
 													accountType: "personal",
 												}))
 											}
+											onKeyDown={(event) =>
+												onAccountTypeKeyDown(event, "personal")
+											}
+											role="radio"
+											aria-checked={form.accountType === "personal"}
+											tabIndex={form.accountType === "personal" ? 0 : -1}
 											className={`h-10 rounded-lg text-sm font-semibold transition ${
 												form.accountType === "personal"
 													? "bg-white text-black shadow-sm"
@@ -240,6 +309,12 @@ export default function Signup() {
 													accountType: "business",
 												}))
 											}
+											onKeyDown={(event) =>
+												onAccountTypeKeyDown(event, "business")
+											}
+											role="radio"
+											aria-checked={form.accountType === "business"}
+											tabIndex={form.accountType === "business" ? 0 : -1}
 											className={`h-10 rounded-lg text-sm font-semibold transition ${
 												form.accountType === "business"
 													? "bg-white text-black shadow-sm"
@@ -251,106 +326,103 @@ export default function Signup() {
 									</div>
 								</div>
 
-								<div>
-									<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
-										Full Name
-									</label>
-									<input
-										name="name"
-										value={form.name}
-										onChange={onChange}
-										className="w-full bg-[#F1F1F1] rounded-xl h-12 px-4 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
-										placeholder="John Doe"
-									/>
-								</div>
+								<FormField
+									id="signup-name"
+									name="name"
+									label="Full Name"
+									value={form.name}
+									onChange={onChange}
+									placeholder="John Doe"
+									autoComplete="name"
+									error={showValidation ? errors.name : ""}
+									required
+								/>
 
-								<div>
-									<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
-										Email Address
-									</label>
-									<input
-										name="email"
-										type="email"
-										value={form.email}
-										onChange={onChange}
-										className="w-full bg-[#F1F1F1] rounded-xl h-12 px-4 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
-										placeholder="name@domain.com"
-									/>
-								</div>
+								<FormField
+									id="signup-email"
+									name="email"
+									type="email"
+									label="Email Address"
+									value={form.email}
+									onChange={onChange}
+									placeholder="name@domain.com"
+									autoComplete="email"
+									error={showValidation ? errors.email : ""}
+									required
+								/>
 
-								<div>
-									<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
-										Password
-									</label>
-									<div className="relative">
-										<input
-											name="password"
-											type={showPassword ? "text" : "password"}
-											value={form.password}
-											onChange={onChange}
-											className="w-full bg-[#F1F1F1] rounded-xl h-12 pl-4 pr-12 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
-											placeholder="••••••••"
-										/>
+								<FormField
+									id="signup-password"
+									name="password"
+									type={showPassword ? "text" : "password"}
+									label="Password"
+									value={form.password}
+									onChange={onChange}
+									placeholder="********"
+									autoComplete="new-password"
+									hint="Use at least 6 characters."
+									error={showValidation ? errors.password : ""}
+									required
+									rightAdornment={
 										<button
 											type="button"
 											onClick={() => setShowPassword((prev) => !prev)}
-											className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A3A3A3] hover:text-black transition"
+											className="grid h-9 w-9 place-items-center rounded-lg text-[#A3A3A3] transition hover:text-black"
+											aria-label={
+												showPassword ? "Hide password" : "Show password"
+											}
 										>
 											{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
 										</button>
-									</div>
-								</div>
+									}
+								/>
 
 								{form.accountType === "business" && (
 									<>
-										<div>
-											<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
-												Business Name
-											</label>
-											<input
-												name="businessName"
-												value={form.businessName}
-												onChange={onChange}
-												className="w-full bg-[#F1F1F1] rounded-xl h-12 px-4 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
-												placeholder="Acme Store"
-											/>
-										</div>
+										<FormField
+											id="signup-business-name"
+											name="businessName"
+											label="Business Name"
+											value={form.businessName}
+											onChange={onChange}
+											placeholder="Acme Store"
+											error={showValidation ? errors.businessName : ""}
+											required
+										/>
 
-										<div>
-											<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
-												GST / MSME No.
-											</label>
-											<input
-												name="gstOrMsme"
-												value={form.gstOrMsme}
-												onChange={onChange}
-												className="w-full bg-[#F1F1F1] rounded-xl h-12 px-4 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
-												placeholder="27ABCDE1234F1Z5"
-											/>
-										</div>
+										<FormField
+											id="signup-gst-msme"
+											name="gstOrMsme"
+											label="GST / MSME No."
+											value={form.gstOrMsme}
+											onChange={onChange}
+											placeholder="27ABCDE1234F1Z5"
+											error={showValidation ? errors.gstOrMsme : ""}
+											required
+										/>
 
-										<div>
-											<label className="block text-[0.7rem] font-bold tracking-[0.1em] text-[#666666] uppercase mb-2">
-												Location
-											</label>
-											<input
-												name="location"
-												value={form.location}
-												onChange={onChange}
-												className="w-full bg-[#F1F1F1] rounded-xl h-12 px-4 text-[0.95rem] text-black outline-none placeholder:text-[#A3A3A3] focus:ring-2 focus:ring-[#FFD600]/50"
-												placeholder="Chennai"
-											/>
-										</div>
+										<FormField
+											id="signup-location"
+											name="location"
+											label="Location"
+											value={form.location}
+											onChange={onChange}
+											placeholder="Chennai"
+											error={showValidation ? errors.location : ""}
+											required
+										/>
 									</>
 								)}
 
-								<button
+								<Button
 									disabled={submitting}
+									isLoading={submitting}
 									type="submit"
-									className="w-full bg-[#FFD600] text-black font-bold text-[0.95rem] rounded-full h-12 mt-2 hover:bg-[#E6C100] transition active:scale-[0.98]"
+									size="lg"
+									className="mt-2 w-full rounded-full"
 								>
 									{submitting ? "Creating Account..." : "START LISTING"}
-								</button>
+								</Button>
 							</form>
 
 							<p className="text-center text-[0.75rem] text-[#888888] mt-6">

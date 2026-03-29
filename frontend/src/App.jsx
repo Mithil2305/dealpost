@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import Home from "./pages/Home.jsx";
 import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
@@ -22,6 +23,7 @@ import TermsAndConditions from "./pages/TermsAndConditions.jsx";
 import CompareListings from "./pages/CompareListings.jsx";
 import Likedproducts from "./pages/Likedproducts.jsx";
 import { useAuth } from "./context/useAuth.jsx";
+import SkipToMain from "./components/a11y/SkipToMain.jsx";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
 	const { token, user } = useAuth();
@@ -50,8 +52,18 @@ function GuestOnlyRoute({ children }) {
 }
 
 function App() {
+	const location = useLocation();
+
+	useEffect(() => {
+		const routeMain = document.querySelector("main");
+		if (routeMain && routeMain.id !== "main-content") {
+			routeMain.id = "main-content";
+		}
+	}, [location.pathname]);
+
 	return (
 		<>
+			<SkipToMain />
 			<Routes>
 				<Route path="/" element={<Home />} />
 				<Route

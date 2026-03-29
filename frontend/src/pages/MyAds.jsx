@@ -134,7 +134,7 @@ export default function MyAds() {
 		<div className="min-h-screen bg-brand-bg flex flex-col">
 			<Navbar />
 
-			<main className="container-shell py-6 flex-1">
+			<main id="main-content" className="container-shell py-6 flex-1">
 				<h1 className="text-5xl font-display font-bold">My Deals</h1>
 				<p className="mt-2 text-brand-muted">
 					Manage your gallery of curated listings
@@ -284,3 +284,4 @@ export default function MyAds() {
 		</div>
 	);
 }
+

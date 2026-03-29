@@ -14,7 +14,7 @@ export default function InfoPageShell({
 	return (
 		<div className="min-h-screen bg-[#F7F8FA] text-gray-900">
 			<Navbar />
-			<main className="mx-auto w-full max-w-[1200px] px-4 py-8 sm:px-6 lg:px-8">
+			<main id="main-content" className="mx-auto w-full max-w-[1200px] px-4 py-8 sm:px-6 lg:px-8">
 				<header className="relative overflow-hidden rounded-[32px] bg-[#111111] px-7 py-10 text-white sm:px-10">
 					<div className="pointer-events-none absolute -right-14 -top-14 h-56 w-56 rounded-full bg-[#FFD600]/30 blur-3xl" />
 					<div className="pointer-events-none absolute -bottom-20 left-20 h-52 w-52 rounded-full bg-[#FFFFFF]/10 blur-3xl" />
@@ -110,3 +110,4 @@ export default function InfoPageShell({
 		</div>
 	);
 }
+

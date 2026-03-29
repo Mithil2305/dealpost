@@ -65,7 +65,7 @@ export default function Likedproducts() {
 		<div className="min-h-screen bg-brand-bg flex flex-col">
 			<Navbar showSearch search={search} onSearchChange={setSearch} />
 
-			<main className="container-shell py-6 flex-1">
+			<main id="main-content" className="container-shell py-6 flex-1">
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 					<div>
 						<h1 className="text-5xl font-display font-bold text-black">
@@ -130,3 +130,4 @@ export default function Likedproducts() {
 		</div>
 	);
 }
+

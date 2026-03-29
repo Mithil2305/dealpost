@@ -330,6 +330,17 @@ export default function Home() {
 			(prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length,
 		);
 
+	const onHeroSliderKeyDown = (event) => {
+		if (event.key === "ArrowRight") {
+			event.preventDefault();
+			nextHeroSlide();
+		}
+		if (event.key === "ArrowLeft") {
+			event.preventDefault();
+			prevHeroSlide();
+		}
+	};
+
 	const displayListings = listings.map(normalizeListing);
 	const dealFeedItems = displayListings.flatMap((item, index) => {
 		const next = [{ type: "deal", item, key: `deal-${item.id || index}` }];
@@ -449,6 +460,17 @@ export default function Home() {
 		});
 	};
 
+	const onTopDealsKeyDown = (event) => {
+		if (event.key === "ArrowRight") {
+			event.preventDefault();
+			moveTopDeals("next");
+		}
+		if (event.key === "ArrowLeft") {
+			event.preventDefault();
+			moveTopDeals("prev");
+		}
+	};
+
 	const onToggleLike = async (event, item) => {
 		event.preventDefault();
 		event.stopPropagation();
@@ -506,13 +528,17 @@ export default function Home() {
 			{/* Navbar would go here, assuming it's imported and handles its own layout */}
 			<Navbar showSearch search={search} onSearchChange={setSearch} />
 
-			<main className="mx-auto w-full max-w-[1780px] px-4 py-6 sm:px-6 lg:px-8 flex-1">
+			<main
+				id="main-content"
+				className="mx-auto w-full max-w-[1780px] px-4 py-6 sm:px-6 lg:px-8 flex-1"
+			>
 				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_220px]">
 					<div className="min-w-0">
 						{/* Categories Row */}
 						<div
 							ref={categoryMenuRef}
 							className="top-20 z-20 -mx-2 mb-4 rounded-2xl bg-white/95 px-2 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80"
+							aria-label="Browse categories"
 						>
 							<div className="mb-3 flex items-center justify-between">
 								<h2 className="text-xl font-bold font-display">Categories</h2>
@@ -520,13 +546,18 @@ export default function Home() {
 									to="/categories"
 									className="text-sm font-bold text-[#666666] hover:text-black transition-colors"
 								>
-									View All →
+									View All &rarr;
 								</Link>
 							</div>
-							<section className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+							<section
+								className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide"
+								aria-label="Top categories"
+							>
 								<button
 									type="button"
 									onClick={() => setIsMegaMenuOpen((prev) => !prev)}
+									aria-expanded={isMegaMenuOpen}
+									aria-controls="home-mega-category-panel"
 									className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
 										isMegaMenuOpen
 											? "bg-[#1677ff] text-white shadow-sm"
@@ -564,7 +595,10 @@ export default function Home() {
 							</section>
 
 							{isMegaMenuOpen && (
-								<div className="mt-3 rounded-[26px] border border-[#E8E8E8] bg-white p-5 shadow-[0_24px_60px_rgba(0,0,0,0.14)]">
+								<div
+									id="home-mega-category-panel"
+									className="mt-3 rounded-[26px] border border-[#E8E8E8] bg-white p-5 shadow-[0_24px_60px_rgba(0,0,0,0.14)]"
+								>
 									<div className="mb-4 flex items-center justify-between">
 										<p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#1677ff]">
 											All Categories
@@ -624,16 +658,25 @@ export default function Home() {
 						</div>
 
 						{/* Hero Section */}
-						<section className="mt-4 relative w-full h-[220px] md:h-[260px] lg:h-[300px] rounded-[24px] md:rounded-[28px] overflow-hidden group shadow-lg">
+						<section
+							className="mt-4 relative w-full h-[220px] md:h-[260px] lg:h-[300px] rounded-[24px] md:rounded-[28px] overflow-hidden group shadow-lg"
+							aria-label="Featured promotions"
+							onKeyDown={onHeroSliderKeyDown}
+							tabIndex={0}
+							role="region"
+							aria-roledescription="carousel"
+							aria-live="polite"
+						>
 							{/* Slides Container */}
 							<div
 								className="flex w-full h-full transition-transform duration-700 ease-in-out"
 								style={{ transform: `translateX(-${currentHeroSlide * 100}%)` }}
 							>
-								{HERO_SLIDES.map((slide) => (
+								{HERO_SLIDES.map((slide, index) => (
 									<div
 										key={slide.id}
 										className="w-full h-full flex-shrink-0 relative"
+										aria-hidden={currentHeroSlide !== index}
 									>
 										<img
 											src={slide.image}
@@ -672,6 +715,7 @@ export default function Home() {
 							<button
 								type="button"
 								onClick={prevHeroSlide}
+								aria-label="Previous featured slide"
 								className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
 							>
 								<ChevronLeft size={20} />
@@ -679,6 +723,7 @@ export default function Home() {
 							<button
 								type="button"
 								onClick={nextHeroSlide}
+								aria-label="Next featured slide"
 								className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
 							>
 								<ChevronRight size={20} />
@@ -746,10 +791,16 @@ export default function Home() {
 						</section>
 
 						{/* Fresh Recommendations */}
-						<section className="mt-10">
+						<section
+							className="mt-10"
+							aria-labelledby="home-fresh-recommendations-heading"
+						>
 							<div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
 								<div>
-									<h2 className="text-[2rem] font-bold text-black mb-2">
+									<h2
+										id="home-fresh-recommendations-heading"
+										className="text-[2rem] font-bold text-black mb-2"
+									>
 										Fresh recommendations
 									</h2>
 									<p className="flex items-center gap-1.5 text-sm font-semibold text-[#888888]">
@@ -764,8 +815,10 @@ export default function Home() {
 								</Link>
 							</div>
 
-							{/* Reduced columns from 5 to 4 to make the cards significantly wider/larger on big screens */}
-							<div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+							<div
+								className="grid grid-cols-2 gap-3 sm:gap-6 md:[grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr))]"
+								aria-label="Fresh recommendation listings"
+							>
 								{dealFeedItems.map((feedItem) => {
 									if (feedItem.type === "promo") {
 										return (
@@ -824,6 +877,9 @@ export default function Home() {
 													onClick={(event) => onToggleLike(event, item)}
 													disabled={isLiking}
 													className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full bg-white text-[#111827] shadow-sm transition hover:bg-[#F7F7F7]"
+													aria-label={
+														liked ? "Remove from favorites" : "Add to favorites"
+													}
 												>
 													<Heart
 														size={24}
@@ -841,7 +897,7 @@ export default function Home() {
 												)}
 											</div>
 											<div className="flex flex-1 flex-col p-4">
-												<p className="text-[1.5rem] font-black tracking-tight text-[#08102A] leading-none">
+												<p className="text-[1.15rem] font-black tracking-tight text-[#08102A] leading-none sm:text-[1.5rem]">
 													{displayPrice}
 												</p>
 												{isAuction && (
@@ -869,7 +925,10 @@ export default function Home() {
 							)}
 
 							<div className="mt-12 text-center">
-								<button className="rounded-full border border-[#EAEAEA] bg-white px-10 py-3.5 text-sm font-bold text-black hover:bg-[#F8F8F8] shadow-sm transition">
+								<button
+									type="button"
+									className="rounded-full border border-[#EAEAEA] bg-white px-10 py-3.5 text-sm font-bold text-black hover:bg-[#F8F8F8] shadow-sm transition"
+								>
 									Load More
 								</button>
 							</div>
@@ -877,9 +936,15 @@ export default function Home() {
 
 						{/* Category Deal Carousels */}
 						{categoryDeals.length ? (
-							<section className="mt-16 space-y-8">
+							<section
+								className="mt-16 space-y-8"
+								aria-labelledby="home-category-deals-heading"
+							>
 								<div className="flex items-center justify-between">
-									<h2 className="text-[1.8rem] font-bold text-black">
+									<h2
+										id="home-category-deals-heading"
+										className="text-[1.8rem] font-bold text-black"
+									>
 										Deals by category
 									</h2>
 									<Link
@@ -932,9 +997,19 @@ export default function Home() {
 						) : null}
 
 						{/* Top Deals For You - Carousel Section */}
-						<section className="mt-12 rounded-[28px] bg-[#FFF9E6] p-4 md:p-5 relative overflow-hidden">
+						<section
+							className="mt-12 rounded-[28px] bg-[#FFF9E6] p-4 md:p-5 relative overflow-hidden"
+							aria-labelledby="home-top-deals-heading"
+							tabIndex={0}
+							onKeyDown={onTopDealsKeyDown}
+							role="region"
+							aria-roledescription="carousel"
+						>
 							<div className="flex items-center justify-between mb-4 relative z-10">
-								<h2 className="flex items-center gap-2 text-[1.25rem] font-bold text-black">
+								<h2
+									id="home-top-deals-heading"
+									className="flex items-center gap-2 text-[1.25rem] font-bold text-black"
+								>
 									<Zap size={28} className="text-[#FFD600] fill-[#FFD600]" />
 									Top Deals For You
 								</h2>
