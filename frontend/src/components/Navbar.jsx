@@ -19,6 +19,11 @@ import {
 } from "../utils/googleMaps";
 import { getUnreadConversationCount } from "../utils/messageNotifications";
 
+const ALERTS_CACHE_TTL_MS = 15000;
+let publicConfigPromise = null;
+let cachedPublicConfig = null;
+let cachedAlerts = { ts: 0, rows: [] };
+
 function getReadableLocationLabel(placeLike) {
 	if (!placeLike) return "";
 	if (typeof placeLike.formattedAddress === "string") {
@@ -147,8 +152,21 @@ export default function Navbar({ search = "", onSearchChange }) {
 
 		const setupMaps = async () => {
 			try {
-				const { data } = await api.get("/config/public");
-				await loadGoogleMapsPlaces(data?.googleMapsBrowserApiKey || "");
+				if (!cachedPublicConfig) {
+					if (!publicConfigPromise) {
+						publicConfigPromise = api
+							.get("/config/public")
+							.then((response) => response.data)
+							.finally(() => {
+								publicConfigPromise = null;
+							});
+					}
+					cachedPublicConfig = await publicConfigPromise;
+				}
+
+				await loadGoogleMapsPlaces(
+					cachedPublicConfig?.googleMapsBrowserApiKey || "",
+				);
 				if (active) {
 					setMapsReady(true);
 					setMapsFailed(false);
@@ -214,10 +232,21 @@ export default function Navbar({ search = "", onSearchChange }) {
 
 	const refreshRecentAlerts = useCallback(async () => {
 		try {
+			const now = Date.now();
+			if (
+				Array.isArray(cachedAlerts.rows) &&
+				now - cachedAlerts.ts < ALERTS_CACHE_TTL_MS
+			) {
+				setRecentAlerts(cachedAlerts.rows);
+				return;
+			}
+
 			const { data } = await api.get("/listings", {
 				params: { limit: 5, sort: "Newest" },
 			});
-			setRecentAlerts(Array.isArray(data?.listings) ? data.listings : []);
+			const rows = Array.isArray(data?.listings) ? data.listings : [];
+			cachedAlerts = { ts: now, rows };
+			setRecentAlerts(rows);
 		} catch {
 			setRecentAlerts([]);
 		}
@@ -245,10 +274,6 @@ export default function Navbar({ search = "", onSearchChange }) {
 			);
 		};
 	}, [isAuthenticated, refreshUnreadCount, user?.id]);
-
-	useEffect(() => {
-		refreshRecentAlerts();
-	}, [refreshRecentAlerts]);
 
 	useEffect(() => {
 		const onClickOutside = (event) => {
@@ -420,7 +445,13 @@ export default function Navbar({ search = "", onSearchChange }) {
 
 	const openAlertsPopup = () => {
 		if (redirectUnauthenticatedUser()) return;
-		setIsAlertsOpen((prev) => !prev);
+		setIsAlertsOpen((prev) => {
+			const next = !prev;
+			if (next) {
+				refreshRecentAlerts();
+			}
+			return next;
+		});
 		setIsMessagesOpen(false);
 		setIsProfileMenuOpen(false);
 	};

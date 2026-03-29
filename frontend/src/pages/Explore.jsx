@@ -8,6 +8,48 @@ import Navbar from "../components/Navbar";
 import ProductCard from "../components/ProductCard";
 import { pickArray } from "../utils/api";
 
+const CATEGORIES_CACHE_KEY = "dealpost:explore:categories:v1";
+const LISTING_CACHE_TTL_MS = 12000;
+const listingRequestsInFlight = new Map();
+const listingResponseCache = new Map();
+let categoriesRequestPromise = null;
+
+const buildListingRequestKey = (params) => {
+	const query = new URLSearchParams();
+	Object.entries(params || {}).forEach(([key, value]) => {
+		if (value === undefined || value === null || value === "") return;
+		query.set(key, String(value));
+	});
+	return query.toString();
+};
+
+const fetchListingsDedupe = async (params) => {
+	const key = buildListingRequestKey(params);
+	const now = Date.now();
+	const cached = listingResponseCache.get(key);
+	if (cached && now - cached.ts < LISTING_CACHE_TTL_MS) {
+		return cached.data;
+	}
+
+	const active = listingRequestsInFlight.get(key);
+	if (active) {
+		return active;
+	}
+
+	const request = api
+		.get("/listings", { params })
+		.then((response) => {
+			listingResponseCache.set(key, { ts: Date.now(), data: response.data });
+			return response.data;
+		})
+		.finally(() => {
+			listingRequestsInFlight.delete(key);
+		});
+
+	listingRequestsInFlight.set(key, request);
+	return request;
+};
+
 const defaultFilters = {
 	category: [],
 	listingType: "",
@@ -24,6 +66,8 @@ const parseCategoryParam = (value) =>
 		.split(",")
 		.map((item) => item.trim())
 		.filter(Boolean);
+
+const isRateLimitedError = (error) => Number(error?.response?.status) === 429;
 
 const areSameArrays = (a, b) =>
 	a.length === b.length && a.every((item, index) => item === b[index]);
@@ -85,16 +129,46 @@ export default function Explore() {
 	);
 
 	useEffect(() => {
+		let active = true;
+
 		const fetchCategories = async () => {
 			try {
-				const { data } = await api.get("/categories");
-				setCategories(pickArray(data, ["categories", "data", "items"]));
-			} catch {
-				toast.error("Failed to load filters");
+				const cached = sessionStorage.getItem(CATEGORIES_CACHE_KEY);
+				if (cached) {
+					const parsed = JSON.parse(cached);
+					if (Array.isArray(parsed)) {
+						setCategories(parsed);
+						return;
+					}
+				}
+
+				if (!categoriesRequestPromise) {
+					categoriesRequestPromise = api
+						.get("/categories")
+						.then((response) => response.data)
+						.finally(() => {
+							categoriesRequestPromise = null;
+						});
+				}
+
+				const data = await categoriesRequestPromise;
+				const rows = pickArray(data, ["categories", "data", "items"]);
+				if (active) {
+					setCategories(rows);
+				}
+				sessionStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(rows));
+			} catch (error) {
+				if (active && !isRateLimitedError(error)) {
+					toast.error("Failed to load filters");
+				}
 			}
 		};
 
 		fetchCategories();
+
+		return () => {
+			active = false;
+		};
 	}, []);
 
 	useEffect(() => {
@@ -166,6 +240,8 @@ export default function Explore() {
 	}, []);
 
 	useEffect(() => {
+		let active = true;
+
 		const fetchResults = async () => {
 			try {
 				setLoading(true);
@@ -187,17 +263,26 @@ export default function Explore() {
 					page,
 				};
 
-				const { data } = await api.get("/listings", { params });
+				const data = await fetchListingsDedupe(params);
 				const next = pickArray(data, ["listings", "items", "data"]);
+				if (!active) return;
 				setResults((prev) => (page === 1 ? next : [...prev, ...next]));
-			} catch {
-				toast.error("Unable to fetch listings");
+			} catch (error) {
+				if (active && !isRateLimitedError(error)) {
+					toast.error("Unable to fetch listings");
+				}
 			} finally {
-				setLoading(false);
+				if (active) {
+					setLoading(false);
+				}
 			}
 		};
 
 		fetchResults();
+
+		return () => {
+			active = false;
+		};
 	}, [filters, search, page, selectedCoords.lat, selectedCoords.lng]);
 
 	const hasFilters = useMemo(
