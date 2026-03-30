@@ -124,6 +124,7 @@ function joinCategoryPath(parentCategory, subCategory) {
 function normalizeListingPayload(item) {
 	const listing = toPlain(item);
 	if (!listing) return listing;
+	const normalizedImages = normalizeIncomingImages(listing.images);
 
 	const categoryObj =
 		typeof listing.category === "object" && listing.category !== null
@@ -153,6 +154,8 @@ function normalizeListingPayload(item) {
 
 	return {
 		...listing,
+		images: normalizedImages,
+		image: listing.image || normalizedImages[0]?.url || null,
 		_id: listing.id, // frontend uses both _id and id
 		productId: normalizedProductId,
 		listingType: normalizeListingType(listing.listingType),
@@ -733,6 +736,7 @@ export const createListing = asyncHandler(async (req, res) => {
 		condition,
 		additionalNotes,
 		specs,
+		images: incomingImages,
 		latitude,
 		longitude,
 		placeId,
@@ -816,14 +820,19 @@ export const createListing = asyncHandler(async (req, res) => {
 		});
 	}
 
-	// Upload images to Cloudflare R2
-	let images = [];
+	// Accept pre-uploaded R2 URLs from JSON body and/or multipart image files.
+	const bodyImages = normalizeIncomingImages(incomingImages);
+	let images = [...bodyImages];
 	if (req.files?.length) {
 		const uploaded = await Promise.all(
 			req.files.map((file) => uploadToR2(file, "dealpost/listings")),
 		);
-		images = uploaded;
+		images = [...images, ...uploaded];
 	}
+	images = images.filter(
+		(item, index, arr) =>
+			arr.findIndex((candidate) => candidate?.url === item?.url) === index,
+	);
 
 	const boost = false;
 	const parsedLatitude = toFiniteNumber(latitude);
@@ -981,6 +990,7 @@ export const updateListing = asyncHandler(async (req, res) => {
 		placeId,
 		condition,
 		specs,
+		images: incomingImages,
 		status,
 	} = req.body;
 
@@ -1131,11 +1141,17 @@ export const updateListing = asyncHandler(async (req, res) => {
 		}
 	}
 
+	const bodyImages = normalizeIncomingImages(incomingImages);
 	if (req.files?.length) {
 		const uploaded = await Promise.all(
 			req.files.map((file) => uploadToR2(file, "dealpost/listings")),
 		);
-		listing.images = uploaded;
+		listing.images = [...bodyImages, ...uploaded].filter(
+			(item, index, arr) =>
+				arr.findIndex((candidate) => candidate?.url === item?.url) === index,
+		);
+	} else if (incomingImages !== undefined) {
+		listing.images = bodyImages;
 	}
 
 	if (isAuctionListing) {

@@ -1,7 +1,7 @@
-﻿import { ImagePlus, MapPin, Rocket } from "lucide-react";
+import { ImagePlus, MapPin, Rocket } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
@@ -43,90 +43,6 @@ const SPEC_TEMPLATES = [
 		],
 	},
 	{
-		match: "Electronics > TV & Home Appliances",
-		fields: [
-			"Brand",
-			"Model",
-			"Type",
-			"Capacity",
-			"Power",
-			"Energy Rating",
-			"Age",
-			"Condition",
-		],
-	},
-	{
-		match: "Electronics > Audio-Visual (AV) Equipment",
-		fields: [
-			"Brand",
-			"Model",
-			"Type",
-			"Resolution/Output",
-			"Connectivity",
-			"Accessories Included",
-			"Usage",
-			"Condition",
-		],
-	},
-	{
-		match: "Fashion & Beauty",
-		fields: [
-			"Brand",
-			"Category",
-			"Size",
-			"Color",
-			"Material",
-			"Condition",
-			"Authenticity",
-		],
-	},
-	{
-		match: "Sports",
-		fields: [
-			"Brand",
-			"Type",
-			"Sport",
-			"Size",
-			"Material",
-			"Usage",
-			"Condition",
-		],
-	},
-	{
-		match: "Pet Supplies",
-		fields: [
-			"Category",
-			"Pet Type",
-			"Brand",
-			"Age/Stage",
-			"Quantity",
-			"Expiry",
-			"Condition",
-		],
-	},
-	{
-		match: "Food & Drinks",
-		fields: [
-			"Category",
-			"Brand/Outlet",
-			"Net Quantity",
-			"Package Type",
-			"Expiry Date",
-			"Delivery/Pickup",
-		],
-	},
-	{
-		match: "Health & Wellness",
-		fields: [
-			"Category",
-			"Brand",
-			"Usage",
-			"Package Size",
-			"Expiry Date",
-			"Condition",
-		],
-	},
-	{
 		match: "Vehicles",
 		fields: [
 			"Brand",
@@ -136,61 +52,6 @@ const SPEC_TEMPLATES = [
 			"Transmission",
 			"Mileage",
 			"Ownership",
-			"Condition",
-		],
-	},
-	{
-		match: "Property",
-		fields: [
-			"Property Type",
-			"Size",
-			"Bedrooms",
-			"Bathrooms",
-			"Furnishing",
-			"Parking",
-			"Availability",
-		],
-	},
-	{
-		match: "Hospitals & Clinics",
-		fields: [
-			"Service Type",
-			"Specialization",
-			"Location",
-			"Consultation Type",
-			"Timings",
-			"Experience",
-		],
-	},
-	{
-		match: "Services",
-		fields: [
-			"Service Type",
-			"Coverage Area",
-			"Availability",
-			"Experience",
-			"Turnaround Time",
-			"Pricing Model",
-		],
-	},
-	{
-		match: "Funeral Services",
-		fields: [
-			"Service Type",
-			"Coverage Area",
-			"Availability",
-			"Response Time",
-			"Contact Person",
-		],
-	},
-	{
-		match: "Miscellaneous / Other (Extracted from middle/back)",
-		fields: [
-			"Category",
-			"Brand/Provider",
-			"Type",
-			"Size/Capacity",
-			"Usage",
 			"Condition",
 		],
 	},
@@ -230,24 +91,15 @@ function getCuratedSpecFields(parentCategory, subCategory) {
 	];
 }
 
-export default function PostAd({ variant = "personal" }) {
+export default function EditListing() {
+	const { id } = useParams();
 	const navigate = useNavigate();
-	const { user, setCurrentUser } = useAuth();
-	const isBusinessFlow = variant === "business";
-	const pageTitle = isBusinessFlow
-		? "Register Business Listing"
-		: "Start Listing";
-	const pageSubtitle = isBusinessFlow
-		? "Launch your storefront inventory with verified business details."
-		: "Transform your items into opportunities.";
-	const submitLabel = isBusinessFlow ? "Post Business Deal" : "Post Deal";
-	const premiumTitle = isBusinessFlow ? "Boost Business Reach?" : "Go Premium?";
-	const premiumDescription = isBusinessFlow
-		? "Highlight your business listing in local search and category feeds for 7 days."
-		: "Boost your ad to top of Trending for 7 days.";
+	const { user } = useAuth();
 	const [submitting, setSubmitting] = useState(false);
+	const [loading, setLoading] = useState(true);
 	const [categories, setCategories] = useState([]);
 	const [files, setFiles] = useState([null, null, null]);
+	const [existingImages, setExistingImages] = useState([]);
 	const [mapsReady, setMapsReady] = useState(false);
 	const [mapsFailed, setMapsFailed] = useState(false);
 	const [fallbackQuery, setFallbackQuery] = useState("");
@@ -263,9 +115,6 @@ export default function PostAd({ variant = "personal" }) {
 	const [curatedSpecs, setCuratedSpecs] = useState({});
 	const [form, setForm] = useState({
 		title: "",
-		gstOrMsme: "",
-		verifiedBusinessName: "",
-		verifiedBusinessAddress: "",
 		listingType: "fixed",
 		parentCategory: "",
 		subCategory: "",
@@ -279,37 +128,69 @@ export default function PostAd({ variant = "personal" }) {
 		latitude: "",
 		longitude: "",
 		placeId: "",
-		premiumBoost: false,
 	});
 
-	const needsBusinessVerification = useMemo(() => {
-		if (!isBusinessFlow) return false;
-		const role = String(user?.accountType || "").toLowerCase();
-		const missingBusinessName = !String(user?.businessName || "").trim();
-		const missingGst = !String(user?.gstOrMsme || "").trim();
-		const missingAddress = !String(user?.location || "").trim();
-		return (
-			role !== "business" || missingBusinessName || missingGst || missingAddress
-		);
-	}, [
-		isBusinessFlow,
-		user?.accountType,
-		user?.businessName,
-		user?.gstOrMsme,
-		user?.location,
-	]);
-
+	// Fetch listing data
 	useEffect(() => {
-		if (!isBusinessFlow) return;
-		setForm((prev) => ({
-			...prev,
-			gstOrMsme: prev.gstOrMsme || user?.gstOrMsme || "",
-			verifiedBusinessName:
-				prev.verifiedBusinessName || user?.businessName || "",
-			verifiedBusinessAddress:
-				prev.verifiedBusinessAddress || user?.location || "",
-		}));
-	}, [isBusinessFlow, user?.businessName, user?.gstOrMsme, user?.location]);
+		const fetchListing = async () => {
+			try {
+				setLoading(true);
+				const { data } = await api.get(`/listings/${id}`);
+				const listing = data?.listing || data;
+
+				const locationObj = listing?.location || {};
+				const locationName =
+					typeof locationObj === "string"
+						? locationObj
+						: locationObj?.name || "";
+				const lat = typeof locationObj === "object" ? locationObj?.lat : null;
+				const lng = typeof locationObj === "object" ? locationObj?.lng : null;
+
+				setForm({
+					title: listing?.title || "",
+					listingType: listing?.listingType || "fixed",
+					parentCategory: listing?.parentCategory || "",
+					subCategory: listing?.subCategory || "",
+					price: String(listing?.price || ""),
+					startingBid: String(listing?.startingBid || ""),
+					auctionEndsAt: listing?.auctionEndsAt
+						? new Date(listing.auctionEndsAt).toISOString().slice(0, 16)
+						: "",
+					description: listing?.description || "",
+					specifications: "",
+					additionalNotes: listing?.additionalNotes || "",
+					address: locationName,
+					latitude: lat != null ? String(lat) : "",
+					longitude: lng != null ? String(lng) : "",
+					placeId: locationObj?.placeId || "",
+				});
+
+				// Set existing specs as curated specs
+				const specs = listing?.specs || {};
+				if (typeof specs === "object" && !Array.isArray(specs)) {
+					setCuratedSpecs(specs);
+				}
+
+				// Set existing images
+				const images = Array.isArray(listing?.images)
+					? listing.images
+							.map((img) => ({
+								url: img?.url || (typeof img === "string" ? img : null),
+								public_id: img?.public_id || "",
+							}))
+							.filter((img) => img.url)
+					: [];
+				setExistingImages(images);
+			} catch {
+				toast.error("Could not load listing for editing");
+				navigate("/my-listings");
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchListing();
+	}, [id, navigate]);
 
 	useEffect(() => {
 		const nextPreviews = files.map((file) =>
@@ -369,121 +250,6 @@ export default function PostAd({ variant = "personal" }) {
 			},
 		});
 	}, [mapsReady]);
-
-	useEffect(() => {
-		if (!mapsReady || !mapPreviewRef.current || !window.google?.maps) {
-			return;
-		}
-
-		const latitude = Number(form.latitude);
-		const longitude = Number(form.longitude);
-		const hasCoords = Number.isFinite(latitude) && Number.isFinite(longitude);
-		const center = hasCoords
-			? { lat: latitude, lng: longitude }
-			: DEFAULT_PREVIEW_COORDS;
-
-		if (!mapInstanceRef.current) {
-			mapInstanceRef.current = new window.google.maps.Map(
-				mapPreviewRef.current,
-				{
-					center,
-					zoom: hasCoords ? 15 : 11,
-					mapTypeControl: false,
-					streetViewControl: false,
-					fullscreenControl: false,
-				},
-			);
-			mapGeocoderRef.current = new window.google.maps.Geocoder();
-		}
-
-		const applyPinnedLocation = (lat, lng) => {
-			const geocoder = mapGeocoderRef.current;
-			if (!geocoder) {
-				setForm((prev) => ({
-					...prev,
-					address: prev.address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-					latitude: String(lat),
-					longitude: String(lng),
-					placeId: prev.placeId || "",
-				}));
-				return;
-			}
-
-			geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-				if (status === "OK" && results?.length) {
-					const best = results[0];
-					setForm((prev) => ({
-						...prev,
-						address:
-							best.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-						latitude: String(lat),
-						longitude: String(lng),
-						placeId: best.place_id || "",
-					}));
-					return;
-				}
-
-				setForm((prev) => ({
-					...prev,
-					address: prev.address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-					latitude: String(lat),
-					longitude: String(lng),
-					placeId: prev.placeId || "",
-				}));
-			});
-		};
-
-		if (!mapListenersBoundRef.current) {
-			mapInstanceRef.current.addListener("click", (event) => {
-				const lat = event?.latLng?.lat?.();
-				const lng = event?.latLng?.lng?.();
-				if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-				const position = { lat, lng };
-				if (!mapMarkerRef.current) {
-					mapMarkerRef.current = new window.google.maps.Marker({
-						position,
-						map: mapInstanceRef.current,
-						draggable: true,
-					});
-					mapMarkerRef.current.addListener("dragend", (dragEvent) => {
-						const dragLat = dragEvent?.latLng?.lat?.();
-						const dragLng = dragEvent?.latLng?.lng?.();
-						if (!Number.isFinite(dragLat) || !Number.isFinite(dragLng)) return;
-						applyPinnedLocation(dragLat, dragLng);
-					});
-				} else {
-					mapMarkerRef.current.setPosition(position);
-				}
-
-				mapInstanceRef.current.setCenter(position);
-				mapInstanceRef.current.setZoom(15);
-				applyPinnedLocation(lat, lng);
-			});
-			mapListenersBoundRef.current = true;
-		}
-
-		if (hasCoords) {
-			const nextPos = { lat: latitude, lng: longitude };
-			if (!mapMarkerRef.current) {
-				mapMarkerRef.current = new window.google.maps.Marker({
-					position: nextPos,
-					map: mapInstanceRef.current,
-					draggable: true,
-				});
-				mapMarkerRef.current.addListener("dragend", (dragEvent) => {
-					const dragLat = dragEvent?.latLng?.lat?.();
-					const dragLng = dragEvent?.latLng?.lng?.();
-					if (!Number.isFinite(dragLat) || !Number.isFinite(dragLng)) return;
-					applyPinnedLocation(dragLat, dragLng);
-				});
-			} else {
-				mapMarkerRef.current.setPosition(nextPos);
-			}
-			mapInstanceRef.current.setCenter(nextPos);
-			mapInstanceRef.current.setZoom(15);
-		}
-	}, [mapsReady, form.latitude, form.longitude]);
 
 	useEffect(() => {
 		if (!mapsFailed) {
@@ -603,16 +369,6 @@ export default function PostAd({ variant = "personal" }) {
 		[form.parentCategory, form.subCategory],
 	);
 
-	useEffect(() => {
-		setCuratedSpecs((prev) => {
-			const next = {};
-			for (const field of curatedSpecFields) {
-				next[field] = prev[field] || "";
-			}
-			return next;
-		});
-	}, [curatedSpecFields]);
-
 	const onFileChange = (index, file) => {
 		if (!file) return;
 		setFiles((prev) => {
@@ -693,36 +449,11 @@ export default function PostAd({ variant = "personal" }) {
 			if (!form.auctionEndsAt) {
 				return toast.error("Please set auction end date and time");
 			}
-			if (new Date(form.auctionEndsAt).getTime() <= Date.now()) {
-				return toast.error("Auction end date/time must be in the future");
-			}
 		} else if (!form.price || Number(form.price) <= 0) {
 			return toast.error("Please add a valid price");
 		}
-		const hasCuratedSpecs = Object.values(curatedSpecs).some((value) =>
-			String(value || "").trim(),
-		);
-		const hasAdditionalSpecs = String(form.specifications || "").trim();
-		if (!hasCuratedSpecs && !hasAdditionalSpecs) {
-			return toast.error("Please add at least one specification");
-		}
 		if (!form.description.trim()) return toast.error("Description is required");
-		if (isBusinessFlow && !form.gstOrMsme.trim()) {
-			return toast.error("GST/MSME number is required for business listing");
-		}
-		if (isBusinessFlow && !form.verifiedBusinessName.trim()) {
-			return toast.error("Verified business name is required");
-		}
-		if (isBusinessFlow && !form.verifiedBusinessAddress.trim()) {
-			return toast.error("Verified business address is required");
-		}
 		if (!form.address.trim()) return toast.error("Pickup location is required");
-		if (!form.latitude || !form.longitude) {
-			return toast.error(
-				"Please choose a valid location from suggestions or pin it on map",
-			);
-		}
-		if (!files[0]) return toast.error("Please add a hero image");
 
 		try {
 			setSubmitting(true);
@@ -751,27 +482,27 @@ export default function PostAd({ variant = "personal" }) {
 				...customSpecsObject,
 			};
 
-			if (isBusinessFlow) {
-				const businessProfilePayload = {
-					accountType: "business",
-					gstOrMsme: form.gstOrMsme.trim(),
-					businessName: form.verifiedBusinessName.trim(),
-					location: form.verifiedBusinessAddress.trim(),
-				};
-
-				const { data: profileData } = await api.put(
-					"/users/me",
-					businessProfilePayload,
+			// Upload any new files
+			const selectedFiles = files.filter(Boolean);
+			let uploadedImages = [];
+			if (selectedFiles.length) {
+				uploadedImages = await Promise.all(
+					selectedFiles.map((file) => uploadCompressedImageToR2(file)),
 				);
-				if (profileData?.user) {
-					setCurrentUser(profileData.user);
-				}
 			}
 
-			const selectedFiles = files.filter(Boolean);
-			const uploadedImages = await Promise.all(
-				selectedFiles.map((file) => uploadCompressedImageToR2(file)),
-			);
+			// Merge with existing images (new uploads replace existing at same index)
+			const finalImages = [...existingImages];
+			files.forEach((file, index) => {
+				if (file && uploadedImages.length) {
+					const uploaded = uploadedImages.shift();
+					if (uploaded) finalImages[index] = uploaded;
+				}
+			});
+			// Add remaining uploaded images at end
+			for (const uploaded of uploadedImages) {
+				finalImages.push(uploaded);
+			}
 
 			const payload = {
 				title: form.title,
@@ -792,18 +523,14 @@ export default function PostAd({ variant = "personal" }) {
 				latitude: form.latitude,
 				longitude: form.longitude,
 				...(form.placeId ? { placeId: form.placeId } : {}),
-				...(isBusinessFlow && form.gstOrMsme.trim()
-					? { gstOrMsme: form.gstOrMsme.trim() }
-					: {}),
-				premiumBoost: form.premiumBoost,
-				images: uploadedImages,
+				images: finalImages.filter((img) => img?.url),
 			};
 
-			const { data } = await api.post("/listings", payload);
-			toast.success("Listing published");
-			navigate(`/listing/${data?.listing?._id || data?.listing?.id || ""}`);
+			const { data } = await api.put(`/listings/${id}`, payload);
+			toast.success("Listing updated successfully");
+			navigate(`/listing/${data?.listing?._id || data?.listing?.id || id}`);
 		} catch (error) {
-			toast.error(error?.response?.data?.message || "Unable to publish ad");
+			toast.error(error?.response?.data?.message || "Unable to update listing");
 		} finally {
 			setSubmitting(false);
 		}
@@ -815,13 +542,30 @@ export default function PostAd({ variant = "personal" }) {
 	const previewLng = Number.isFinite(lng) ? lng : DEFAULT_PREVIEW_COORDS.lng;
 	const mapEmbedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(`${previewLat},${previewLng}`)}&z=${Number.isFinite(lat) && Number.isFinite(lng) ? 15 : 11}&output=embed`;
 
+	if (loading) {
+		return (
+			<div className="min-h-screen bg-brand-bg flex flex-col">
+				<Navbar />
+				<main id="main-content" className="container-shell py-6 flex-1">
+					<div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+						<div className="h-[600px] animate-pulse rounded-3xl bg-white" />
+						<div className="h-[400px] animate-pulse rounded-3xl bg-white" />
+					</div>
+				</main>
+				<Footer />
+			</div>
+		);
+	}
+
 	return (
 		<div className="min-h-screen bg-brand-bg flex flex-col">
 			<Navbar />
 
 			<main id="main-content" className="container-shell py-6 flex-1">
-				<h1 className="text-5xl font-display font-bold">{pageTitle}</h1>
-				<p className="mt-2 text-brand-muted">{pageSubtitle}</p>
+				<h1 className="text-5xl font-display font-bold">Edit Listing</h1>
+				<p className="mt-2 text-brand-muted">
+					Update your listing details below.
+				</p>
 
 				<form
 					className="mt-6 grid gap-5 lg:grid-cols-[1.4fr_1fr]"
@@ -834,37 +578,43 @@ export default function PostAd({ variant = "personal" }) {
 							</h2>
 
 							<div className="mt-5 grid grid-cols-3 gap-3">
-								{files.map((file, index) => (
-									<label
-										key={index}
-										className={`relative flex h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed ${
-											index === 0 ? "col-span-3 sm:col-span-1 sm:h-44" : "h-32"
-										} border-[#decf98] bg-[#faf8ef] text-brand-muted`}
-									>
-										<input
-											type="file"
-											className="hidden"
-											accept="image/*"
-											onChange={(event) =>
-												onFileChange(index, event.target.files?.[0])
-											}
-										/>
-										{previews[index] ? (
-											<img
-												src={previews[index]}
-												alt="Upload preview"
-												className="absolute inset-0 h-full w-full rounded-2xl object-cover"
+								{[0, 1, 2].map((index) => {
+									const previewUrl =
+										previews[index] || existingImages[index]?.url || null;
+									return (
+										<label
+											key={index}
+											className={`relative flex h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed ${
+												index === 0
+													? "col-span-3 sm:col-span-1 sm:h-44"
+													: "h-32"
+											} border-[#decf98] bg-[#faf8ef] text-brand-muted`}
+										>
+											<input
+												type="file"
+												className="hidden"
+												accept="image/*"
+												onChange={(event) =>
+													onFileChange(index, event.target.files?.[0])
+												}
 											/>
-										) : (
-											<>
-												<ImagePlus size={20} />
-												<span className="mt-2 text-xs">
-													{index === 0 ? "Add Hero Image" : "Add Image"}
-												</span>
-											</>
-										)}
-									</label>
-								))}
+											{previewUrl ? (
+												<img
+													src={previewUrl}
+													alt="Upload preview"
+													className="absolute inset-0 h-full w-full rounded-2xl object-cover"
+												/>
+											) : (
+												<>
+													<ImagePlus size={20} />
+													<span className="mt-2 text-xs">
+														{index === 0 ? "Add Hero Image" : "Add Image"}
+													</span>
+												</>
+											)}
+										</label>
+									);
+								})}
 							</div>
 						</article>
 
@@ -875,82 +625,24 @@ export default function PostAd({ variant = "personal" }) {
 
 							<div className="mt-5 space-y-4">
 								<FormField
-									id="postad-title"
+									id="edit-title"
 									name="title"
 									label="Ad Title"
 									required
 									value={form.title}
 									onChange={(event) =>
-										setForm((prev) => ({ ...prev, title: event.target.value }))
+										setForm((prev) => ({
+											...prev,
+											title: event.target.value,
+										}))
 									}
 									placeholder="Ad title"
 									inputClassName="input-shell bg-brand-bg"
 								/>
-								{isBusinessFlow ? (
-									<div className="space-y-3 rounded-2xl border border-[#E7D89F] bg-[#FFF9E5] p-4">
-										<p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8B7322]">
-											Business Verification
-										</p>
-										{needsBusinessVerification ? (
-											<p className="text-xs text-[#7B6A26]">
-												Complete this once for your first business listing.
-											</p>
-										) : (
-											<p className="text-xs text-[#7B6A26]">
-												Your verified business profile will be used for this
-												listing.
-											</p>
-										)}
 
-										<FormField
-											id="postad-gst"
-											name="gstOrMsme"
-											label="GST / MSME Number"
-											value={form.gstOrMsme}
-											onChange={(event) =>
-												setForm((prev) => ({
-													...prev,
-													gstOrMsme: event.target.value,
-												}))
-											}
-											placeholder="GST / MSME Number"
-											inputClassName="input-shell bg-brand-bg"
-										/>
-										<FormField
-											id="postad-business-name"
-											name="verifiedBusinessName"
-											label="Verified Business Name"
-											required
-											value={form.verifiedBusinessName}
-											onChange={(event) =>
-												setForm((prev) => ({
-													...prev,
-													verifiedBusinessName: event.target.value,
-												}))
-											}
-											placeholder="Verified Business Name"
-											inputClassName="input-shell bg-brand-bg"
-										/>
-										<FormField
-											id="postad-business-address"
-											name="verifiedBusinessAddress"
-											label="Verified Business Address"
-											required
-											value={form.verifiedBusinessAddress}
-											onChange={(event) =>
-												setForm((prev) => ({
-													...prev,
-													verifiedBusinessAddress: event.target.value,
-												}))
-											}
-											placeholder="Verified Business Address"
-											inputClassName="input-shell bg-brand-bg"
-										/>
-									</div>
-								) : null}
 								<div className="grid gap-3 sm:grid-cols-3">
 									<FormField
-										id="postad-listing-type"
+										id="edit-listing-type"
 										as="select"
 										label="Listing Type"
 										value={form.listingType}
@@ -962,12 +654,12 @@ export default function PostAd({ variant = "personal" }) {
 										}
 										inputClassName="input-shell bg-brand-bg"
 									>
-										<option value="fixed">Price Mode</option>
+										<option value="fixed">Fixed Price</option>
 										<option value="auction">Auction</option>
 									</FormField>
 
 									<FormField
-										id="postad-parent-category"
+										id="edit-parent-category"
 										as="select"
 										label="Parent Category"
 										required
@@ -990,7 +682,7 @@ export default function PostAd({ variant = "personal" }) {
 									</FormField>
 
 									<FormField
-										id="postad-sub-category"
+										id="edit-sub-category"
 										as="select"
 										label="Subcategory"
 										value={form.subCategory}
@@ -1018,7 +710,7 @@ export default function PostAd({ variant = "personal" }) {
 									{form.listingType === "auction" ? (
 										<>
 											<FormField
-												id="postad-starting-bid"
+												id="edit-starting-bid"
 												name="startingBid"
 												label="Starting Bid"
 												type="number"
@@ -1034,7 +726,7 @@ export default function PostAd({ variant = "personal" }) {
 												inputClassName="input-shell bg-brand-bg"
 											/>
 											<FormField
-												id="postad-auction-end"
+												id="edit-auction-end"
 												name="auctionEndsAt"
 												label="Auction End"
 												type="datetime-local"
@@ -1051,7 +743,7 @@ export default function PostAd({ variant = "personal" }) {
 										</>
 									) : (
 										<FormField
-											id="postad-price"
+											id="edit-price"
 											name="price"
 											label="Price"
 											type="number"
@@ -1070,7 +762,7 @@ export default function PostAd({ variant = "personal" }) {
 								</div>
 
 								<FormField
-									id="postad-description"
+									id="edit-description"
 									as="textarea"
 									name="description"
 									label="Description"
@@ -1088,10 +780,10 @@ export default function PostAd({ variant = "personal" }) {
 
 								<div className="rounded-2xl border border-[#E6D9A7] bg-[#FFF9E5] p-4">
 									<p className="text-xs font-bold uppercase tracking-[0.12em] text-[#8B7322]">
-										Curated Specifications
+										Specifications
 									</p>
 									<p className="mt-1 text-xs text-[#7B6A26]">
-										Auto-suggested fields based on category. Fill what applies.
+										Update specifications for this listing.
 									</p>
 									<div className="mt-3 grid gap-3 sm:grid-cols-2">
 										{curatedSpecFields.map((field) => (
@@ -1108,27 +800,30 @@ export default function PostAd({ variant = "personal" }) {
 												className="input-shell"
 											/>
 										))}
+										{/* Show existing specs that aren't in curated list */}
+										{Object.entries(curatedSpecs)
+											.filter(
+												([key]) => !curatedSpecFields.includes(key),
+											)
+											.map(([key]) => (
+												<input
+													key={key}
+													value={curatedSpecs[key] || ""}
+													onChange={(event) =>
+														setCuratedSpecs((prev) => ({
+															...prev,
+															[key]: event.target.value,
+														}))
+													}
+													placeholder={key}
+													className="input-shell"
+												/>
+											))}
 									</div>
 								</div>
 
 								<FormField
-									id="postad-specifications"
-									as="textarea"
-									name="specifications"
-									label="Additional Custom Specs"
-									value={form.specifications}
-									onChange={(event) =>
-										setForm((prev) => ({
-											...prev,
-											specifications: event.target.value,
-										}))
-									}
-									placeholder="Additional custom specs (optional, one per line):&#10;Battery Replaced: No&#10;Invoice Available: Yes"
-									inputClassName="min-h-28 bg-brand-bg"
-								/>
-
-								<FormField
-									id="postad-additional-notes"
+									id="edit-additional-notes"
 									as="textarea"
 									name="additionalNotes"
 									label="Additional Notes"
@@ -1153,7 +848,7 @@ export default function PostAd({ variant = "personal" }) {
 								className="mt-6 h-14 w-full rounded-2xl text-sm"
 							>
 								<Rocket size={16} className="mr-2" />{" "}
-								{submitting ? "Publishing..." : submitLabel}
+								{submitting ? "Updating..." : "Update Listing"}
 							</Button>
 						</article>
 					</section>
@@ -1165,11 +860,14 @@ export default function PostAd({ variant = "personal" }) {
 							</h2>
 							<div className="mt-4 rounded-2xl border border-brand-border bg-white p-2">
 								{mapsReady ? (
-									<div ref={autocompleteContainerRef} className="w-full" />
+									<div
+										ref={autocompleteContainerRef}
+										className="w-full"
+									/>
 								) : (
 									<div className="space-y-2 px-1 py-1">
 										<input
-											value={fallbackQuery}
+											value={fallbackQuery || form.address}
 											onChange={(event) => {
 												setFallbackQuery(event.target.value);
 												setForm((prev) => ({
@@ -1183,9 +881,6 @@ export default function PostAd({ variant = "personal" }) {
 											placeholder="Search location"
 											className="input-shell"
 										/>
-										{mapsFailed ? (
-											<p className="px-1 text-xs text-brand-muted"></p>
-										) : null}
 										{fallbackSearching ? (
 											<div className="px-1 text-xs text-brand-muted">
 												Searching...
@@ -1217,9 +912,7 @@ export default function PostAd({ variant = "personal" }) {
 								</div>
 							) : null}
 							<div className="mt-3 overflow-hidden rounded-2xl border border-brand-border bg-white">
-								{mapsReady ? (
-									<div ref={mapPreviewRef} className="h-56 w-full" />
-								) : mapEmbedUrl ? (
+								{mapEmbedUrl ? (
 									<iframe
 										title="Selected pickup location preview"
 										src={mapEmbedUrl}
@@ -1233,35 +926,6 @@ export default function PostAd({ variant = "personal" }) {
 									</div>
 								)}
 							</div>
-							<p className="mt-2 text-xs text-brand-muted">
-								Click anywhere on map to pin pickup location. You can drag the
-								pin to fine-tune.
-							</p>
-						</article>
-
-						<article className="rounded-3xl bg-[#2b2b2b] p-5 text-white">
-							<h3 className="text-2xl font-display font-bold">
-								{premiumTitle}
-							</h3>
-							<p className="mt-1 text-sm text-white/70">{premiumDescription}</p>
-
-							<label className="mt-4 flex items-center justify-between rounded-xl border border-white/20 bg-white/5 p-3">
-								<span className="inline-flex items-center gap-2 text-sm">
-									<Rocket size={14} className="text-brand-yellow" /> DealPost
-									Boost
-								</span>
-								<span className="font-mono text-brand-yellow">+ ₹599</span>
-								<input
-									type="checkbox"
-									checked={form.premiumBoost}
-									onChange={(event) =>
-										setForm((prev) => ({
-											...prev,
-											premiumBoost: event.target.checked,
-										}))
-									}
-								/>
-							</label>
 						</article>
 					</section>
 				</form>

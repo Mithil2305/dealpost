@@ -140,9 +140,11 @@ function LocationPicker({
 	);
 }
 
-export default function Navbar({ search = "", onSearchChange }) {
+export default function Navbar({ search: externalSearch = "", onSearchChange }) {
 	const { user, setCurrentUser, isAuthenticated, logout } = useAuth();
 	const navigate = useNavigate();
+	const [internalSearch, setInternalSearch] = useState("");
+	const search = onSearchChange ? externalSearch : internalSearch;
 	const [unreadCount, setUnreadCount] = useState(0);
 	const [recentConversations, setRecentConversations] = useState([]);
 	const [recentAlerts, setRecentAlerts] = useState([]);
@@ -493,8 +495,6 @@ export default function Navbar({ search = "", onSearchChange }) {
 
 	/* ── Search suggestions ── */
 	useEffect(() => {
-		if (!onSearchChange) return;
-
 		const keyword = String(search || "").trim();
 		if (keyword.length < 2) {
 			setSearchSuggestions([]);
@@ -522,7 +522,7 @@ export default function Navbar({ search = "", onSearchChange }) {
 		}, 250);
 
 		return () => window.clearTimeout(timeoutId);
-	}, [isSearchFocused, onSearchChange, search]);
+	}, [isSearchFocused, search]);
 
 	/* ── Persist location ── */
 	const persistLocation = async (afterSave) => {
@@ -650,7 +650,11 @@ export default function Navbar({ search = "", onSearchChange }) {
 	};
 
 	const onSearchInputChange = (value) => {
-		onSearchChange?.(value);
+		if (onSearchChange) {
+			onSearchChange(value);
+		} else {
+			setInternalSearch(value);
+		}
 		setIsSearchFocused(true);
 		setActiveSuggestionIndex(-1);
 		if (String(value || "").trim().length < 2) {

@@ -79,8 +79,8 @@ app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use("/api", apiLimiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
-app.use(express.json({ limit: "100kb" }));
-app.use(express.urlencoded({ extended: true, limit: "100kb" }));
+app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ extended: true, limit: "5mb" }));
 
 app.get("/api/health", (req, res) => {
 	res.json({ ok: true });

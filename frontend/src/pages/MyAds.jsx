@@ -1,6 +1,7 @@
 import { Check, Pencil, RotateCw, Search, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
@@ -53,6 +54,7 @@ const getLocationLabel = (value) => {
 };
 
 export default function MyAds() {
+	const navigate = useNavigate();
 	const [tab, setTab] = useState("all");
 	const [search, setSearch] = useState("");
 	const [page, setPage] = useState(1);
@@ -227,7 +229,8 @@ export default function MyAds() {
 											<div className="mt-4 flex items-center gap-2 border-t border-[#ececec] pt-3">
 												<button
 													type="button"
-													className="inline-flex h-9 items-center gap-1 rounded-full border border-[#E2E2E2] px-3 text-xs text-[#374151]"
+													onClick={() => navigate(`/edit-listing/${id}`)}
+													className="inline-flex h-9 items-center gap-1 rounded-full border border-[#E2E2E2] px-3 text-xs text-[#374151] hover:bg-[#f6f6f6] transition"
 												>
 													<Pencil size={12} /> Edit
 												</button>
@@ -236,7 +239,7 @@ export default function MyAds() {
 													<button
 														type="button"
 														onClick={() => updateStatus(id, "active")}
-														className="inline-flex h-9 items-center gap-1 rounded-full border border-[#E2E2E2] px-3 text-xs text-[#374151]"
+														className="inline-flex h-9 items-center gap-1 rounded-full border border-[#E2E2E2] px-3 text-xs text-[#374151] hover:bg-[#f6f6f6] transition"
 													>
 														<RotateCw size={12} /> Re-List
 													</button>
@@ -244,9 +247,9 @@ export default function MyAds() {
 													<button
 														type="button"
 														onClick={() => updateStatus(id, "sold")}
-														className="inline-flex h-9 items-center gap-1 rounded-full bg-[#FFD600] px-3 text-xs font-semibold text-black"
+														className="inline-flex h-9 items-center gap-1 rounded-full border border-[#D9D9D9] bg-[#F8F8F8] px-3 text-xs font-semibold text-[#374151] hover:bg-[#EFEFEF] transition"
 													>
-														<Check size={12} /> Sold
+														<Check size={12} /> Mark as Sold
 													</button>
 												)}
 

@@ -29,12 +29,34 @@ function getTargetSize(width, height, maxWidth, maxHeight) {
 	};
 }
 
+let _webpSupported = null;
+function isWebpSupported() {
+	if (_webpSupported !== null) return _webpSupported;
+	try {
+		const canvas = document.createElement("canvas");
+		canvas.width = 1;
+		canvas.height = 1;
+		_webpSupported = canvas
+			.toDataURL("image/webp")
+			.startsWith("data:image/webp");
+	} catch {
+		_webpSupported = false;
+	}
+	return _webpSupported;
+}
+
 export async function compressImageFile(file, options = {}) {
 	if (!file || !String(file.type || "").startsWith("image/")) {
 		throw new Error("Only image files can be compressed");
 	}
 
 	const settings = { ...DEFAULT_OPTIONS, ...options };
+
+	// Fallback to JPEG if WebP is not supported by the browser
+	if (settings.outputType === "image/webp" && !isWebpSupported()) {
+		settings.outputType = "image/jpeg";
+	}
+
 	const image = await loadImage(file);
 	const { width, height } = getTargetSize(
 		image.width,
@@ -58,6 +80,21 @@ export async function compressImageFile(file, options = {}) {
 		canvas.toBlob(
 			(result) => {
 				if (!result) {
+					// If preferred format fails, try JPEG fallback
+					if (settings.outputType !== "image/jpeg") {
+						canvas.toBlob(
+							(jpegResult) => {
+								if (!jpegResult) {
+									reject(new Error("Image compression failed"));
+									return;
+								}
+								resolve(jpegResult);
+							},
+							"image/jpeg",
+							settings.quality,
+						);
+						return;
+					}
 					reject(new Error("Image compression failed"));
 					return;
 				}
@@ -70,9 +107,10 @@ export async function compressImageFile(file, options = {}) {
 
 	const sourceName = file.name || "image";
 	const baseName = sourceName.replace(/\.[^.]+$/, "") || "image";
-	const extension = settings.outputType === "image/webp" ? "webp" : "jpg";
+	const isWebp = blob.type === "image/webp";
+	const extension = isWebp ? "webp" : "jpg";
 	return new File([blob], `${baseName}.${extension}`, {
-		type: settings.outputType,
+		type: blob.type || settings.outputType,
 		lastModified: Date.now(),
 	});
 }

@@ -9,6 +9,7 @@ import Categories from "./pages/Categories.jsx";
 import BusinessListings from "./pages/BusinessListings.jsx";
 import BusinessPostAd from "./pages/BusinessPostAd.jsx";
 import PostAd from "./pages/PostAd.jsx";
+import EditListing from "./pages/EditListing.jsx";
 import MyAds from "./pages/MyAds.jsx";
 import Profile from "./pages/Profile.jsx";
 import Messages from "./pages/Messages.jsx";
@@ -51,6 +52,16 @@ function GuestOnlyRoute({ children }) {
 	return children;
 }
 
+function ScrollToTop() {
+	const { pathname } = useLocation();
+
+	useEffect(() => {
+		window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+	}, [pathname]);
+
+	return null;
+}
+
 function App() {
 	const location = useLocation();
 
@@ -63,6 +74,7 @@ function App() {
 
 	return (
 		<>
+			<ScrollToTop />
 			<SkipToMain />
 			<Routes>
 				<Route path="/" element={<Home />} />
@@ -109,6 +121,14 @@ function App() {
 					element={
 						<ProtectedRoute>
 							<PostAd />
+						</ProtectedRoute>
+					}
+				/>
+				<Route
+					path="/edit-listing/:id"
+					element={
+						<ProtectedRoute>
+							<EditListing />
 						</ProtectedRoute>
 					}
 				/>
