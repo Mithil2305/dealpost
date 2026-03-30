@@ -654,7 +654,7 @@ export default function EditListing() {
 										}
 										inputClassName="input-shell bg-brand-bg"
 									>
-										<option value="fixed">Fixed Price</option>
+										<option value="fixed">Price Mode</option>
 										<option value="auction">Auction</option>
 									</FormField>
 
