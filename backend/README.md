@@ -32,6 +32,12 @@ IMAGE_WEBP_QUALITY=75
 
 Uploaded images are resized and compressed to WebP before being stored in R2.
 
+4.1 Configure Google OAuth in `.env`:
+
+```bash
+GOOGLE_CLIENT_ID=your_google_oauth_client_id_here
+```
+
 5. Run server:
 
 ```bash
@@ -52,6 +58,7 @@ VITE_API_URL=http://localhost:5000/api
 
 - `POST /api/auth/register`
 - `POST /api/auth/login`
+- `POST /api/auth/google`
 - `GET /api/auth/me`
 - `GET /api/listings`
 - `POST /api/listings`

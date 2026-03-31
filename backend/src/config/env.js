@@ -47,6 +47,7 @@ export const env = {
 
 	// Google Maps (browser key should be restricted by referrer in Google Cloud)
 	GOOGLE_MAPS_BROWSER_API_KEY: process.env.GOOGLE_MAPS_BROWSER_API_KEY || "",
+	GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
 
 	// E2E message encryption — 64-char hex string (32 bytes)
 	// Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"

@@ -5,6 +5,9 @@ import { Toaster } from "react-hot-toast";
 import "./index.css";
 import App from "./App.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
+import { initGoogleAnalytics } from "./utils/analytics.js";
+
+initGoogleAnalytics();
 
 createRoot(document.getElementById("root")).render(
 	<StrictMode>

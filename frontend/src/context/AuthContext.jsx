@@ -53,6 +53,17 @@ export function AuthProvider({ children }) {
 		[persistSession],
 	);
 
+	const loginWithGoogle = useCallback(
+		async (payload) => {
+			const { data } = await api.post("/auth/google", payload);
+			const nextToken = data?.token;
+			if (!nextToken) throw new Error("Missing auth token in response");
+			persistSession(nextToken, data?.user);
+			return data;
+		},
+		[persistSession],
+	);
+
 	const logout = useCallback(() => {
 		clearSession();
 	}, [clearSession]);
@@ -68,11 +79,12 @@ export function AuthProvider({ children }) {
 			user,
 			signup,
 			login,
+			loginWithGoogle,
 			logout,
 			setCurrentUser,
 			isAuthenticated: Boolean(token),
 		}),
-		[login, logout, setCurrentUser, signup, token, user],
+		[login, loginWithGoogle, logout, setCurrentUser, signup, token, user],
 	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

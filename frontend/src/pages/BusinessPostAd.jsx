@@ -9,6 +9,7 @@ import {
 	Image as ImageIcon,
 	Store,
 	CheckCircle2,
+	X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
@@ -41,11 +42,17 @@ const getStoredLocationCoords = () => {
 	}
 };
 
+const MAX_UPLOAD_IMAGES = 6;
+const MAX_UPLOAD_SIZE_MB = 5;
+const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+
 export default function BusinessPostAd() {
 	const navigate = useNavigate();
 	const { setCurrentUser } = useAuth();
 	const [categories, setCategories] = useState([]);
 	const [files, setFiles] = useState([]);
+	const [previewUrls, setPreviewUrls] = useState([]);
+	const [isDragActive, setIsDragActive] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [showValidation, setShowValidation] = useState(false);
 
@@ -116,9 +123,76 @@ export default function BusinessPostAd() {
 		setFormData((prev) => ({ ...prev, [name]: value }));
 	};
 
+	useEffect(() => {
+		const urls = files.map((file) => URL.createObjectURL(file));
+		setPreviewUrls(urls);
+
+		return () => {
+			urls.forEach((url) => URL.revokeObjectURL(url));
+		};
+	}, [files]);
+
+	const addSelectedFiles = (incomingFiles) => {
+		const selected = Array.from(incomingFiles || []);
+		if (!selected.length) return;
+
+		const valid = [];
+		let invalidType = 0;
+		let invalidSize = 0;
+
+		selected.forEach((file) => {
+			if (!String(file?.type || "").startsWith("image/")) {
+				invalidType += 1;
+				return;
+			}
+
+			if (file.size > MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
+				invalidSize += 1;
+				return;
+			}
+
+			valid.push(file);
+		});
+
+		if (invalidType > 0) {
+			toast.error("Only image files are allowed");
+		}
+		if (invalidSize > 0) {
+			toast.error(`Each image must be up to ${MAX_UPLOAD_SIZE_MB}MB`);
+		}
+
+		if (!valid.length) return;
+
+		setFiles((prev) => {
+			const map = new Map();
+			[...prev, ...valid].forEach((file) => {
+				const key = `${file.name}-${file.size}-${file.lastModified}`;
+				if (!map.has(key)) {
+					map.set(key, file);
+				}
+			});
+
+			const next = Array.from(map.values()).slice(0, MAX_UPLOAD_IMAGES);
+			if (next.length === MAX_UPLOAD_IMAGES && map.size > MAX_UPLOAD_IMAGES) {
+				toast("You can upload up to 6 images");
+			}
+			return next;
+		});
+	};
+
 	const handleFileChange = (event) => {
-		const nextFiles = Array.from(event.target.files || []).slice(0, 6);
-		setFiles(nextFiles);
+		addSelectedFiles(event.target.files);
+		event.target.value = "";
+	};
+
+	const removeFileAt = (index) => {
+		setFiles((prev) => prev.filter((_, idx) => idx !== index));
+	};
+
+	const onDropFiles = (event) => {
+		event.preventDefault();
+		setIsDragActive(false);
+		addSelectedFiles(event.dataTransfer?.files);
 	};
 
 	const uploadCompressedImageToR2 = async (file) => {
@@ -172,6 +246,7 @@ export default function BusinessPostAd() {
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		setShowValidation(true);
+		const numericPrice = Number(formData.price);
 
 		if (!formData.businessName.trim()) {
 			return toast.error("Business name is required");
@@ -179,14 +254,27 @@ export default function BusinessPostAd() {
 		if (!formData.category.trim()) {
 			return toast.error("Business category is required");
 		}
+		const normalizedGstin = String(formData.gstin || "")
+			.trim()
+			.toUpperCase();
+		if (!normalizedGstin) {
+			return toast.error("GSTIN is required for business listings");
+		}
+		if (!GSTIN_REGEX.test(normalizedGstin)) {
+			return toast.error("Please enter a valid GSTIN (e.g., 22AAAAA0000A1Z5)");
+		}
 		if (!formData.adTitle.trim()) {
 			return toast.error("Ad title is required");
 		}
 		if (!formData.description.trim()) {
 			return toast.error("Description is required");
 		}
-		if (!formData.price || Number(formData.price) <= 0) {
-			return toast.error("Please provide a valid price");
+		if (
+			formData.price === "" ||
+			!Number.isFinite(numericPrice) ||
+			numericPrice < 0
+		) {
+			return toast.error("Please provide a valid price (0 or more)");
 		}
 		if (!formData.contactName.trim()) {
 			return toast.error("Contact person is required");
@@ -203,7 +291,7 @@ export default function BusinessPostAd() {
 
 			const profilePayload = {
 				accountType: "business",
-				gstOrMsme: formData.gstin.trim(),
+				gstOrMsme: normalizedGstin,
 				businessName: formData.businessName.trim(),
 				location: formData.address.trim(),
 			};
@@ -222,7 +310,7 @@ export default function BusinessPostAd() {
 			const payload = {
 				title: formData.adTitle.trim(),
 				description: formData.description.trim(),
-				price: Number(formData.price),
+				price: numericPrice,
 				category: formData.category.trim(),
 				address: formData.address.trim(),
 				latitude: formData.latitude || undefined,
@@ -308,11 +396,24 @@ export default function BusinessPostAd() {
 							<FormField
 								id="business-gstin"
 								name="gstin"
-								label="GSTIN / Registration Number (Optional)"
+								label="GSTIN"
+								required
 								value={formData.gstin}
 								onChange={handleChange}
 								placeholder="e.g. 22AAAAA0000A1Z5"
 								inputClassName="border border-[#E0E0E0] bg-[#FAFAFA] focus:bg-white"
+								error={
+									showValidation &&
+									(!String(formData.gstin || "").trim()
+										? "GSTIN is required"
+										: !GSTIN_REGEX.test(
+													String(formData.gstin || "")
+														.trim()
+														.toUpperCase(),
+											  )
+											? "Enter a valid GSTIN (e.g., 22AAAAA0000A1Z5)"
+											: "")
+								}
 							/>
 
 							<div className="sm:col-span-2">
@@ -411,12 +512,14 @@ export default function BusinessPostAd() {
 									/>
 								</div>
 								{showValidation &&
-								(!formData.price || Number(formData.price) <= 0) ? (
+								(formData.price === "" ||
+									!Number.isFinite(Number(formData.price)) ||
+									Number(formData.price) < 0) ? (
 									<p
 										className="mt-1.5 text-xs font-medium text-red-600"
 										role="alert"
 									>
-										Please provide a valid price
+										Please provide a valid price (0 or more)
 									</p>
 								) : null}
 								<p className="mt-1.5 text-xs text-[#888888]">
@@ -433,7 +536,19 @@ export default function BusinessPostAd() {
 							Product/Service Images
 						</h2>
 
-						<div className="flex justify-center rounded-xl border-2 border-dashed border-[#CCCCCC] bg-[#FAFAFA] px-6 py-12 hover:bg-[#F0F0F0]/50 transition cursor-pointer">
+						<div
+							onDrop={onDropFiles}
+							onDragOver={(event) => {
+								event.preventDefault();
+								setIsDragActive(true);
+							}}
+							onDragLeave={() => setIsDragActive(false)}
+							className={`flex justify-center rounded-xl border-2 border-dashed px-6 py-12 transition cursor-pointer ${
+								isDragActive
+									? "border-[#f5c518] bg-[#fff8df]"
+									: "border-[#CCCCCC] bg-[#FAFAFA] hover:bg-[#F0F0F0]/50"
+							}`}
+						>
 							<div className="text-center">
 								<ImageIcon size={40} className="mx-auto text-[#A3A3A3] mb-3" />
 								<div className="mt-4 flex text-sm leading-6 text-[#666666]">
@@ -444,17 +559,47 @@ export default function BusinessPostAd() {
 											multiple
 											className="sr-only"
 											accept="image/*"
+											disabled={submitting}
 											onChange={handleFileChange}
 										/>
 									</label>
 									<p className="pl-1">or drag and drop</p>
 								</div>
 								<p className="text-xs leading-5 text-[#888888] mt-2">
-									PNG, JPG, GIF up to 5MB. Include images of your storefront or
-									products.
+									PNG, JPG, WEBP, GIF up to 5MB. Max 6 images.
 								</p>
+								{files.length ? (
+									<p className="mt-2 text-xs font-semibold text-[#4b5563]">
+										{files.length} image{files.length > 1 ? "s" : ""} selected
+									</p>
+								) : null}
 							</div>
 						</div>
+
+						{previewUrls.length ? (
+							<div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+								{previewUrls.map((url, index) => (
+									<div
+										key={`${url}-${index}`}
+										className="group relative overflow-hidden rounded-xl border border-[#e5e7eb]"
+									>
+										<img
+											src={url}
+											alt={`Selected upload ${index + 1}`}
+											className="h-28 w-full object-cover"
+										/>
+										<button
+											type="button"
+											onClick={() => removeFileAt(index)}
+											className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-black"
+											aria-label={`Remove image ${index + 1}`}
+										>
+											<X size={14} />
+										</button>
+									</div>
+								))}
+							</div>
+						) : null}
 					</section>
 
 					{/* Section 4: Contact & Location */}

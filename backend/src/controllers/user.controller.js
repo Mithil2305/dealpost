@@ -2,6 +2,18 @@ import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToR2 } from "../utils/r2Upload.js";
 
+const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+
+function normalizeGstin(value) {
+	return String(value || "")
+		.trim()
+		.toUpperCase();
+}
+
+function isValidGstin(value) {
+	return GSTIN_REGEX.test(normalizeGstin(value));
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/users/:id  — public profile
 // ---------------------------------------------------------------------------
@@ -11,9 +23,10 @@ export const getUserProfile = asyncHandler(async (req, res) => {
 	const isOwner = requesterId > 0 && requesterId === targetId;
 	const isAdmin = ["admin", "developer"].includes(String(req.user?.role || ""));
 
-	const attributes = isOwner || isAdmin
-		? { exclude: ["password"] }
-		: ["id", "name", "avatar", "accountType", "businessName", "createdAt"];
+	const attributes =
+		isOwner || isAdmin
+			? { exclude: ["password"] }
+			: ["id", "name", "avatar", "accountType", "businessName", "createdAt"];
 
 	const user = await models.User.findByPk(req.params.id, {
 		attributes,
@@ -34,6 +47,11 @@ export const updateProfile = asyncHandler(async (req, res) => {
 	const { name, phone, location, accountType, businessName, gstOrMsme } =
 		req.body;
 
+	const nextAccountType =
+		accountType !== undefined
+			? String(accountType).toLowerCase()
+			: String(req.user.accountType || "personal").toLowerCase();
+
 	if (name !== undefined) {
 		if (String(name).trim().length < 2) {
 			return res
@@ -44,19 +62,20 @@ export const updateProfile = asyncHandler(async (req, res) => {
 	}
 
 	if (phone !== undefined) {
-		const normalizedPhone = String(phone || "").trim().slice(0, 20);
+		const normalizedPhone = String(phone || "")
+			.trim()
+			.slice(0, 20);
 		req.user.phone = normalizedPhone || null;
 	}
 	if (location !== undefined) req.user.location = location;
 
 	if (accountType !== undefined) {
-		const normalizedType = String(accountType).toLowerCase();
-		if (!["personal", "business"].includes(normalizedType)) {
+		if (!["personal", "business"].includes(nextAccountType)) {
 			return res
 				.status(400)
 				.json({ message: "accountType must be personal or business" });
 		}
-		req.user.accountType = normalizedType;
+		req.user.accountType = nextAccountType;
 	}
 
 	if (businessName !== undefined) {
@@ -64,7 +83,35 @@ export const updateProfile = asyncHandler(async (req, res) => {
 	}
 
 	if (gstOrMsme !== undefined) {
-		req.user.gstOrMsme = String(gstOrMsme).trim().toUpperCase() || null;
+		const normalizedGstin = normalizeGstin(gstOrMsme);
+		req.user.gstOrMsme = normalizedGstin || null;
+	}
+
+	if (nextAccountType === "business") {
+		const nextBusinessName = String(req.user.businessName || "").trim();
+		const nextLocation = String(req.user.location || "").trim();
+		const nextGstin = normalizeGstin(req.user.gstOrMsme);
+
+		if (!nextBusinessName) {
+			return res.status(400).json({ message: "Business name is required" });
+		}
+
+		if (!nextLocation) {
+			return res.status(400).json({ message: "Business location is required" });
+		}
+
+		if (!nextGstin) {
+			return res
+				.status(400)
+				.json({ message: "GSTIN is required for business accounts" });
+		}
+
+		if (!isValidGstin(nextGstin)) {
+			return res.status(400).json({
+				message:
+					"Invalid GSTIN format. Use a valid 15-character GSTIN (e.g., 22AAAAA0000A1Z5)",
+			});
+		}
 	}
 
 	// Upload new avatar to Cloudflare R2

@@ -21,12 +21,9 @@ export default function ProductCard({ listing }) {
 			0,
 	);
 	const numericPrice = Number(listing?.price || 0);
-	const originalPrice = numericPrice > 0 ? numericPrice * 1.43 : 0;
 	const displayPrice = isAuction
 		? auctionCurrentBid || numericPrice
-		: originalPrice > 0
-			? originalPrice
-			: numericPrice;
+		: numericPrice;
 	const categoryLeaf = String(listing?.category || "General")
 		.split(">")
 		.map((part) => part.trim())

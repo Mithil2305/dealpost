@@ -165,7 +165,6 @@ const getLocationLabel = (value) => {
 const normalizeListing = (item) => {
 	const id = item?._id || item?.id;
 	const numericPrice = Number(item?.price || 15006);
-	const originalPriceNum = numericPrice > 0 ? numericPrice * 1.43 : 356;
 
 	return {
 		id,
@@ -180,7 +179,6 @@ const normalizeListing = (item) => {
 			item?.location || item?.city || item?.district || item?.seller?.location,
 		),
 		price: formatPrice(numericPrice),
-		originalPrice: formatPrice(originalPriceNum),
 		likedByCount: getListingLikedCount(item),
 		isLiked: Boolean(item?.isLiked),
 		image:
@@ -816,7 +814,7 @@ export default function Home() {
 							</div>
 
 							<div
-								className="grid grid-cols-2 gap-3 sm:gap-6 md:[grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr))]"
+								className="grid grid-cols-2 items-start gap-3 sm:gap-6 md:[grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr))]"
 								aria-label="Fresh recommendation listings"
 							>
 								{dealFeedItems.map((feedItem) => {
@@ -824,18 +822,18 @@ export default function Home() {
 										return (
 											<div
 												key={feedItem.key}
-												className="rounded-[18px] bg-[#3D73E9] p-6 text-white shadow-[0_16px_35px_rgba(61,115,233,0.35)]"
+												className="col-span-2 self-start rounded-[18px] bg-[#3D73E9] p-4 text-white shadow-[0_16px_35px_rgba(61,115,233,0.35)] sm:col-span-1 sm:p-6"
 											>
-												<h3 className="text-[1.9rem] font-bold leading-tight">
+												<h3 className="text-[1.5rem] font-bold leading-[1.08] sm:text-[1.9rem] sm:leading-tight">
 													Want to see your stuff here?
 												</h3>
-												<p className="mt-4 text-[1.05rem] text-white/90">
+												<p className="mt-3 text-[0.92rem] text-white/90 sm:mt-4 sm:text-[1rem]">
 													Make some extra cash by selling things in your
 													community. Go on, it is quick and easy.
 												</p>
 												<Link
 													to="/post-ad"
-													className="mt-8 inline-flex w-full justify-center rounded-xl border border-white/70 px-5 py-3 text-lg font-bold text-white transition hover:bg-white/15"
+													className="mt-5 inline-flex w-full justify-center rounded-xl border border-white/70 px-5 py-3 text-base font-bold text-white transition hover:bg-white/15 sm:mt-8 sm:text-lg"
 												>
 													Start selling
 												</Link>
@@ -855,7 +853,7 @@ export default function Home() {
 													item?.startingBid ||
 													item?.price,
 											)
-										: item.originalPrice;
+										: item.price;
 									const isLiking = Boolean(
 										listingId && likingByListingId[listingId],
 									);
@@ -983,7 +981,7 @@ export default function Home() {
 														/>
 													</div>
 													<p className="mt-3 text-lg font-bold text-[#1E1E38]">
-														{item.originalPrice}
+														{item.price}
 													</p>
 													<p className="mt-0.5 line-clamp-1 text-sm font-medium text-[#67677C]">
 														{item.title}
@@ -1086,7 +1084,7 @@ export default function Home() {
 												{featuredDeal?.title || "Featured Deal"}
 											</h3>
 											<div className="text-[2rem] font-bold text-white leading-none tracking-tighter mb-3">
-												{featuredDeal?.originalPrice || "₹0"}
+												{featuredDeal?.price || "₹0"}
 											</div>
 											<div className="flex flex-wrap gap-2">
 												<Link

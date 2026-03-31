@@ -366,11 +366,6 @@ export default function ProductDetail() {
 													: listing?.price,
 											)}
 										</p>
-										{listing?.originalPrice && (
-											<p className="font-mono text-lg text-brand-muted line-through sm:text-xl">
-												{formatPrice(listing.originalPrice)}
-											</p>
-										)}
 									</div>
 
 									{isAuctionListing && (

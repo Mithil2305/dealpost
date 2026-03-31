@@ -7,6 +7,7 @@ const MAX_SEARCH_LENGTH = 200;
 const MAX_PRICE = 100_000_000;
 const OWNER_ALLOWED_STATUSES = ["active", "sold", "pending"];
 const ADMIN_ALLOWED_STATUSES = ["active", "sold", "pending", "removed"];
+const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 const VALID_SORTS = [
 	"Newest",
 	"Price Low-High",
@@ -275,6 +276,16 @@ function parseMaybeJson(value, fallback) {
 	} catch {
 		return fallback;
 	}
+}
+
+function normalizeGstin(value) {
+	return String(value || "")
+		.trim()
+		.toUpperCase();
+}
+
+function isValidGstin(value) {
+	return GSTIN_REGEX.test(normalizeGstin(value));
 }
 
 function sanitizeSpecs(raw) {
@@ -744,6 +755,34 @@ export const createListing = asyncHandler(async (req, res) => {
 
 	const normalizedListingType = normalizeListingType(listingType);
 	const isAuctionListing = normalizedListingType === "auction";
+	const isBusinessAccount =
+		String(req.user?.accountType || "").toLowerCase() === "business";
+
+	if (isBusinessAccount) {
+		const sellerBusinessName = String(req.user?.businessName || "").trim();
+		const sellerGstin = normalizeGstin(req.user?.gstOrMsme);
+
+		if (!sellerBusinessName) {
+			return res.status(400).json({
+				message:
+					"Complete business verification before posting: business name is missing",
+			});
+		}
+
+		if (!sellerGstin) {
+			return res.status(400).json({
+				message:
+					"Complete business verification before posting: GSTIN is required",
+			});
+		}
+
+		if (!isValidGstin(sellerGstin)) {
+			return res.status(400).json({
+				message:
+					"Complete business verification before posting: GSTIN format is invalid",
+			});
+		}
+	}
 
 	if (!title || !description || !(parentCategory || category)) {
 		return res.status(400).json({
@@ -753,15 +792,16 @@ export const createListing = asyncHandler(async (req, res) => {
 
 	const basePriceInput = isAuctionListing ? startingBid : price;
 	const numericPrice = Number(basePriceInput);
+	const minAllowedPrice = isAuctionListing ? 1 : 0;
 	if (
 		!Number.isFinite(numericPrice) ||
-		numericPrice <= 0 ||
+		numericPrice < minAllowedPrice ||
 		numericPrice > MAX_PRICE
 	) {
 		return res.status(400).json({
 			message: isAuctionListing
 				? `Starting bid must be between 1 and ${MAX_PRICE}`
-				: `Price must be between 1 and ${MAX_PRICE}`,
+				: `Price must be between 0 and ${MAX_PRICE}`,
 		});
 	}
 
@@ -932,7 +972,14 @@ export const patchListing = asyncHandler(async (req, res) => {
 
 			if (field === "price") {
 				const numeric = Number(req.body.price);
-				if (!Number.isFinite(numeric) || numeric <= 0 || numeric > MAX_PRICE) {
+				const isAuctionListing =
+					normalizeListingType(listing.listingType) === "auction";
+				const minAllowedPrice = isAuctionListing ? 1 : 0;
+				if (
+					!Number.isFinite(numeric) ||
+					numeric < minAllowedPrice ||
+					numeric > MAX_PRICE
+				) {
 					return res.status(400).json({ message: "Invalid price" });
 				}
 				listing.price = numeric;
@@ -1015,7 +1062,7 @@ export const updateListing = asyncHandler(async (req, res) => {
 		const numericPrice = Number(price);
 		if (
 			!Number.isFinite(numericPrice) ||
-			numericPrice <= 0 ||
+			numericPrice < 0 ||
 			numericPrice > MAX_PRICE
 		) {
 			return res.status(400).json({ message: "Invalid price" });

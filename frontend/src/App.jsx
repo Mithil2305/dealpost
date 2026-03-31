@@ -25,6 +25,7 @@ import CompareListings from "./pages/CompareListings.jsx";
 import Likedproducts from "./pages/Likedproducts.jsx";
 import { useAuth } from "./context/useAuth.jsx";
 import SkipToMain from "./components/a11y/SkipToMain.jsx";
+import { trackPageView } from "./utils/analytics.js";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
 	const { token, user } = useAuth();
@@ -62,6 +63,16 @@ function ScrollToTop() {
 	return null;
 }
 
+function AnalyticsTracker() {
+	const { pathname, search, hash } = useLocation();
+
+	useEffect(() => {
+		trackPageView(`${pathname}${search}${hash}`);
+	}, [hash, pathname, search]);
+
+	return null;
+}
+
 function App() {
 	const location = useLocation();
 
@@ -75,6 +86,7 @@ function App() {
 	return (
 		<>
 			<ScrollToTop />
+			<AnalyticsTracker />
 			<SkipToMain />
 			<Routes>
 				<Route path="/" element={<Home />} />
