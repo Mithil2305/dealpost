@@ -54,6 +54,24 @@ export const env = {
 	MESSAGE_ENCRYPTION_KEY: process.env.MESSAGE_ENCRYPTION_KEY || "",
 };
 
-if (env.NODE_ENV === "production" && !env.CLIENT_URL.startsWith("https://")) {
-	throw new Error("FATAL: CLIENT_URL must be an https URL in production.");
+if (env.NODE_ENV === "production") {
+	const origins = String(env.CLIENT_URL || "")
+		.split(",")
+		.map((origin) => origin.trim())
+		.filter(Boolean);
+
+	if (!origins.length) {
+		throw new Error(
+			"FATAL: CLIENT_URL must contain at least one allowed origin in production.",
+		);
+	}
+
+	const invalidOrigins = origins.filter(
+		(origin) => !/^https?:\/\//i.test(origin),
+	);
+	if (invalidOrigins.length) {
+		throw new Error(
+			`FATAL: CLIENT_URL contains invalid origin(s): ${invalidOrigins.join(", ")}`,
+		);
+	}
 }
