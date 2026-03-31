@@ -19,6 +19,19 @@ import Navbar from "../components/Navbar";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
 
+const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
+	style: "currency",
+	currency: "INR",
+	maximumFractionDigits: 0,
+});
+
+const toAmount = (value) => {
+	const numeric = Number(value);
+	return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const formatInr = (value) => INR_FORMATTER.format(toAmount(value));
+
 export default function BusinessListings() {
 	const { isAuthenticated } = useAuth();
 	const [remoteStores, setRemoteStores] = useState([]);
@@ -174,7 +187,7 @@ export default function BusinessListings() {
 		: "Register Business";
 
 	return (
-		<div className="min-h-screen bg-brand-bg text-brand-dark flex flex-col">
+		<div className="min-h-screen bg-brand-bg text-brand-dark font-body flex flex-col">
 			<Navbar />
 
 			<main id="main-content" className="container-shell py-8 flex-1">
@@ -356,7 +369,9 @@ export default function BusinessListings() {
 												<p className="text-[10px] uppercase tracking-[0.12em] text-brand-muted">
 													Total Value
 												</p>
-												<p className="mt-1 text-lg font-bold">${totalValue}</p>
+												<p className="mt-1 text-lg font-bold">
+													{formatInr(totalValue)}
+												</p>
 											</div>
 										</div>
 
@@ -398,7 +413,7 @@ export default function BusinessListings() {
 														</div>
 														<div className="ml-3 flex items-center gap-2">
 															<span className="font-mono font-semibold text-brand-dark">
-																${item?.price || 0}
+																{formatInr(item?.price)}
 															</span>
 															<ArrowUpRight
 																size={14}
@@ -457,4 +472,3 @@ export default function BusinessListings() {
 		</div>
 	);
 }
-
