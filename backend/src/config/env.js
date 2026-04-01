@@ -49,6 +49,11 @@ export const env = {
 	GOOGLE_MAPS_BROWSER_API_KEY: process.env.GOOGLE_MAPS_BROWSER_API_KEY || "",
 	GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
 
+	// Firebase Admin (for verifying Firebase ID tokens server-side)
+	FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "",
+	FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || "",
+	FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY || "",
+
 	// E2E message encryption — 64-char hex string (32 bytes)
 	// Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 	MESSAGE_ENCRYPTION_KEY: process.env.MESSAGE_ENCRYPTION_KEY || "",

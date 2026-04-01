@@ -1,16 +1,21 @@
 import { Eye, EyeOff, MapPin } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
-import GoogleAuthButton from "../components/GoogleAuthButton";
+import FirebasePhoneAuthPanel from "../components/FirebasePhoneAuthPanel";
 import Button from "../components/ui/Button";
 import FormField from "../components/ui/FormField";
 import { useAuth } from "../context/useAuth";
+import {
+	getGoogleRedirectResultFirebase,
+	isFirebaseConfigured,
+	signInWithGoogleFirebase,
+} from "../utils/firebaseAuth";
 
 export default function Login() {
 	const navigate = useNavigate();
-	const { login, loginWithGoogle } = useAuth();
+	const { login, loginWithFirebase } = useAuth();
 	const [showPassword, setShowPassword] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [showValidation, setShowValidation] = useState(false);
@@ -52,22 +57,73 @@ export default function Login() {
 		}
 	};
 
-	const onGoogleAuth = useCallback(
-		async (credential) => {
+	const onGoogleAuth = useCallback(async () => {
+		if (!isFirebaseConfigured()) {
+			toast.error("Firebase auth is not configured");
+			return;
+		}
+
+		try {
+			setSubmitting(true);
+			await signInWithGoogleFirebase({ useRedirect: true });
+		} catch (error) {
+			toast.error(
+				error?.response?.data?.message || "Unable to continue with Google",
+			);
+		} finally {
+			setSubmitting(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		let active = true;
+
+		const completeRedirectLogin = async () => {
+			if (!isFirebaseConfigured()) return;
+
 			try {
 				setSubmitting(true);
-				await loginWithGoogle({ credential });
+				const result = await getGoogleRedirectResultFirebase();
+				if (!result?.user || !active) return;
+
+				const idToken = await result.user.getIdToken();
+				await loginWithFirebase({ idToken });
+				if (!active) return;
+
+				toast.success("Welcome back");
+				navigate("/");
+			} catch (error) {
+				if (!active) return;
+				toast.error(
+					error?.response?.data?.message || "Unable to continue with Google",
+				);
+			} finally {
+				if (active) setSubmitting(false);
+			}
+		};
+
+		completeRedirectLogin();
+		return () => {
+			active = false;
+		};
+	}, [loginWithFirebase, navigate]);
+
+	const onPhoneVerified = useCallback(
+		async (idToken) => {
+			try {
+				setSubmitting(true);
+				await loginWithFirebase({ idToken });
 				toast.success("Welcome back");
 				navigate("/");
 			} catch (error) {
 				toast.error(
-					error?.response?.data?.message || "Unable to continue with Google",
+					error?.response?.data?.message || "Unable to continue with phone",
 				);
 			} finally {
 				setSubmitting(false);
 			}
 		},
-		[loginWithGoogle, navigate],
+		[loginWithFirebase, navigate],
 	);
 
 	return (
@@ -164,10 +220,51 @@ export default function Login() {
 							</p>
 
 							<div className="mb-8">
-								<GoogleAuthButton
-									onCredential={onGoogleAuth}
-									text="continue_with"
+								<button
+									type="button"
+									onClick={onGoogleAuth}
 									disabled={submitting}
+									className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-[#E5E5E5] bg-white text-sm font-semibold text-[#333333] transition hover:bg-[#f8f8f8] disabled:opacity-60"
+								>
+									<svg
+										viewBox="0 0 48 48"
+										className="h-5 w-5"
+										aria-hidden="true"
+									>
+										<path
+											fill="#EA4335"
+											d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+										/>
+										<path
+											fill="#4285F4"
+											d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+										/>
+										<path
+											fill="#FBBC05"
+											d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+										/>
+										<path
+											fill="#34A853"
+											d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+										/>
+									</svg>
+									Continue with Google
+								</button>
+							</div>
+
+							<div className="flex items-center gap-4 mb-8">
+								<div className="h-px bg-[#E5E5E5] flex-1" />
+								<span className="text-[0.7rem] font-bold text-[#A3A3A3] tracking-[0.15em]">
+									OR PHONE OTP
+								</span>
+								<div className="h-px bg-[#E5E5E5] flex-1" />
+							</div>
+
+							<div className="mb-8">
+								<FirebasePhoneAuthPanel
+									onVerified={onPhoneVerified}
+									disabled={submitting}
+									buttonLabel="Send OTP"
 								/>
 							</div>
 

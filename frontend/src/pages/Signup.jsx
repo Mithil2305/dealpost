@@ -3,14 +3,18 @@ import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
-import GoogleAuthButton from "../components/GoogleAuthButton";
 import Button from "../components/ui/Button";
 import FormField from "../components/ui/FormField";
 import { useAuth } from "../context/useAuth";
+import {
+	isFirebaseConfigured,
+	normalizePhoneToE164,
+	signInWithGoogleFirebase,
+} from "../utils/firebaseAuth";
 
 export default function Signup() {
 	const navigate = useNavigate();
-	const { signup, loginWithGoogle } = useAuth();
+	const { signup, loginWithFirebase } = useAuth();
 	const [showPassword, setShowPassword] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [showValidation, setShowValidation] = useState(false);
@@ -18,6 +22,7 @@ export default function Signup() {
 		name: "",
 		email: "",
 		password: "",
+		phone: "",
 		accountType: "personal",
 		businessName: "",
 		gstOrMsme: "",
@@ -32,7 +37,15 @@ export default function Signup() {
 				? "A valid email is required"
 				: "",
 		password:
-			form.password.length < 6 ? "Password must be at least 6 characters" : "",
+			form.password.length < 8 ? "Password must be at least 8 characters" : "",
+		phone: (() => {
+			const e164 = normalizePhoneToE164(form.phone);
+			if (!form.phone.trim()) return "Phone number is required";
+			if (!/^\+[1-9]\d{9,14}$/.test(e164)) {
+				return "Enter a valid phone number (e.g. +91 9876543210)";
+			}
+			return "";
+		})(),
 		businessName:
 			form.accountType === "business" && !form.businessName.trim()
 				? "Business name is required"
@@ -69,6 +82,7 @@ export default function Signup() {
 		if (errors.name) return toast.error(errors.name);
 		if (errors.email) return toast.error(errors.email);
 		if (errors.password) return toast.error(errors.password);
+		if (errors.phone) return toast.error(errors.phone);
 		if (form.accountType === "business") {
 			if (errors.businessName) return toast.error(errors.businessName);
 			if (errors.gstOrMsme) return toast.error(errors.gstOrMsme);
@@ -77,10 +91,12 @@ export default function Signup() {
 
 		try {
 			setSubmitting(true);
+			const normalizedPhone = normalizePhoneToE164(form.phone);
 			const payload = {
 				name: form.name,
 				email: form.email,
 				password: form.password,
+				phone: normalizedPhone,
 				accountType: form.accountType,
 			};
 
@@ -107,43 +123,72 @@ export default function Signup() {
 		}
 	};
 
-	const onGoogleAuth = useCallback(
-		async (credential) => {
-			try {
-				setSubmitting(true);
-				const payload = {
-					credential,
-					accountType: form.accountType,
+	const onGoogleAuth = useCallback(async () => {
+		if (!isFirebaseConfigured()) {
+			toast.error("Firebase auth is not configured");
+			return;
+		}
+
+		if (errors.name) return toast.error(errors.name);
+		if (errors.email) return toast.error(errors.email);
+		if (errors.password) return toast.error(errors.password);
+		if (errors.phone) return toast.error(errors.phone);
+		if (form.accountType === "business") {
+			if (errors.businessName) return toast.error(errors.businessName);
+			if (errors.gstOrMsme) return toast.error(errors.gstOrMsme);
+			if (errors.location) return toast.error(errors.location);
+		}
+
+		try {
+			setSubmitting(true);
+			const normalizedPhone = normalizePhoneToE164(form.phone);
+			const result = await signInWithGoogleFirebase();
+			const idToken = await result.user.getIdToken();
+			const payload = {
+				idToken,
+				flow: "signup",
+				name: form.name,
+				email: form.email,
+				phone: normalizedPhone,
+				accountType: form.accountType,
+			};
+
+			if (form.accountType === "business") {
+				payload.business = {
+					name: form.businessName,
+					gstOrMsme: form.gstOrMsme,
+					location: form.location,
 				};
-
-				if (form.accountType === "business") {
-					payload.business = {
-						name: form.businessName,
-						gstOrMsme: form.gstOrMsme,
-						location: form.location,
-					};
-				}
-
-				await loginWithGoogle(payload);
-				toast.success("Welcome to Deal Post");
-				navigate(form.accountType === "business" ? "/business-listings" : "/");
-			} catch (error) {
-				toast.error(
-					error?.response?.data?.message || "Unable to continue with Google",
-				);
-			} finally {
-				setSubmitting(false);
 			}
-		},
-		[
-			form.accountType,
-			form.businessName,
-			form.gstOrMsme,
-			form.location,
-			loginWithGoogle,
-			navigate,
-		],
-	);
+
+			await loginWithFirebase(payload);
+			toast.success("Welcome to Deal Post");
+			navigate(form.accountType === "business" ? "/business-listings" : "/");
+		} catch (error) {
+			toast.error(
+				error?.response?.data?.message || "Unable to continue with Google",
+			);
+		} finally {
+			setSubmitting(false);
+		}
+	}, [
+		errors.businessName,
+		errors.email,
+		errors.gstOrMsme,
+		errors.location,
+		errors.name,
+		errors.password,
+		errors.phone,
+		form.accountType,
+		form.businessName,
+		form.email,
+		form.gstOrMsme,
+		form.location,
+		form.name,
+		form.phone,
+		loginWithFirebase,
+		navigate,
+	]);
 
 	return (
 		<main
@@ -239,17 +284,42 @@ export default function Signup() {
 							</p>
 
 							<div className="mb-8">
-								<GoogleAuthButton
-									onCredential={onGoogleAuth}
-									text="continue_with"
+								<button
+									type="button"
+									onClick={onGoogleAuth}
 									disabled={submitting}
-								/>
+									className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-[#E5E5E5] bg-white text-sm font-semibold text-[#333333] transition hover:bg-[#f8f8f8] disabled:opacity-60"
+								>
+									<svg
+										viewBox="0 0 48 48"
+										className="h-5 w-5"
+										aria-hidden="true"
+									>
+										<path
+											fill="#EA4335"
+											d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+										/>
+										<path
+											fill="#4285F4"
+											d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+										/>
+										<path
+											fill="#FBBC05"
+											d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+										/>
+										<path
+											fill="#34A853"
+											d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+										/>
+									</svg>
+									Continue with Google
+								</button>
 							</div>
 
 							<div className="flex items-center gap-4 mb-8">
 								<div className="h-px bg-[#E5E5E5] flex-1" />
 								<span className="text-[0.7rem] font-bold text-[#A3A3A3] tracking-[0.15em]">
-									OR EMAIL
+									OR USE EMAIL SIGNUP
 								</span>
 								<div className="h-px bg-[#E5E5E5] flex-1" />
 							</div>
@@ -259,6 +329,7 @@ export default function Signup() {
 								(errors.name ||
 									errors.email ||
 									errors.password ||
+									errors.phone ||
 									errors.businessName ||
 									errors.gstOrMsme ||
 									errors.location) ? (
@@ -376,6 +447,19 @@ export default function Signup() {
 											{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
 										</button>
 									}
+								/>
+
+								<FormField
+									id="signup-phone"
+									name="phone"
+									type="tel"
+									label="Phone Number"
+									value={form.phone}
+									onChange={onChange}
+									placeholder="+91 9876543210"
+									autoComplete="tel"
+									error={showValidation ? errors.phone : ""}
+									required
 								/>
 
 								{form.accountType === "business" && (

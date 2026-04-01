@@ -32,11 +32,16 @@ IMAGE_WEBP_QUALITY=75
 
 Uploaded images are resized and compressed to WebP before being stored in R2.
 
-4.1 Configure Google OAuth in `.env`:
+4.1 Configure Google OAuth and Firebase in `.env`:
 
 ```bash
 GOOGLE_CLIENT_ID=your_google_oauth_client_id_here
+FIREBASE_PROJECT_ID=your_firebase_project_id
+FIREBASE_CLIENT_EMAIL=your_service_account_client_email
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
+
+Google login and phone OTP now use Firebase on the frontend, and the backend verifies Firebase ID tokens via Firebase Admin SDK.
 
 5. Run server:
 
@@ -59,6 +64,7 @@ VITE_API_URL=http://localhost:5000/api
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `POST /api/auth/google`
+- `POST /api/auth/firebase`
 - `GET /api/auth/me`
 - `GET /api/listings`
 - `POST /api/listings`

@@ -1,14 +1,161 @@
 import crypto from "crypto";
 import { OAuth2Client } from "google-auth-library";
 import { env } from "../config/env.js";
+import {
+	getFirebaseAuthClient,
+	isFirebaseAdminConfigured,
+} from "../config/firebaseAdmin.js";
 import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { signToken } from "../utils/jwt.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const E164_PHONE_REGEX = /^\+[1-9]\d{9,14}$/;
 const googleClient = env.GOOGLE_CLIENT_ID
 	? new OAuth2Client(env.GOOGLE_CLIENT_ID)
 	: null;
+
+const normalizeAccountType = (value) =>
+	String(value || "personal").toLowerCase() === "business"
+		? "business"
+		: "personal";
+
+function buildBusinessProfilePayload(input = {}) {
+	const business =
+		input.business && typeof input.business === "object" ? input.business : {};
+
+	return {
+		accountType: normalizeAccountType(input.accountType),
+		businessName: String(input.businessName || business.name || "")
+			.trim()
+			.slice(0, 120),
+		gstOrMsme: String(input.gstOrMsme || business.gstOrMsme || "")
+			.trim()
+			.toUpperCase()
+			.slice(0, 64),
+		location: String(input.location || business.location || "")
+			.trim()
+			.slice(0, 160),
+	};
+}
+
+function assertBusinessProfileOrRespond(res, businessProfile) {
+	if (businessProfile.accountType !== "business") return false;
+
+	if (!businessProfile.businessName) {
+		res.status(400).json({ message: "Business name is required" });
+		return true;
+	}
+	if (!businessProfile.gstOrMsme) {
+		res.status(400).json({ message: "GST/MSME number is required" });
+		return true;
+	}
+	if (!businessProfile.location) {
+		res.status(400).json({ message: "Business location is required" });
+		return true;
+	}
+
+	return false;
+}
+
+function normalizePhone(value) {
+	return String(value || "")
+		.trim()
+		.replace(/[\s()-]/g, "");
+}
+
+async function upsertUserFromFederatedIdentity({
+	email,
+	phone,
+	name,
+	avatar,
+	businessProfile,
+	provider,
+	uid,
+}) {
+	const normalizedEmail = String(email || "")
+		.toLowerCase()
+		.trim();
+	const normalizedPhone = String(phone || "")
+		.trim()
+		.slice(0, 20);
+	const safeName = String(name || "")
+		.trim()
+		.slice(0, 120);
+	const safeAvatar = String(avatar || "")
+		.trim()
+		.slice(0, 512);
+
+	let user = null;
+
+	if (normalizedEmail) {
+		user = await models.User.findOne({ where: { email: normalizedEmail } });
+	}
+
+	if (!user && normalizedPhone) {
+		user = await models.User.findOne({ where: { phone: normalizedPhone } });
+	}
+
+	if (!user) {
+		const syntheticEmail =
+			normalizedEmail || `${provider}-${uid}@firebase.local`;
+		const fallbackName =
+			safeName ||
+			normalizedPhone ||
+			(normalizedEmail ? normalizedEmail.split("@")[0] : "DealPost User");
+
+		const generatedPassword = `${provider}-oauth-${crypto
+			.randomBytes(24)
+			.toString("hex")}`;
+
+		user = await models.User.create({
+			name: fallbackName,
+			email: syntheticEmail,
+			password: generatedPassword,
+			avatar: safeAvatar || "",
+			phone: normalizedPhone || null,
+			location: businessProfile.location || null,
+			accountType: businessProfile.accountType,
+			businessName:
+				businessProfile.accountType === "business"
+					? businessProfile.businessName
+					: null,
+			gstOrMsme:
+				businessProfile.accountType === "business"
+					? businessProfile.gstOrMsme
+					: null,
+		});
+		return user;
+	}
+
+	const updates = {};
+	if (!user.phone && normalizedPhone) updates.phone = normalizedPhone;
+	if ((!user.avatar || !String(user.avatar).trim()) && safeAvatar) {
+		updates.avatar = safeAvatar;
+	}
+	if ((!user.name || String(user.name).trim().length < 2) && safeName) {
+		updates.name = safeName;
+	}
+
+	if (businessProfile.accountType === "business") {
+		if (user.accountType !== "business") updates.accountType = "business";
+		if (!String(user.businessName || "").trim()) {
+			updates.businessName = businessProfile.businessName;
+		}
+		if (!String(user.gstOrMsme || "").trim()) {
+			updates.gstOrMsme = businessProfile.gstOrMsme;
+		}
+		if (!String(user.location || "").trim() && businessProfile.location) {
+			updates.location = businessProfile.location;
+		}
+	}
+
+	if (Object.keys(updates).length) {
+		await user.update(updates);
+	}
+
+	return user;
+}
 
 // ---------------------------------------------------------------------------
 // POST /api/auth/register
@@ -47,6 +194,7 @@ export const register = asyncHandler(async (req, res) => {
 	const normalizedLocation = String(location || businessPayload.location || "")
 		.trim()
 		.slice(0, 160);
+	const normalizedPhone = normalizePhone(phone).slice(0, 20);
 
 	if (!name || String(name).trim().length < 2) {
 		return res
@@ -62,6 +210,12 @@ export const register = asyncHandler(async (req, res) => {
 		return res
 			.status(400)
 			.json({ message: "Password must be at least 8 characters" });
+	}
+
+	if (!normalizedPhone || !E164_PHONE_REGEX.test(normalizedPhone)) {
+		return res.status(400).json({
+			message: "A valid phone number in E.164 format is required",
+		});
 	}
 
 	if (normalizedAccountType === "business") {
@@ -88,7 +242,7 @@ export const register = asyncHandler(async (req, res) => {
 		name: String(name).trim(),
 		email: String(email).toLowerCase(),
 		password,
-		phone: phone || null,
+		phone: normalizedPhone,
 		location: normalizedLocation || null,
 		accountType: normalizedAccountType,
 		businessName:
@@ -248,6 +402,77 @@ export const googleAuth = asyncHandler(async (req, res) => {
 	}
 	if (Object.keys(updates).length > 0) {
 		await user.update(updates);
+	}
+
+	const token = signToken(user.id);
+	res.json({ token, user: user.toSafeObject() });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/auth/firebase
+// Accepts Firebase ID token from Google popup or phone OTP flows.
+// ---------------------------------------------------------------------------
+export const firebaseAuth = asyncHandler(async (req, res) => {
+	const { idToken, flow, phone: requestedPhone, email, name } = req.body || {};
+	if (!idToken) {
+		return res.status(400).json({ message: "Firebase idToken is required" });
+	}
+
+	if (!isFirebaseAdminConfigured()) {
+		return res.status(500).json({
+			message: "Firebase auth is not configured on server",
+		});
+	}
+
+	const firebaseAuthClient = getFirebaseAuthClient();
+	if (!firebaseAuthClient) {
+		return res.status(500).json({
+			message: "Firebase auth is not configured on server",
+		});
+	}
+
+	let decodedToken;
+	try {
+		decodedToken = await firebaseAuthClient.verifyIdToken(
+			String(idToken),
+			true,
+		);
+	} catch {
+		return res.status(401).json({ message: "Invalid Firebase token" });
+	}
+
+	const provider =
+		decodedToken.firebase?.sign_in_provider === "phone" ? "phone" : "google";
+	const normalizedRequestedPhone = normalizePhone(requestedPhone).slice(0, 20);
+	const finalPhone =
+		normalizePhone(decodedToken.phone_number).slice(0, 20) ||
+		normalizedRequestedPhone;
+	const isSignupFlow = String(flow || "").toLowerCase() === "signup";
+
+	if (isSignupFlow && (!finalPhone || !E164_PHONE_REGEX.test(finalPhone))) {
+		return res.status(400).json({
+			message:
+				"Phone number is required for signup and must be in E.164 format",
+		});
+	}
+
+	const businessProfile = buildBusinessProfilePayload(req.body || {});
+	if (assertBusinessProfileOrRespond(res, businessProfile)) {
+		return;
+	}
+
+	const user = await upsertUserFromFederatedIdentity({
+		email: decodedToken.email || email,
+		phone: finalPhone,
+		name: decodedToken.name || name,
+		avatar: decodedToken.picture,
+		businessProfile,
+		provider,
+		uid: decodedToken.uid,
+	});
+
+	if (!user?.isActive) {
+		return res.status(403).json({ message: "Your account has been suspended" });
 	}
 
 	const token = signToken(user.id);

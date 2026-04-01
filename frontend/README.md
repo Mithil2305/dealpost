@@ -1,16 +1,43 @@
-# React + Vite
+# DealPost Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Setup
 
-Currently, two official plugins are available:
+1. Install dependencies:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+cd frontend
+npm install
+```
 
-## React Compiler
+2. Create env file:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+copy .env.example .env
+```
 
-## Expanding the ESLint configuration
+3. Configure API and Firebase keys in `.env`:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+VITE_API_URL=http://localhost:5000/api
+
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_APP_ID=your_firebase_app_id
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+```
+
+4. Run frontend:
+
+```bash
+npm run dev
+```
+
+## Auth Flow
+
+- Email/password: SQL backend via `/api/auth/register` and `/api/auth/login`
+- Google login: Firebase Web SDK (popup) -> send Firebase ID token to `/api/auth/firebase`
+- Phone OTP login/signup: Firebase Phone Auth -> send Firebase ID token to `/api/auth/firebase`
+
+The backend verifies Firebase ID tokens using Firebase Admin SDK and issues DealPost JWT for app sessions.

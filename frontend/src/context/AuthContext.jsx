@@ -55,7 +55,18 @@ export function AuthProvider({ children }) {
 
 	const loginWithGoogle = useCallback(
 		async (payload) => {
-			const { data } = await api.post("/auth/google", payload);
+			const { data } = await api.post("/auth/firebase", payload);
+			const nextToken = data?.token;
+			if (!nextToken) throw new Error("Missing auth token in response");
+			persistSession(nextToken, data?.user);
+			return data;
+		},
+		[persistSession],
+	);
+
+	const loginWithFirebase = useCallback(
+		async (payload) => {
+			const { data } = await api.post("/auth/firebase", payload);
 			const nextToken = data?.token;
 			if (!nextToken) throw new Error("Missing auth token in response");
 			persistSession(nextToken, data?.user);
@@ -80,11 +91,21 @@ export function AuthProvider({ children }) {
 			signup,
 			login,
 			loginWithGoogle,
+			loginWithFirebase,
 			logout,
 			setCurrentUser,
 			isAuthenticated: Boolean(token),
 		}),
-		[login, loginWithGoogle, logout, setCurrentUser, signup, token, user],
+		[
+			login,
+			loginWithFirebase,
+			loginWithGoogle,
+			logout,
+			setCurrentUser,
+			signup,
+			token,
+			user,
+		],
 	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

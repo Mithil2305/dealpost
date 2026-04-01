@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+	firebaseAuth,
 	getMe,
 	googleAuth,
 	login,
@@ -12,6 +13,7 @@ const router = Router();
 router.post("/register", register);
 router.post("/login", login);
 router.post("/google", googleAuth);
+router.post("/firebase", firebaseAuth);
 router.get("/me", protect, getMe);
 
 export default router;
