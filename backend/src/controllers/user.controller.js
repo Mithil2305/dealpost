@@ -1,18 +1,8 @@
 import { models } from "../config/db.js";
+import { env } from "../config/env.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { isValidGstin, normalizeGstin } from "../utils/gstin.js";
 import { uploadToR2 } from "../utils/r2Upload.js";
-
-const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
-
-function normalizeGstin(value) {
-	return String(value || "")
-		.trim()
-		.toUpperCase();
-}
-
-function isValidGstin(value) {
-	return GSTIN_REGEX.test(normalizeGstin(value));
-}
 
 // ---------------------------------------------------------------------------
 // GET /api/users/:id  — public profile
@@ -106,10 +96,15 @@ export const updateProfile = asyncHandler(async (req, res) => {
 				.json({ message: "GSTIN is required for business accounts" });
 		}
 
-		if (!isValidGstin(nextGstin)) {
+		if (
+			!isValidGstin(nextGstin, {
+				requireChecksum: env.GSTIN_VALIDATE_CHECKSUM,
+			})
+		) {
 			return res.status(400).json({
-				message:
-					"Invalid GSTIN format. Use a valid 15-character GSTIN (e.g., 22AAAAA0000A1Z5)",
+				message: env.GSTIN_VALIDATE_CHECKSUM
+					? "Invalid GSTIN: format or checksum is invalid"
+					: "Invalid GSTIN format. Use a valid 15-character GSTIN (e.g., 22AAAAA0000A1Z5)",
 			});
 		}
 	}

@@ -7,6 +7,17 @@ function getNumber(value, fallback) {
 	return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function getBoolean(value, fallback = false) {
+	if (value === undefined || value === null || String(value).trim() === "") {
+		return fallback;
+	}
+
+	const normalized = String(value).trim().toLowerCase();
+	if (["1", "true", "yes", "on"].includes(normalized)) return true;
+	if (["0", "false", "no", "off"].includes(normalized)) return false;
+	return fallback;
+}
+
 function requireEnv(key) {
 	const value = process.env[key];
 	if (value === undefined || value === null || String(value).trim() === "") {
@@ -57,6 +68,10 @@ export const env = {
 	// E2E message encryption — 64-char hex string (32 bytes)
 	// Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 	MESSAGE_ENCRYPTION_KEY: process.env.MESSAGE_ENCRYPTION_KEY || "",
+	GSTIN_VALIDATE_CHECKSUM: getBoolean(
+		process.env.GSTIN_VALIDATE_CHECKSUM,
+		false,
+	),
 };
 
 if (env.NODE_ENV === "production") {

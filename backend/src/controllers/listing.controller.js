@@ -1,13 +1,14 @@
 import { Op } from "sequelize";
+import { env } from "../config/env.js";
 import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { isValidGstin, normalizeGstin } from "../utils/gstin.js";
 import { createR2PresignedUpload, uploadToR2 } from "../utils/r2Upload.js";
 
 const MAX_SEARCH_LENGTH = 200;
 const MAX_PRICE = 100_000_000;
 const OWNER_ALLOWED_STATUSES = ["active", "sold", "pending"];
 const ADMIN_ALLOWED_STATUSES = ["active", "sold", "pending", "removed"];
-const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 const VALID_SORTS = [
 	"Newest",
 	"Price Low-High",
@@ -276,16 +277,6 @@ function parseMaybeJson(value, fallback) {
 	} catch {
 		return fallback;
 	}
-}
-
-function normalizeGstin(value) {
-	return String(value || "")
-		.trim()
-		.toUpperCase();
-}
-
-function isValidGstin(value) {
-	return GSTIN_REGEX.test(normalizeGstin(value));
 }
 
 function sanitizeSpecs(raw) {
@@ -776,10 +767,15 @@ export const createListing = asyncHandler(async (req, res) => {
 			});
 		}
 
-		if (!isValidGstin(sellerGstin)) {
+		if (
+			!isValidGstin(sellerGstin, {
+				requireChecksum: env.GSTIN_VALIDATE_CHECKSUM,
+			})
+		) {
 			return res.status(400).json({
-				message:
-					"Complete business verification before posting: GSTIN format is invalid",
+				message: env.GSTIN_VALIDATE_CHECKSUM
+					? "Complete business verification before posting: GSTIN format or checksum is invalid"
+					: "Complete business verification before posting: GSTIN format is invalid",
 			});
 		}
 	}

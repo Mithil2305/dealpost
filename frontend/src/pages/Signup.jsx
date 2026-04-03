@@ -11,10 +11,26 @@ import {
 	normalizePhoneToE164,
 	signInWithGoogleFirebase,
 } from "../utils/firebaseAuth";
+import { isValidGstin, normalizeGstin } from "../utils/gstin";
+
+const COUNTRY_CODE_OPTIONS = [
+	{ value: "+1", label: "+1 (US/CA)" },
+	{ value: "+44", label: "+44 (UK)" },
+	{ value: "+61", label: "+61 (AU)" },
+	{ value: "+65", label: "+65 (SG)" },
+	{ value: "+91", label: "+91 (IN)" },
+	{ value: "+971", label: "+971 (AE)" },
+];
+
+const ENABLE_GSTIN_CHECKSUM =
+	String(
+		import.meta.env.VITE_ENABLE_GSTIN_CHECKSUM || "false",
+	).toLowerCase() === "true";
 
 export default function Signup() {
 	const navigate = useNavigate();
 	const { signup, loginWithFirebase } = useAuth();
+	const showPhoneInput = true;
 	const [showPassword, setShowPassword] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [showValidation, setShowValidation] = useState(false);
@@ -22,7 +38,8 @@ export default function Signup() {
 		name: "",
 		email: "",
 		password: "",
-		phone: "",
+		countryCode: "+91",
+		phoneNumber: "",
 		accountType: "personal",
 		businessName: "",
 		gstOrMsme: "",
@@ -39,10 +56,11 @@ export default function Signup() {
 		password:
 			form.password.length < 8 ? "Password must be at least 8 characters" : "",
 		phone: (() => {
-			const e164 = normalizePhoneToE164(form.phone);
-			if (!form.phone.trim()) return "Phone number is required";
+			if (!showPhoneInput) return "";
+			const e164 = normalizePhoneToE164(form.phoneNumber, form.countryCode);
+			if (!form.phoneNumber.trim()) return "Phone number is required";
 			if (!/^\+[1-9]\d{9,14}$/.test(e164)) {
-				return "Enter a valid phone number (e.g. +91 9876543210)";
+				return "Enter a valid phone number";
 			}
 			return "";
 		})(),
@@ -51,8 +69,16 @@ export default function Signup() {
 				? "Business name is required"
 				: "",
 		gstOrMsme:
-			form.accountType === "business" && !form.gstOrMsme.trim()
-				? "GST/MSME number is required"
+			form.accountType === "business"
+				? !form.gstOrMsme.trim()
+					? "GST/MSME number is required"
+					: !isValidGstin(form.gstOrMsme, {
+								requireChecksum: ENABLE_GSTIN_CHECKSUM,
+						  })
+						? ENABLE_GSTIN_CHECKSUM
+							? "Enter a valid GSTIN (format + checksum)"
+							: "Enter a valid GSTIN format (e.g. 22AAAAA0000A1Z5)"
+						: ""
 				: "",
 		location:
 			form.accountType === "business" && !form.location.trim()
@@ -82,7 +108,7 @@ export default function Signup() {
 		if (errors.name) return toast.error(errors.name);
 		if (errors.email) return toast.error(errors.email);
 		if (errors.password) return toast.error(errors.password);
-		if (errors.phone) return toast.error(errors.phone);
+		if (showPhoneInput && errors.phone) return toast.error(errors.phone);
 		if (form.accountType === "business") {
 			if (errors.businessName) return toast.error(errors.businessName);
 			if (errors.gstOrMsme) return toast.error(errors.gstOrMsme);
@@ -91,19 +117,24 @@ export default function Signup() {
 
 		try {
 			setSubmitting(true);
-			const normalizedPhone = normalizePhoneToE164(form.phone);
 			const payload = {
 				name: form.name,
 				email: form.email,
 				password: form.password,
-				phone: normalizedPhone,
 				accountType: form.accountType,
 			};
+
+			if (showPhoneInput) {
+				payload.phone = normalizePhoneToE164(
+					form.phoneNumber,
+					form.countryCode,
+				);
+			}
 
 			if (form.accountType === "business") {
 				payload.business = {
 					name: form.businessName,
-					gstOrMsme: form.gstOrMsme,
+					gstOrMsme: normalizeGstin(form.gstOrMsme),
 					location: form.location,
 				};
 			}
@@ -132,7 +163,7 @@ export default function Signup() {
 		if (errors.name) return toast.error(errors.name);
 		if (errors.email) return toast.error(errors.email);
 		if (errors.password) return toast.error(errors.password);
-		if (errors.phone) return toast.error(errors.phone);
+		if (showPhoneInput && errors.phone) return toast.error(errors.phone);
 		if (form.accountType === "business") {
 			if (errors.businessName) return toast.error(errors.businessName);
 			if (errors.gstOrMsme) return toast.error(errors.gstOrMsme);
@@ -141,7 +172,6 @@ export default function Signup() {
 
 		try {
 			setSubmitting(true);
-			const normalizedPhone = normalizePhoneToE164(form.phone);
 			const result = await signInWithGoogleFirebase();
 			const idToken = await result.user.getIdToken();
 			const payload = {
@@ -149,14 +179,20 @@ export default function Signup() {
 				flow: "signup",
 				name: form.name,
 				email: form.email,
-				phone: normalizedPhone,
 				accountType: form.accountType,
 			};
+
+			if (showPhoneInput) {
+				payload.phone = normalizePhoneToE164(
+					form.phoneNumber,
+					form.countryCode,
+				);
+			}
 
 			if (form.accountType === "business") {
 				payload.business = {
 					name: form.businessName,
-					gstOrMsme: form.gstOrMsme,
+					gstOrMsme: normalizeGstin(form.gstOrMsme),
 					location: form.location,
 				};
 			}
@@ -181,13 +217,15 @@ export default function Signup() {
 		errors.phone,
 		form.accountType,
 		form.businessName,
+		form.countryCode,
 		form.email,
 		form.gstOrMsme,
 		form.location,
 		form.name,
-		form.phone,
+		form.phoneNumber,
 		loginWithFirebase,
 		navigate,
+		showPhoneInput,
 	]);
 
 	return (
@@ -449,18 +487,40 @@ export default function Signup() {
 									}
 								/>
 
-								<FormField
-									id="signup-phone"
-									name="phone"
-									type="tel"
-									label="Phone Number"
-									value={form.phone}
-									onChange={onChange}
-									placeholder="+91 9876543210"
-									autoComplete="tel"
-									error={showValidation ? errors.phone : ""}
-									required
-								/>
+								{showPhoneInput ? (
+									<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+										<FormField
+											id="signup-country-code"
+											as="select"
+											name="countryCode"
+											label="Country Code"
+											value={form.countryCode}
+											onChange={onChange}
+											required
+											wrapperClassName="sm:col-span-1"
+										>
+											{COUNTRY_CODE_OPTIONS.map((option) => (
+												<option key={option.value} value={option.value}>
+													{option.label}
+												</option>
+											))}
+										</FormField>
+
+										<FormField
+											id="signup-phone-number"
+											name="phoneNumber"
+											type="tel"
+											label="Phone Number"
+											value={form.phoneNumber}
+											onChange={onChange}
+											placeholder="9876543210"
+											autoComplete="tel-national"
+											error={showValidation ? errors.phone : ""}
+											required
+											wrapperClassName="sm:col-span-2"
+										/>
+									</div>
+								) : null}
 
 								{form.accountType === "business" && (
 									<>

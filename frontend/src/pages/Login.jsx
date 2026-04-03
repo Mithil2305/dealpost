@@ -16,6 +16,7 @@ import {
 export default function Login() {
 	const navigate = useNavigate();
 	const { login, loginWithFirebase } = useAuth();
+	const showPhoneLogin = false;
 	const [showPassword, setShowPassword] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [showValidation, setShowValidation] = useState(false);
@@ -252,29 +253,41 @@ export default function Login() {
 								</button>
 							</div>
 
-							<div className="flex items-center gap-4 mb-8">
-								<div className="h-px bg-[#E5E5E5] flex-1" />
-								<span className="text-[0.7rem] font-bold text-[#A3A3A3] tracking-[0.15em]">
-									OR PHONE OTP
-								</span>
-								<div className="h-px bg-[#E5E5E5] flex-1" />
-							</div>
+							{showPhoneLogin ? (
+								<>
+									<div className="flex items-center gap-4 mb-8">
+										<div className="h-px bg-[#E5E5E5] flex-1" />
+										<span className="text-[0.7rem] font-bold text-[#A3A3A3] tracking-[0.15em]">
+											OR PHONE OTP
+										</span>
+										<div className="h-px bg-[#E5E5E5] flex-1" />
+									</div>
 
-							<div className="mb-8">
-								<FirebasePhoneAuthPanel
-									onVerified={onPhoneVerified}
-									disabled={submitting}
-									buttonLabel="Send OTP"
-								/>
-							</div>
+									<div className="mb-8">
+										<FirebasePhoneAuthPanel
+											onVerified={onPhoneVerified}
+											disabled={submitting}
+											buttonLabel="Send OTP"
+										/>
+									</div>
 
-							<div className="flex items-center gap-4 mb-8">
-								<div className="h-px bg-[#E5E5E5] flex-1" />
-								<span className="text-[0.7rem] font-bold text-[#A3A3A3] tracking-[0.15em]">
-									OR EMAIL
-								</span>
-								<div className="h-px bg-[#E5E5E5] flex-1" />
-							</div>
+									<div className="flex items-center gap-4 mb-8">
+										<div className="h-px bg-[#E5E5E5] flex-1" />
+										<span className="text-[0.7rem] font-bold text-[#A3A3A3] tracking-[0.15em]">
+											OR EMAIL
+										</span>
+										<div className="h-px bg-[#E5E5E5] flex-1" />
+									</div>
+								</>
+							) : (
+								<div className="flex items-center gap-4 mb-8">
+									<div className="h-px bg-[#E5E5E5] flex-1" />
+									<span className="text-[0.7rem] font-bold text-[#A3A3A3] tracking-[0.15em]">
+										OR EMAIL
+									</span>
+									<div className="h-px bg-[#E5E5E5] flex-1" />
+								</div>
+							)}
 
 							<form className="space-y-5" onSubmit={onSubmit} noValidate>
 								{showValidation && (errors.email || errors.password) ? (

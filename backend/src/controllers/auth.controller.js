@@ -7,6 +7,7 @@ import {
 } from "../config/firebaseAdmin.js";
 import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { isValidGstin, normalizeGstin } from "../utils/gstin.js";
 import { signToken } from "../utils/jwt.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -29,10 +30,9 @@ function buildBusinessProfilePayload(input = {}) {
 		businessName: String(input.businessName || business.name || "")
 			.trim()
 			.slice(0, 120),
-		gstOrMsme: String(input.gstOrMsme || business.gstOrMsme || "")
-			.trim()
-			.toUpperCase()
-			.slice(0, 64),
+		gstOrMsme: normalizeGstin(
+			input.gstOrMsme || business.gstOrMsme || "",
+		).slice(0, 64),
 		location: String(input.location || business.location || "")
 			.trim()
 			.slice(0, 160),
@@ -48,6 +48,18 @@ function assertBusinessProfileOrRespond(res, businessProfile) {
 	}
 	if (!businessProfile.gstOrMsme) {
 		res.status(400).json({ message: "GST/MSME number is required" });
+		return true;
+	}
+	if (
+		!isValidGstin(businessProfile.gstOrMsme, {
+			requireChecksum: env.GSTIN_VALIDATE_CHECKSUM,
+		})
+	) {
+		res.status(400).json({
+			message: env.GSTIN_VALIDATE_CHECKSUM
+				? "Invalid GSTIN: format or checksum is invalid"
+				: "Invalid GSTIN format. Use a valid 15-character GSTIN (e.g., 22AAAAA0000A1Z5)",
+		});
 		return true;
 	}
 	if (!businessProfile.location) {
@@ -185,12 +197,9 @@ export const register = asyncHandler(async (req, res) => {
 	)
 		.trim()
 		.slice(0, 120);
-	const normalizedGstOrMsme = String(
+	const normalizedGstOrMsme = normalizeGstin(
 		gstOrMsme || businessPayload.gstOrMsme || "",
-	)
-		.trim()
-		.toUpperCase()
-		.slice(0, 64);
+	).slice(0, 64);
 	const normalizedLocation = String(location || businessPayload.location || "")
 		.trim()
 		.slice(0, 160);
@@ -224,6 +233,17 @@ export const register = asyncHandler(async (req, res) => {
 		}
 		if (!normalizedGstOrMsme) {
 			return res.status(400).json({ message: "GST/MSME number is required" });
+		}
+		if (
+			!isValidGstin(normalizedGstOrMsme, {
+				requireChecksum: env.GSTIN_VALIDATE_CHECKSUM,
+			})
+		) {
+			return res.status(400).json({
+				message: env.GSTIN_VALIDATE_CHECKSUM
+					? "Invalid GSTIN: format or checksum is invalid"
+					: "Invalid GSTIN format. Use a valid 15-character GSTIN (e.g., 22AAAAA0000A1Z5)",
+			});
 		}
 		if (!normalizedLocation) {
 			return res.status(400).json({ message: "Business location is required" });
@@ -335,12 +355,9 @@ export const googleAuth = asyncHandler(async (req, res) => {
 	)
 		.trim()
 		.slice(0, 120);
-	const normalizedGstOrMsme = String(
+	const normalizedGstOrMsme = normalizeGstin(
 		gstOrMsme || businessPayload.gstOrMsme || "",
-	)
-		.trim()
-		.toUpperCase()
-		.slice(0, 64);
+	).slice(0, 64);
 	const normalizedLocation = String(location || businessPayload.location || "")
 		.trim()
 		.slice(0, 160);
@@ -352,6 +369,17 @@ export const googleAuth = asyncHandler(async (req, res) => {
 			}
 			if (!normalizedGstOrMsme) {
 				return res.status(400).json({ message: "GST/MSME number is required" });
+			}
+			if (
+				!isValidGstin(normalizedGstOrMsme, {
+					requireChecksum: env.GSTIN_VALIDATE_CHECKSUM,
+				})
+			) {
+				return res.status(400).json({
+					message: env.GSTIN_VALIDATE_CHECKSUM
+						? "Invalid GSTIN: format or checksum is invalid"
+						: "Invalid GSTIN format. Use a valid 15-character GSTIN (e.g., 22AAAAA0000A1Z5)",
+				});
 			}
 			if (!normalizedLocation) {
 				return res
