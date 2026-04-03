@@ -60,9 +60,7 @@ function getReadableLocationLabel(placeLike) {
 function BrandLogo() {
 	return (
 		<a href="/" className="flex items-center gap-2 text-xl shrink-0">
-			<div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFD600]">
-				<MapPin size={16} className="text-black" />
-			</div>
+			<img src="/logo.png" alt="DealPost Logo" className="h-7 w-7" />
 			<div className="text-black">
 				<span className="font-bold">Deal</span>
 				<span>Post</span>
@@ -140,7 +138,10 @@ function LocationPicker({
 	);
 }
 
-export default function Navbar({ search: externalSearch = "", onSearchChange }) {
+export default function Navbar({
+	search: externalSearch = "",
+	onSearchChange,
+}) {
 	const { user, setCurrentUser, isAuthenticated, logout } = useAuth();
 	const navigate = useNavigate();
 	const [internalSearch, setInternalSearch] = useState("");

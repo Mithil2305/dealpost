@@ -8,7 +8,7 @@ export default function Footer({ variant = "default" }) {
 			<footer className="w-full px-4 pb-2 pt-8 sm:px-6 lg:px-8 font-sans">
 				<div className="mx-auto flex w-full max-w-[1100px] flex-col items-center justify-between gap-4 text-[0.85rem] text-[#888888] md:flex-row">
 					<div className="text-black text-lg">
-						<span className="font-bold">Deal.</span>
+						<span className="font-bold">Deal</span>
 						<span>Post</span>
 					</div>
 					<div className="flex flex-wrap items-center justify-center gap-6">

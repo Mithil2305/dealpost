@@ -241,11 +241,9 @@ export default function Signup() {
 						<div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-[#FFD600] opacity-10 blur-[100px] rounded-full pointer-events-none" />
 
 						<div className="relative z-10 flex items-center gap-2">
-							<div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFD600]">
-								<MapPin size={16} className="text-black" fill="black" />
-							</div>
+							<img src="/logo.png" alt="DealPost Logo" className="h-8 w-8" />
 							<div className="text-white text-xl">
-								<span className="font-bold">Deal.</span>
+								<span className="font-bold">Deal</span>
 								<span>Post</span>
 							</div>
 						</div>
@@ -300,7 +298,7 @@ export default function Signup() {
 									<MapPin size={16} className="text-black" fill="black" />
 								</div>
 								<div className="text-black text-xl">
-									<span className="font-bold">Deal.</span>
+									<span className="font-bold">Deal</span>
 									<span>Post</span>
 								</div>
 							</div>
