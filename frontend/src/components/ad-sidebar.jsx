@@ -3,6 +3,79 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getPublicSponsoredAds } from "../utils/sponsoredAds";
 
+const ADSENSE_SCRIPT_ID = "dealpost-adsbygoogle-loader";
+
+function getAdSenseScriptSrc(markup) {
+	if (!markup) return "";
+	const match = String(markup).match(
+		/<script[^>]*\bsrc=["']([^"']*pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js[^"']*)["'][^>]*>/i,
+	);
+	return String(match?.[1] || "").trim();
+}
+
+function createAdSenseContainer(markup) {
+	const template = document.createElement("template");
+	template.innerHTML = String(markup || "");
+
+	const sourceIns = template.content.querySelector("ins.adsbygoogle");
+	const ins = document.createElement("ins");
+	ins.className = "adsbygoogle";
+
+	if (sourceIns) {
+		Array.from(sourceIns.attributes).forEach((attribute) => {
+			ins.setAttribute(attribute.name, attribute.value);
+		});
+	}
+
+	// Ensure slot is renderable even if pasted snippet misses explicit display style.
+	const existingStyle = String(ins.getAttribute("style") || "");
+	if (!/display\s*:/i.test(existingStyle)) {
+		ins.setAttribute(
+			"style",
+			existingStyle
+				? `${existingStyle.trim().replace(/;?$/, ";")}display:block;`
+				: "display:block;",
+		);
+	}
+
+	return ins;
+}
+
+function ensureAdSenseScript(src) {
+	if (!src) return Promise.reject(new Error("Missing AdSense loader src"));
+
+	const existing = document.getElementById(ADSENSE_SCRIPT_ID);
+	if (existing) {
+		if (existing.getAttribute("data-loaded") === "true") {
+			return Promise.resolve();
+		}
+
+		return new Promise((resolve, reject) => {
+			existing.addEventListener("load", () => resolve(), { once: true });
+			existing.addEventListener(
+				"error",
+				() => reject(new Error("Failed to load AdSense script")),
+				{ once: true },
+			);
+		});
+	}
+
+	const script = document.createElement("script");
+	script.id = ADSENSE_SCRIPT_ID;
+	script.async = true;
+	script.src = src;
+	script.setAttribute("crossorigin", "anonymous");
+
+	return new Promise((resolve, reject) => {
+		script.onload = () => {
+			script.setAttribute("data-loaded", "true");
+			resolve();
+		};
+		script.onerror = () => reject(new Error("Failed to load AdSense script"));
+		document.head.appendChild(script);
+	});
+}
+
 const SIDEBAR_LAYOUTS = {
 	left: [
 		{ title: "Ad Slot", heightClass: "h-[260px]" },
@@ -102,23 +175,28 @@ export default function AdSidebar({ side = "left" }) {
 		const markup = String(googleAdsSnippet || "").trim();
 		if (!markup) return;
 
-		const template = document.createElement("template");
-		template.innerHTML = markup;
+		const ins = createAdSenseContainer(markup);
+		slot.appendChild(ins);
 
-		Array.from(template.content.childNodes).forEach((node) => {
-			if (node.nodeName.toLowerCase() === "script") {
-				const sourceScript = node;
-				const nextScript = document.createElement("script");
-				Array.from(sourceScript.attributes).forEach((attribute) => {
-					nextScript.setAttribute(attribute.name, attribute.value);
-				});
-				nextScript.text = sourceScript.text || "";
-				slot.appendChild(nextScript);
-				return;
-			}
+		const loaderSrc =
+			getAdSenseScriptSrc(markup) ||
+			"https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js";
 
-			slot.appendChild(node.cloneNode(true));
-		});
+		let cancelled = false;
+
+		ensureAdSenseScript(loaderSrc)
+			.then(() => {
+				if (cancelled) return;
+				window.adsbygoogle = window.adsbygoogle || [];
+				window.adsbygoogle.push({});
+			})
+			.catch(() => {
+				// Keep ad slot silent on runtime ad network failures (ad-blockers, network, CSP).
+			});
+
+		return () => {
+			cancelled = true;
+		};
 	}, [googleAdsSnippet]);
 
 	return (
