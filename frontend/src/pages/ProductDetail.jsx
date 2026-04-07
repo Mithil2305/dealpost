@@ -260,7 +260,6 @@ export default function ProductDetail() {
 	const tabOptions = [
 		["description", "Description"],
 		["specifications", "Specifications"],
-		["ai", "AI Price Analysis"],
 	];
 
 	const onTabKeyDown = (event, key) => {
@@ -647,28 +646,6 @@ export default function ProductDetail() {
 										No specifications were added for this product yet.
 									</div>
 								))}
-							{activeTab === "ai" && (
-								<div
-									className="rounded-2xl border border-brand-border bg-[#FAFAFA] p-5 text-sm text-brand-muted"
-									role="tabpanel"
-									id="panel-ai"
-									aria-labelledby="tab-ai"
-								>
-									<p className="font-semibold text-brand-dark">
-										AI Price Analysis
-									</p>
-									<p className="mt-2">
-										Comparable listings are trending around{" "}
-										{formatPrice(listing?.price)} in this category. Pricing
-										confidence is based on listing freshness, condition, and
-										seller reputation.
-									</p>
-									<p className="mt-2 inline-flex items-center gap-2 text-[#9f6900]">
-										<TriangleAlert size={14} /> A full model output is available
-										when backend AI scoring is enabled.
-									</p>
-								</div>
-							)}
 						</section>
 					</>
 				) : (
