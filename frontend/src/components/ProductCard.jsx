@@ -1,4 +1,4 @@
-import { Heart } from "lucide-react";
+import { Heart, Scale } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const currency = new Intl.NumberFormat("en-IN", {
@@ -32,6 +32,9 @@ export default function ProductCard({ listing }) {
 	const likedCount = Number(
 		listing?.likedByCount || listing?.likeCount || listing?.likes || 0,
 	);
+	const listingDetailId =
+		listing?.productId || listing?._id || listing?.id || "";
+	const compareSeed = listing?._id || listing?.id || listing?.productId || "";
 
 	return (
 		<article className="group flex h-full flex-col rounded-[18px] border border-[#F0F2F5] bg-white p-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(40,40,90,0.1)] sm:rounded-[24px] sm:p-3">
@@ -72,7 +75,7 @@ export default function ProductCard({ listing }) {
 
 			<div className="flex flex-1 flex-col px-0.5 pb-1 pt-3 sm:px-1 sm:pb-2 sm:pt-4">
 				<Link
-					to={`/listing/${listing?.productId || listing?._id || listing?.id || ""}`}
+					to={`/listing/${listingDetailId}`}
 					className="line-clamp-1 text-[0.9rem] font-bold text-[#1E1E38] sm:text-[1.15rem]"
 				>
 					{listing?.title || "Untitled Listing"}
@@ -101,6 +104,17 @@ export default function ProductCard({ listing }) {
 						{listing?.sellerType || "Verified"}
 					</span>
 				</div>
+
+				<Link
+					to={
+						compareSeed
+							? `/compare?seed=${encodeURIComponent(String(compareSeed))}`
+							: "/compare"
+					}
+					className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#d8dbe2] px-3 py-2 text-[0.62rem] font-bold uppercase tracking-[0.12em] text-[#303045] transition hover:border-[#111111] hover:text-black sm:text-[0.7rem]"
+				>
+					<Scale size={12} /> Compare
+				</Link>
 			</div>
 		</article>
 	);

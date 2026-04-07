@@ -22,25 +22,10 @@ import FormField from "../components/ui/FormField";
 import { pickArray } from "../utils/api";
 import { useAuth } from "../context/useAuth";
 import { compressImageFile } from "../utils/imageCompressor";
-
-const getStoredLocationLabel = () =>
-	localStorage.getItem("selectedLocation") || "";
-
-const getStoredLocationCoords = () => {
-	try {
-		const raw = sessionStorage.getItem("selectedLocationCoords");
-		if (!raw) return { latitude: "", longitude: "" };
-		const parsed = JSON.parse(raw);
-		const lat = Number(parsed?.lat);
-		const lng = Number(parsed?.lng);
-		if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-			return { latitude: "", longitude: "" };
-		}
-		return { latitude: String(lat), longitude: String(lng) };
-	} catch {
-		return { latitude: "", longitude: "" };
-	}
-};
+import {
+	getStoredLocationCoords,
+	getStoredLocationLabel,
+} from "../utils/locationHelpers";
 
 const MAX_UPLOAD_IMAGES = 6;
 const MAX_UPLOAD_SIZE_MB = 5;
@@ -102,8 +87,8 @@ export default function BusinessPostAd() {
 			setFormData((prev) => ({
 				...prev,
 				address: prev.address || label,
-				latitude: coords.latitude,
-				longitude: coords.longitude,
+				latitude: Number.isFinite(coords.lat) ? String(coords.lat) : "",
+				longitude: Number.isFinite(coords.lng) ? String(coords.lng) : "",
 			}));
 		};
 

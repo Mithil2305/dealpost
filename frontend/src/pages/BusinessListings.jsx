@@ -16,6 +16,7 @@ import { Link } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import Modal from "../components/ui/Modal";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
 
@@ -40,6 +41,7 @@ export default function BusinessListings() {
 	const [query, setQuery] = useState("");
 	const [cityFilter, setCityFilter] = useState("all");
 	const [onlyWithListings, setOnlyWithListings] = useState(false);
+	const [selectedBusiness, setSelectedBusiness] = useState(null);
 
 	useEffect(() => {
 		const fetchData = async () => {
@@ -321,7 +323,16 @@ export default function BusinessListings() {
 										store?.email ||
 										`${name}-${index}`
 									}
-									className="overflow-hidden rounded-3xl border border-brand-border bg-white"
+									className="overflow-hidden rounded-3xl border border-brand-border bg-white cursor-pointer transition hover:shadow-md"
+									onClick={() => setSelectedBusiness(item)}
+									onKeyDown={(event) => {
+										if (event.key === "Enter" || event.key === " ") {
+											event.preventDefault();
+											setSelectedBusiness(item);
+										}
+									}}
+									role="button"
+									tabIndex={0}
 								>
 									<div className="relative bg-[#111111] p-5 text-white">
 										<div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-brand-yellow/30 blur-2xl" />
@@ -396,11 +407,14 @@ export default function BusinessListings() {
 										</p>
 										{storeListings.length ? (
 											storeListings.slice(0, 3).map((item, itemIndex) => {
-												const itemId = item?._id || item?.id;
 												return (
-													<Link
-														key={itemId || itemIndex}
-														to={itemId ? `/listing/${itemId}` : "/explore"}
+													<div
+														key={
+															(item?._id ||
+																item?.id ||
+																item?.productId ||
+																itemIndex) + String(itemIndex)
+														}
 														className="group flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm"
 													>
 														<div className="min-w-0 flex-1">
@@ -420,7 +434,7 @@ export default function BusinessListings() {
 																className="text-brand-muted transition group-hover:text-brand-dark"
 															/>
 														</div>
-													</Link>
+													</div>
 												);
 											})
 										) : (
@@ -428,6 +442,11 @@ export default function BusinessListings() {
 												No listings yet.
 											</p>
 										)}
+									</div>
+									<div className="px-5 pb-5">
+										<span className="inline-flex items-center gap-1 text-xs font-semibold text-[#8B7322]">
+											View details <ArrowUpRight size={12} />
+										</span>
 									</div>
 								</article>
 							);
@@ -466,6 +485,90 @@ export default function BusinessListings() {
 						</div>
 					</div>
 				)}
+
+				<Modal
+					isOpen={Boolean(selectedBusiness)}
+					onClose={() => setSelectedBusiness(null)}
+					title={selectedBusiness?.name || "Business Details"}
+					size="xl"
+				>
+					{selectedBusiness ? (
+						<div className="space-y-4">
+							<div className="grid gap-3 rounded-2xl bg-brand-bg p-4 sm:grid-cols-2">
+								<p className="text-sm">
+									<span className="font-semibold">Business:</span>{" "}
+									{selectedBusiness.name}
+								</p>
+								<p className="text-sm">
+									<span className="font-semibold">Location:</span>{" "}
+									{selectedBusiness.location}
+								</p>
+								<p className="text-sm">
+									<span className="font-semibold">Email:</span>{" "}
+									{selectedBusiness.store?.email || "-"}
+								</p>
+								<p className="text-sm">
+									<span className="font-semibold">GST/MSME:</span>{" "}
+									{selectedBusiness.store?.gstOrMsme || "-"}
+								</p>
+								<p className="text-sm">
+									<span className="font-semibold">Listings:</span>{" "}
+									{selectedBusiness.storeListings.length}
+								</p>
+								<p className="text-sm">
+									<span className="font-semibold">Total Value:</span>{" "}
+									{formatInr(selectedBusiness.totalValue)}
+								</p>
+							</div>
+
+							<div>
+								<h3 className="text-sm font-bold uppercase tracking-[0.1em] text-brand-muted">
+									All listings
+								</h3>
+								<div className="mt-2 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+									{selectedBusiness.storeListings.length ? (
+										selectedBusiness.storeListings.map(
+											(listingItem, listingIndex) => {
+												const listingId =
+													listingItem?._id ||
+													listingItem?.id ||
+													listingItem?.productId;
+												return (
+													<Link
+														key={
+															(listingId || listingIndex) + String(listingIndex)
+														}
+														to={
+															listingId ? `/listing/${listingId}` : "/explore"
+														}
+														onClick={() => setSelectedBusiness(null)}
+														className="flex items-center justify-between rounded-xl border border-brand-border bg-white px-3 py-2 text-sm"
+													>
+														<div className="min-w-0">
+															<p className="line-clamp-1 font-semibold text-brand-dark">
+																{listingItem?.title || "Untitled Listing"}
+															</p>
+															<p className="line-clamp-1 text-xs text-brand-muted">
+																{listingItem?.category || "General"}
+															</p>
+														</div>
+														<span className="ml-3 font-semibold text-brand-dark">
+															{formatInr(listingItem?.price)}
+														</span>
+													</Link>
+												);
+											},
+										)
+									) : (
+										<p className="rounded-xl border border-dashed border-brand-border bg-white px-3 py-4 text-sm text-brand-muted">
+											No listings available for this business.
+										</p>
+									)}
+								</div>
+							</div>
+						</div>
+					) : null}
+				</Modal>
 			</main>
 
 			<Footer />

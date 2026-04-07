@@ -25,19 +25,43 @@ import {
 	getMySponsoredAds,
 	updateSponsoredAd,
 } from "../utils/sponsoredAds";
+import {
+	clearStoredLocationCoords,
+	fetchOpenStreetSuggestions,
+	getStoredLocationCoords,
+	getStoredLocationLabel,
+	hasValidCoordinates,
+	persistStoredLocation,
+} from "../utils/locationHelpers";
 
 export default function UserDashboard() {
 	const { user, setCurrentUser, logout } = useAuth();
 	const navigate = useNavigate();
+	const preferredLocation = getStoredLocationLabel() || user?.location || "";
 	const [activeTab, setActiveTab] = useState("overview");
 	const [saving, setSaving] = useState(false);
 	const [busyAction, setBusyAction] = useState("");
 	const [profileForm, setProfileForm] = useState({
 		name: user?.name || "",
 		phone: user?.phone || "",
-		location: user?.location || "",
+		location: preferredLocation,
 		businessName: user?.businessName || "",
 		gstOrMsme: user?.gstOrMsme || "",
+	});
+	const [locationSuggestions, setLocationSuggestions] = useState([]);
+	const [locationSearching, setLocationSearching] = useState(false);
+	const [verifiedLocation, setVerifiedLocation] = useState(() => {
+		const label = getStoredLocationLabel() || user?.location || "";
+		const coords = getStoredLocationCoords();
+		if (!label || !hasValidCoordinates(coords.lat, coords.lng)) {
+			return null;
+		}
+		return {
+			id: "stored",
+			label,
+			lat: coords.lat,
+			lng: coords.lng,
+		};
 	});
 	const [passwordForm, setPasswordForm] = useState({
 		currentPassword: "",
@@ -62,11 +86,91 @@ export default function UserDashboard() {
 		setProfileForm({
 			name: user?.name || "",
 			phone: user?.phone || "",
-			location: user?.location || "",
+			location: getStoredLocationLabel() || user?.location || "",
 			businessName: user?.businessName || "",
 			gstOrMsme: user?.gstOrMsme || "",
 		});
+
+		const label = getStoredLocationLabel() || user?.location || "";
+		const coords = getStoredLocationCoords();
+		if (label && hasValidCoordinates(coords.lat, coords.lng)) {
+			setVerifiedLocation({
+				id: "stored",
+				label,
+				lat: coords.lat,
+				lng: coords.lng,
+			});
+		} else {
+			setVerifiedLocation(null);
+		}
 	}, [user]);
+
+	useEffect(() => {
+		const syncLocationFromNavbar = () => {
+			const nextLocation = getStoredLocationLabel();
+			if (!nextLocation) return;
+			setProfileForm((prev) => ({ ...prev, location: nextLocation }));
+			const coords = getStoredLocationCoords();
+			if (hasValidCoordinates(coords.lat, coords.lng)) {
+				setVerifiedLocation({
+					id: "stored",
+					label: nextLocation,
+					lat: coords.lat,
+					lng: coords.lng,
+				});
+			} else {
+				setVerifiedLocation(null);
+			}
+		};
+
+		window.addEventListener(
+			"dealpost:location-changed",
+			syncLocationFromNavbar,
+		);
+		return () => {
+			window.removeEventListener(
+				"dealpost:location-changed",
+				syncLocationFromNavbar,
+			);
+		};
+	}, []);
+
+	useEffect(() => {
+		const query = String(profileForm.location || "").trim();
+		if (query && query === String(verifiedLocation?.label || "").trim()) {
+			setLocationSuggestions([]);
+			setLocationSearching(false);
+			return;
+		}
+		if (query.length < 3) {
+			setLocationSuggestions([]);
+			setLocationSearching(false);
+			return;
+		}
+
+		const controller = new AbortController();
+		const timer = setTimeout(async () => {
+			try {
+				setLocationSearching(true);
+				const rows = await fetchOpenStreetSuggestions(query, {
+					limit: 6,
+					signal: controller.signal,
+				});
+				setLocationSuggestions(rows);
+			} catch (error) {
+				if (error?.name !== "AbortError") {
+					setLocationSuggestions([]);
+				}
+			} finally {
+				setLocationSearching(false);
+			}
+		}, 250);
+
+		return () => {
+			controller.abort();
+			clearTimeout(timer);
+		};
+	}, [profileForm.location, verifiedLocation]);
 
 	useEffect(() => {
 		let active = true;
@@ -148,23 +252,60 @@ export default function UserDashboard() {
 			return;
 		}
 
+		const locationText = String(profileForm.location || "").trim();
+		if (
+			locationText &&
+			(!verifiedLocation ||
+				locationText !== String(verifiedLocation.label || "").trim() ||
+				!hasValidCoordinates(verifiedLocation.lat, verifiedLocation.lng))
+		) {
+			toast.error("Select a verified location from suggestions");
+			return;
+		}
+
 		try {
 			setSaving(true);
 			const payload = {
 				name: profileForm.name,
 				phone: profileForm.phone,
-				location: profileForm.location,
+				location: locationText,
 				businessName: isBusinessAccount ? profileForm.businessName : undefined,
 				gstOrMsme: isBusinessAccount ? profileForm.gstOrMsme : undefined,
 			};
 			const { data } = await api.put("/users/me", payload);
 			setCurrentUser(data?.user || user);
+
+			if (locationText && verifiedLocation) {
+				persistStoredLocation({
+					location: locationText,
+					lat: verifiedLocation.lat,
+					lng: verifiedLocation.lng,
+					placeId: verifiedLocation.id,
+				});
+			} else if (!locationText) {
+				persistStoredLocation({ location: "" });
+				clearStoredLocationCoords();
+			}
+
+			window.dispatchEvent(new Event("dealpost:location-changed"));
 			toast.success("Profile updated");
 		} catch (error) {
 			toast.error(error?.response?.data?.message || "Unable to update profile");
 		} finally {
 			setSaving(false);
 		}
+	};
+
+	const selectVerifiedLocation = (suggestion) => {
+		if (!suggestion) return;
+		setProfileForm((prev) => ({ ...prev, location: suggestion.label || "" }));
+		setVerifiedLocation({
+			id: String(suggestion.id || ""),
+			label: suggestion.label || "",
+			lat: Number(suggestion.lat),
+			lng: Number(suggestion.lng),
+		});
+		setLocationSuggestions([]);
 	};
 
 	const updatePassword = async (event) => {
@@ -302,7 +443,10 @@ export default function UserDashboard() {
 	return (
 		<div className="min-h-screen bg-[#F7F8FA] flex flex-col">
 			<Navbar />
-			<main id="main-content" className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-8 sm:px-6 lg:px-8">
+			<main
+				id="main-content"
+				className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-8 sm:px-6 lg:px-8"
+			>
 				<div className="grid gap-6 lg:grid-cols-[280px_1fr]">
 					<aside className="rounded-3xl border border-gray-200 bg-white p-4 lg:sticky lg:top-24 lg:h-fit">
 						<p className="px-3 pb-3 text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
@@ -588,17 +732,56 @@ export default function UserDashboard() {
 									placeholder="Phone"
 									className="h-11 w-full rounded-xl border border-gray-200 px-3"
 								/>
-								<input
-									value={profileForm.location}
-									onChange={(event) =>
-										setProfileForm((prev) => ({
-											...prev,
-											location: event.target.value,
-										}))
-									}
-									placeholder="Location"
-									className="h-11 w-full rounded-xl border border-gray-200 px-3"
-								/>
+								<div className="relative">
+									<input
+										value={profileForm.location}
+										onChange={(event) => {
+											const nextValue = event.target.value;
+											setProfileForm((prev) => ({
+												...prev,
+												location: nextValue,
+											}));
+											if (
+												String(verifiedLocation?.label || "").trim() !==
+												String(nextValue || "").trim()
+											) {
+												setVerifiedLocation(null);
+											}
+										}}
+										onBlur={() => {
+											setTimeout(() => setLocationSuggestions([]), 120);
+										}}
+										placeholder="Location"
+										className="h-11 w-full rounded-xl border border-gray-200 px-3"
+									/>
+									{(locationSearching || locationSuggestions.length > 0) &&
+									profileForm.location.trim().length >= 3 ? (
+										<div className="absolute z-20 mt-1 max-h-52 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+											{locationSearching ? (
+												<p className="px-3 py-2 text-xs text-gray-500">
+													Searching locations...
+												</p>
+											) : locationSuggestions.length ? (
+												locationSuggestions.map((suggestion) => (
+													<button
+														key={suggestion.id}
+														type="button"
+														onMouseDown={() =>
+															selectVerifiedLocation(suggestion)
+														}
+														className="w-full border-b border-gray-100 px-3 py-2 text-left text-xs text-gray-700 last:border-b-0 hover:bg-gray-50"
+													>
+														{suggestion.label}
+													</button>
+												))
+											) : (
+												<p className="px-3 py-2 text-xs text-gray-500">
+													No verified locations found.
+												</p>
+											)}
+										</div>
+									) : null}
+								</div>
 								{isBusinessAccount ? (
 									<>
 										<input
@@ -830,4 +1013,3 @@ export default function UserDashboard() {
 		</div>
 	);
 }
-

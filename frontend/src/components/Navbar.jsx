@@ -17,15 +17,21 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useAuth } from "../context/useAuth";
-import {
-	loadGoogleMapsPlaces,
-	mountPlaceAutocompleteElement,
-} from "../utils/googleMaps";
+import { pickArray } from "../utils/api";
+import { mountPlaceAutocompleteElement } from "../utils/googleMaps";
 import { getUnreadConversationCount } from "../utils/messageNotifications";
+import {
+	clearStoredLocationCoords,
+	fetchOpenStreetSuggestions,
+	getStoredLocationCoords,
+	getStoredLocationLabel,
+	hasValidCoordinates,
+	loadGoogleMapsFromPublicConfig,
+	mapAutocompletePlaceToLocation,
+	persistStoredLocation,
+} from "../utils/locationHelpers";
 
 const ALERTS_CACHE_TTL_MS = 15000;
-let publicConfigPromise = null;
-let cachedPublicConfig = null;
 let cachedAlerts = { ts: 0, rows: [] };
 
 function getReadableLocationLabel(placeLike) {
@@ -78,6 +84,9 @@ function LocationPicker({
 	isDetectingLocation,
 	isSavingLocation,
 	autocompleteContainerRef,
+	fallbackSuggestions,
+	fallbackSearching,
+	onSelectFallbackSuggestion,
 	onUseCurrentLocation,
 	onSave,
 	onClose,
@@ -101,18 +110,41 @@ function LocationPicker({
 				{mapsReady ? (
 					<div ref={autocompleteContainerRef} className="w-full" />
 				) : (
-					<input
-						value={locationInput}
-						onChange={(event) => {
-							setLocationInput(event.target.value);
-						}}
-						placeholder={
-							mapsFailed
-								? "Type location (Google unavailable)"
-								: "Loading location search..."
-						}
-						className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#FFD600]"
-					/>
+					<div>
+						<input
+							value={locationInput}
+							onChange={(event) => {
+								setLocationInput(event.target.value);
+							}}
+							placeholder={
+								mapsFailed
+									? "Type location (Google unavailable)"
+									: "Loading location search..."
+							}
+							className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#FFD600]"
+						/>
+						{mapsFailed &&
+						(fallbackSearching || fallbackSuggestions.length > 0) ? (
+							<div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white">
+								{fallbackSearching ? (
+									<p className="px-3 py-2 text-xs text-gray-500">
+										Searching location...
+									</p>
+								) : (
+									fallbackSuggestions.map((suggestion) => (
+										<button
+											key={suggestion.id}
+											type="button"
+											onClick={() => onSelectFallbackSuggestion(suggestion)}
+											className="w-full border-b border-gray-100 px-3 py-2 text-left text-xs text-gray-700 hover:bg-gray-50"
+										>
+											{suggestion.label}
+										</button>
+									))
+								)}
+							</div>
+						) : null}
+					</div>
 				)}
 			</div>
 			<div className="mt-2 flex items-center justify-between">
@@ -158,6 +190,8 @@ export default function Navbar({
 	const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
 	const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 	const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+	const [navbarCategories, setNavbarCategories] = useState([]);
+	const [isCategoryMegaOpen, setIsCategoryMegaOpen] = useState(false);
 	/* Mobile-only: slide-down search bar */
 	const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
@@ -168,22 +202,8 @@ export default function Navbar({
 	const mobileNavId = "mobile-primary-nav";
 
 	const initialLocation =
-		localStorage.getItem("selectedLocation") ||
-		user?.location ||
-		"Chennai, India";
-	const initialCoords = (() => {
-		try {
-			const raw = sessionStorage.getItem("selectedLocationCoords");
-			if (!raw) return { lat: null, lng: null };
-			const parsed = JSON.parse(raw);
-			if (!Number.isFinite(parsed?.lat) || !Number.isFinite(parsed?.lng)) {
-				return { lat: null, lng: null };
-			}
-			return { lat: parsed.lat, lng: parsed.lng };
-		} catch {
-			return { lat: null, lng: null };
-		}
-	})();
+		getStoredLocationLabel() || user?.location || "Chennai, India";
+	const initialCoords = getStoredLocationCoords();
 
 	const [isLocationOpen, setIsLocationOpen] = useState(false);
 	const [locationInput, setLocationInput] = useState(initialLocation);
@@ -194,6 +214,13 @@ export default function Navbar({
 	const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 	const [selectedCoordinates, setSelectedCoordinates] = useState(initialCoords);
 	const [selectedPlaceId, setSelectedPlaceId] = useState("");
+	const [confirmedLocationInput, setConfirmedLocationInput] = useState(
+		hasValidCoordinates(initialCoords.lat, initialCoords.lng)
+			? initialLocation.trim()
+			: "",
+	);
+	const [fallbackSuggestions, setFallbackSuggestions] = useState([]);
+	const [fallbackSearching, setFallbackSearching] = useState(false);
 
 	const locationWrapperRef = useRef(null);
 	const autocompleteContainerRef = useRef(null);
@@ -202,6 +229,26 @@ export default function Navbar({
 	const actionsRef = useRef(null);
 	const searchRef = useRef(null);
 	const mobileSearchRef = useRef(null);
+	const categoryNavRef = useRef(null);
+	const categoryMegaCloseTimerRef = useRef(null);
+
+	const openCategoryMegaMenu = useCallback(() => {
+		if (categoryMegaCloseTimerRef.current) {
+			window.clearTimeout(categoryMegaCloseTimerRef.current);
+			categoryMegaCloseTimerRef.current = null;
+		}
+		setIsCategoryMegaOpen(true);
+	}, []);
+
+	const closeCategoryMegaMenu = useCallback(() => {
+		if (categoryMegaCloseTimerRef.current) {
+			window.clearTimeout(categoryMegaCloseTimerRef.current);
+		}
+		categoryMegaCloseTimerRef.current = window.setTimeout(() => {
+			setIsCategoryMegaOpen(false);
+			categoryMegaCloseTimerRef.current = null;
+		}, 140);
+	}, []);
 
 	const profileDashboardRoute = useMemo(() => {
 		const role = String(user?.role || "")
@@ -237,36 +284,35 @@ export default function Navbar({
 		navigate("/login");
 	};
 
+	const loadMapsForNavbar = useCallback(async () => {
+		try {
+			await loadGoogleMapsFromPublicConfig(api);
+			setMapsReady(true);
+			setMapsFailed(false);
+			return true;
+		} catch {
+			if (window.google?.maps?.places) {
+				setMapsReady(true);
+				setMapsFailed(false);
+				return true;
+			}
+
+			setMapsReady(false);
+			setMapsFailed(true);
+			return false;
+		}
+	}, []);
+
 	/* ── Load Google Maps ── */
 	useEffect(() => {
 		let active = true;
 
 		const setupMaps = async () => {
-			try {
-				if (!cachedPublicConfig) {
-					if (!publicConfigPromise) {
-						publicConfigPromise = api
-							.get("/config/public")
-							.then((response) => response.data)
-							.finally(() => {
-								publicConfigPromise = null;
-							});
-					}
-					cachedPublicConfig = await publicConfigPromise;
-				}
-
-				await loadGoogleMapsPlaces(
-					cachedPublicConfig?.googleMapsBrowserApiKey || "",
-				);
-				if (active) {
-					setMapsReady(true);
-					setMapsFailed(false);
-				}
-			} catch {
-				if (active) {
-					setMapsReady(false);
-					setMapsFailed(true);
-				}
+			const loaded = await loadMapsForNavbar();
+			if (!active) return;
+			if (loaded) {
+				setMapsReady(true);
+				setMapsFailed(false);
 			}
 		};
 
@@ -274,7 +320,19 @@ export default function Navbar({
 		return () => {
 			active = false;
 		};
-	}, []);
+	}, [loadMapsForNavbar]);
+
+	useEffect(() => {
+		if (!isLocationOpen && !isMobileNavOpen) return;
+
+		if (window.google?.maps?.places) {
+			setMapsReady(true);
+			setMapsFailed(false);
+			return;
+		}
+
+		loadMapsForNavbar();
+	}, [isLocationOpen, isMobileNavOpen, loadMapsForNavbar]);
 
 	/* ── Desktop autocomplete ── */
 	useEffect(() => {
@@ -285,21 +343,28 @@ export default function Navbar({
 		return mountPlaceAutocompleteElement({
 			container: autocompleteContainerRef.current,
 			placeholder: "Search for area, city, or address",
+			onInputChange: (nextValue) => {
+				setLocationInput(nextValue);
+				setSelectedCoordinates({ lat: null, lng: null });
+				setSelectedPlaceId("");
+				setConfirmedLocationInput("");
+			},
 			onPlaceSelected: (place) => {
-				const nextLocation =
-					getReadableLocationLabel(place) ||
-					place.formattedAddress ||
-					place.displayName ||
-					"";
-				setLocationInput(nextLocation);
+				const mapped = mapAutocompletePlaceToLocation(place, locationInput);
+				setLocationInput(mapped.address);
 				setSelectedCoordinates({
-					lat: Number.isFinite(place.lat) ? place.lat : null,
-					lng: Number.isFinite(place.lng) ? place.lng : null,
+					lat: hasValidCoordinates(mapped.latitude, mapped.longitude)
+						? Number(mapped.latitude)
+						: null,
+					lng: hasValidCoordinates(mapped.latitude, mapped.longitude)
+						? Number(mapped.longitude)
+						: null,
 				});
-				setSelectedPlaceId(String(place.id || ""));
+				setSelectedPlaceId(mapped.placeId);
+				setConfirmedLocationInput(String(mapped.address || "").trim());
 			},
 		});
-	}, [isLocationOpen, mapsReady]);
+	}, [isLocationOpen, mapsReady, locationInput]);
 
 	/* ── Mobile drawer autocomplete ── */
 	useEffect(() => {
@@ -314,56 +379,111 @@ export default function Navbar({
 		return mountPlaceAutocompleteElement({
 			container: mobileAutocompleteContainerRef.current,
 			placeholder: "Search for area, city, or address",
+			onInputChange: (nextValue) => {
+				setLocationInput(nextValue);
+				setSelectedCoordinates({ lat: null, lng: null });
+				setSelectedPlaceId("");
+				setConfirmedLocationInput("");
+			},
 			onPlaceSelected: (place) => {
-				const nextLocation =
-					getReadableLocationLabel(place) ||
-					place.formattedAddress ||
-					place.displayName ||
-					"";
-				setLocationInput(nextLocation);
+				const mapped = mapAutocompletePlaceToLocation(place, locationInput);
+				setLocationInput(mapped.address);
 				setSelectedCoordinates({
-					lat: Number.isFinite(place.lat) ? place.lat : null,
-					lng: Number.isFinite(place.lng) ? place.lng : null,
+					lat: hasValidCoordinates(mapped.latitude, mapped.longitude)
+						? Number(mapped.latitude)
+						: null,
+					lng: hasValidCoordinates(mapped.latitude, mapped.longitude)
+						? Number(mapped.longitude)
+						: null,
 				});
-				setSelectedPlaceId(String(place.id || ""));
+				setSelectedPlaceId(mapped.placeId);
+				setConfirmedLocationInput(String(mapped.address || "").trim());
 			},
 		});
-	}, [isMobileNavOpen, mapsReady]);
+	}, [isMobileNavOpen, mapsReady, locationInput]);
 
-	const geocodeByAddress = async (addressText) => {
-		if (!window.google?.maps?.Geocoder || !String(addressText || "").trim()) {
-			return null;
+	useEffect(() => {
+		if (!mapsFailed) {
+			setFallbackSuggestions([]);
+			setFallbackSearching(false);
+			return;
 		}
 
+		const query = locationInput.trim();
+		if (query.length < 3) {
+			setFallbackSuggestions([]);
+			setFallbackSearching(false);
+			return;
+		}
+
+		const controller = new AbortController();
+		const timeoutId = window.setTimeout(async () => {
+			try {
+				setFallbackSearching(true);
+				const suggestions = await fetchOpenStreetSuggestions(query, {
+					signal: controller.signal,
+					limit: 6,
+				});
+				setFallbackSuggestions(suggestions);
+			} catch (error) {
+				if (error?.name !== "AbortError") {
+					setFallbackSuggestions([]);
+				}
+			} finally {
+				setFallbackSearching(false);
+			}
+		}, 300);
+
+		return () => {
+			controller.abort();
+			window.clearTimeout(timeoutId);
+		};
+	}, [mapsFailed, locationInput]);
+
+	const reverseGeocodeByCoords = useCallback(async (lat, lng) => {
+		if (!hasValidCoordinates(lat, lng)) return null;
+		if (!window.google?.maps?.Geocoder) return null;
+
+		const numericLat = Number(lat);
+		const numericLng = Number(lng);
+
 		const geocoder = new window.google.maps.Geocoder();
-		return new Promise((resolve) => {
+		const googleResult = await new Promise((resolve) => {
 			geocoder.geocode(
-				{ address: String(addressText).trim() },
+				{ location: { lat: numericLat, lng: numericLng }, language: "en" },
 				(results, status) => {
 					if (status !== "OK" || !results?.length) {
 						resolve(null);
 						return;
 					}
 
-					const best = results[0];
-					const lat = best?.geometry?.location?.lat?.();
-					const lng = best?.geometry?.location?.lng?.();
-					if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-						resolve(null);
-						return;
-					}
+					const preferredResult =
+						results.find((item) =>
+							item.types?.some((type) =>
+								[
+									"sublocality",
+									"sublocality_level_1",
+									"neighborhood",
+									"route",
+									"locality",
+								].includes(type),
+							),
+						) || results[0];
 
+					const label = getReadableLocationLabel(preferredResult);
 					resolve({
-						lat,
-						lng,
-						placeId: best?.place_id || "",
-						formattedAddress:
-							best?.formatted_address || String(addressText).trim(),
+						label:
+							label ||
+							preferredResult?.formatted_address ||
+							`${numericLat.toFixed(5)}, ${numericLng.toFixed(5)}`,
+						placeId: preferredResult?.place_id || "",
 					});
 				},
 			);
 		});
-	};
+
+		return googleResult;
+	}, []);
 
 	/* ── Close desktop location picker on outside click ── */
 	useEffect(() => {
@@ -489,10 +609,55 @@ export default function Navbar({
 		setIsMessagesOpen(false);
 		setIsAlertsOpen(false);
 		setIsProfileMenuOpen(false);
+		setIsCategoryMegaOpen(false);
 		setShowSearchDropdown(false);
 		setIsSearchFocused(false);
 		setIsMobileSearchOpen(false);
 	}, [isMobileNavOpen]);
+
+	useEffect(() => {
+		let active = true;
+
+		const fetchNavbarCategories = async () => {
+			try {
+				const { data } = await api.get("/categories");
+				const rows = pickArray(data, ["categories", "data", "items"]);
+				if (!active) return;
+				setNavbarCategories(Array.isArray(rows) ? rows : []);
+			} catch {
+				if (active) {
+					setNavbarCategories([]);
+				}
+			}
+		};
+
+		fetchNavbarCategories();
+
+		return () => {
+			active = false;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!isCategoryMegaOpen) return;
+
+		const onOutsideClick = (event) => {
+			if (!categoryNavRef.current?.contains(event.target)) {
+				setIsCategoryMegaOpen(false);
+			}
+		};
+
+		document.addEventListener("mousedown", onOutsideClick);
+		return () => document.removeEventListener("mousedown", onOutsideClick);
+	}, [isCategoryMegaOpen]);
+
+	useEffect(() => {
+		return () => {
+			if (categoryMegaCloseTimerRef.current) {
+				window.clearTimeout(categoryMegaCloseTimerRef.current);
+			}
+		};
+	}, []);
 
 	/* ── Search suggestions ── */
 	useEffect(() => {
@@ -534,43 +699,24 @@ export default function Navbar({
 
 		let coordsToPersist = { ...selectedCoordinates };
 		let placeIdToPersist = selectedPlaceId;
+
 		if (
-			mapsReady &&
-			(!Number.isFinite(coordsToPersist.lat) ||
-				!Number.isFinite(coordsToPersist.lng))
+			!hasValidCoordinates(coordsToPersist.lat, coordsToPersist.lng) ||
+			!confirmedLocationInput ||
+			next !== confirmedLocationInput
 		) {
-			const geocoded = await geocodeByAddress(next);
-			if (geocoded) {
-				next = geocoded.formattedAddress;
-				coordsToPersist = { lat: geocoded.lat, lng: geocoded.lng };
-				placeIdToPersist = geocoded.placeId;
-				setLocationInput(geocoded.formattedAddress);
-				setSelectedCoordinates({ lat: geocoded.lat, lng: geocoded.lng });
-				setSelectedPlaceId(geocoded.placeId);
-			}
+			setIsSavingLocation(false);
+			toast.error("Please pick a location from suggestions");
+			return;
 		}
 
 		setDisplayLocation(next);
-		localStorage.setItem("selectedLocation", next);
-
-		if (
-			Number.isFinite(coordsToPersist.lat) &&
-			Number.isFinite(coordsToPersist.lng)
-		) {
-			sessionStorage.setItem(
-				"selectedLocationCoords",
-				JSON.stringify({
-					lat: coordsToPersist.lat,
-					lng: coordsToPersist.lng,
-				}),
-			);
-			if (placeIdToPersist) {
-				sessionStorage.setItem("selectedLocationPlaceId", placeIdToPersist);
-			}
-		} else {
-			sessionStorage.removeItem("selectedLocationCoords");
-			sessionStorage.removeItem("selectedLocationPlaceId");
-		}
+		persistStoredLocation({
+			location: next,
+			lat: coordsToPersist.lat,
+			lng: coordsToPersist.lng,
+			placeId: placeIdToPersist,
+		});
 
 		window.dispatchEvent(
 			new CustomEvent("dealpost:location-changed", {
@@ -602,52 +748,46 @@ export default function Navbar({
 
 		setIsDetectingLocation(true);
 		navigator.geolocation.getCurrentPosition(
-			(position) => {
+			async (position) => {
 				const lat = position.coords.latitude;
 				const lng = position.coords.longitude;
 				setSelectedCoordinates({ lat, lng });
-				setSelectedPlaceId("");
+				try {
+					const reverse = await reverseGeocodeByCoords(lat, lng);
+					if (!reverse?.label) {
+						toast.error("Could not resolve area name for your location");
+						setSelectedCoordinates({ lat: null, lng: null });
+						setLocationInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+						setSelectedPlaceId("");
+						setConfirmedLocationInput("");
+						return;
+					}
 
-				if (window.google?.maps?.Geocoder) {
-					const geocoder = new window.google.maps.Geocoder();
-					geocoder.geocode(
-						{ location: { lat, lng }, language: "en" },
-						(results, status) => {
-							if (status === "OK" && results?.length) {
-								const preferredResult =
-									results.find((item) =>
-										item.types?.some((type) =>
-											[
-												"sublocality",
-												"sublocality_level_1",
-												"neighborhood",
-												"route",
-												"locality",
-											].includes(type),
-										),
-									) || results[0];
-
-								const label = getReadableLocationLabel(preferredResult);
-								setLocationInput(
-									label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-								);
-							} else {
-								setLocationInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-							}
-							setIsDetectingLocation(false);
-						},
-					);
-					return;
+					setLocationInput(reverse.label);
+					setSelectedPlaceId(String(reverse.placeId || ""));
+					setConfirmedLocationInput(String(reverse.label || "").trim());
+				} finally {
+					setIsDetectingLocation(false);
 				}
-
-				setLocationInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-				setIsDetectingLocation(false);
 			},
 			() => {
 				setIsDetectingLocation(false);
 				toast.error("Unable to detect current location");
 			},
+			{
+				enableHighAccuracy: true,
+				timeout: 10000,
+				maximumAge: 60000,
+			},
 		);
+	};
+
+	const selectFallbackSuggestion = (suggestion) => {
+		setLocationInput(suggestion.label);
+		setSelectedCoordinates({ lat: suggestion.lat, lng: suggestion.lng });
+		setSelectedPlaceId(`osm:${suggestion.id}`);
+		setConfirmedLocationInput(String(suggestion.label || "").trim());
+		setFallbackSuggestions([]);
 	};
 
 	const onSearchInputChange = (value) => {
@@ -741,13 +881,50 @@ export default function Navbar({
 			to: "/explore?listingType=auction&sort=Auction%20Ending%20Soon",
 		},
 		{ label: "Marketplace", to: "/explore" },
-		{ label: "My Listings", to: "/my-listings" },
 		{ label: "Categories", to: "/categories" },
 		{ label: "Services", to: "/explore?category=Services" },
 		{ label: "Top Deals", to: "/explore?sort=Most%20Popular" },
 		{ label: "Help Center", to: "/help-center" },
 		{ label: "Compare", to: "/compare" },
 	];
+
+	const categoryMegaSections = useMemo(() => {
+		const grouped = new Map();
+
+		for (const raw of navbarCategories) {
+			const rawLabel = String(raw?.name || raw || "").trim();
+			if (!rawLabel || /funeral/i.test(rawLabel)) continue;
+
+			const parts = rawLabel
+				.split(">")
+				.map((entry) => entry.trim())
+				.filter(Boolean);
+			if (!parts.length) continue;
+
+			const mainCategory = parts[0];
+			if (!grouped.has(mainCategory)) {
+				grouped.set(mainCategory, new Set());
+			}
+
+			if (parts.length > 1) {
+				grouped.get(mainCategory).add(parts.slice(1).join(" > "));
+			}
+		}
+
+		return Array.from(grouped.entries())
+			.map(([title, itemSet]) => ({
+				title,
+				items: Array.from(itemSet).sort((a, b) => a.localeCompare(b)),
+			}))
+			.filter((section) => section.items.length > 0)
+			.sort((a, b) => {
+				if (b.items.length !== a.items.length) {
+					return b.items.length - a.items.length;
+				}
+				return a.title.localeCompare(b.title);
+			})
+			.slice(0, 10);
+	}, [navbarCategories]);
 
 	const openMessagesPopup = () => {
 		if (redirectUnauthenticatedUser()) return;
@@ -855,13 +1032,18 @@ export default function Navbar({
 								setLocationInput={(v) => {
 									setLocationInput(v);
 									setSelectedCoordinates({ lat: null, lng: null });
-									sessionStorage.removeItem("selectedLocationCoords");
+									setSelectedPlaceId("");
+									setConfirmedLocationInput("");
+									clearStoredLocationCoords();
 								}}
 								mapsReady={mapsReady}
 								mapsFailed={mapsFailed}
 								isDetectingLocation={isDetectingLocation}
 								isSavingLocation={isSavingLocation}
 								autocompleteContainerRef={autocompleteContainerRef}
+								fallbackSuggestions={fallbackSuggestions}
+								fallbackSearching={fallbackSearching}
+								onSelectFallbackSuggestion={selectFallbackSuggestion}
 								onUseCurrentLocation={useCurrentLocation}
 								onSave={() => persistLocation()}
 								onClose={() => setIsLocationOpen(false)}
@@ -1182,10 +1364,10 @@ export default function Navbar({
 			{/* ═══════════════════════════════════════════════════
 			    SECONDARY NAV BAR (desktop + tablet)
 			═══════════════════════════════════════════════════ */}
-			<div className="hidden border-t border-gray-100 px-4 lg:px-6 md:block">
+			<div className="hidden border-t border-gray-100 px-4 lg:px-6 md:block overflow-visible">
 				<nav
 					aria-label="Primary sections"
-					className="flex h-11 items-center gap-4 lg:gap-5 overflow-x-auto whitespace-nowrap text-sm font-semibold text-gray-600 scrollbar-none"
+					className="relative flex h-11 items-center gap-4 lg:gap-5 overflow-visible whitespace-nowrap text-sm font-semibold text-gray-600 scrollbar-none"
 					style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
 				>
 					<div className="inline-flex items-center gap-2 shrink-0">
@@ -1213,18 +1395,75 @@ export default function Navbar({
 					<a href="/explore" className="transition hover:text-black shrink-0">
 						Marketplace
 					</a>
-					<a
-						href="/my-listings"
-						className="transition hover:text-black shrink-0"
+
+					<div
+						ref={categoryNavRef}
+						className="relative shrink-0"
+						onMouseEnter={openCategoryMegaMenu}
+						onMouseLeave={closeCategoryMegaMenu}
 					>
-						My Listings
-					</a>
-					<a
-						href="/categories"
-						className="transition hover:text-black shrink-0"
-					>
-						Categories
-					</a>
+						<a
+							href="/categories"
+							className="transition hover:text-black"
+							onFocus={openCategoryMegaMenu}
+						>
+							Categories
+						</a>
+						{isCategoryMegaOpen ? (
+							<div
+								className="absolute left-0 top-7 z-[90] w-[min(92vw,980px)] whitespace-normal rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)]"
+								onMouseEnter={openCategoryMegaMenu}
+								onMouseLeave={closeCategoryMegaMenu}
+							>
+								<div className="mb-3 flex items-center justify-between">
+									<p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1677ff]">
+										Browse Categories
+									</p>
+									<a
+										href="/categories"
+										className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500 hover:text-black"
+									>
+										View all
+									</a>
+								</div>
+								{categoryMegaSections.length ? (
+									<div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+										{categoryMegaSections.map((section) => (
+											<div key={section.title} className="min-w-0">
+												<a
+													href={`/explore?category=${encodeURIComponent(section.title)}`}
+													className="mb-1 block max-w-full truncate text-sm font-bold text-[#171717] hover:text-[#1677ff]"
+													title={section.title}
+												>
+													{section.title}
+												</a>
+												<ul className="space-y-1 min-w-0">
+													{section.items.slice(0, 6).map((itemLabel) => (
+														<li
+															key={`${section.title}-${itemLabel}`}
+															className="min-w-0"
+														>
+															<a
+																href={`/explore?category=${encodeURIComponent(`${section.title} > ${itemLabel}`)}`}
+																className="block max-w-full truncate text-[13px] text-gray-600 hover:text-black"
+																title={itemLabel}
+															>
+																{itemLabel}
+															</a>
+														</li>
+													))}
+												</ul>
+											</div>
+										))}
+									</div>
+								) : (
+									<div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+										No categories available right now.
+									</div>
+								)}
+							</div>
+						) : null}
+					</div>
 					<a
 						href="/explore?category=Services"
 						className="transition hover:text-black shrink-0"
@@ -1308,13 +1547,18 @@ export default function Navbar({
 									setLocationInput={(v) => {
 										setLocationInput(v);
 										setSelectedCoordinates({ lat: null, lng: null });
-										sessionStorage.removeItem("selectedLocationCoords");
+										setSelectedPlaceId("");
+										setConfirmedLocationInput("");
+										clearStoredLocationCoords();
 									}}
 									mapsReady={mapsReady}
 									mapsFailed={mapsFailed}
 									isDetectingLocation={isDetectingLocation}
 									isSavingLocation={isSavingLocation}
 									autocompleteContainerRef={mobileAutocompleteContainerRef}
+									fallbackSuggestions={fallbackSuggestions}
+									fallbackSearching={fallbackSearching}
+									onSelectFallbackSuggestion={selectFallbackSuggestion}
 									onUseCurrentLocation={useCurrentLocation}
 									onSave={() =>
 										persistLocation(() => setIsMobileNavOpen(false))

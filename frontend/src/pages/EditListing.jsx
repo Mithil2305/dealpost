@@ -9,11 +9,13 @@ import Button from "../components/ui/Button";
 import FormField from "../components/ui/FormField";
 import { useAuth } from "../context/useAuth";
 import { compressImageFile } from "../utils/imageCompressor";
-import {
-	loadGoogleMapsPlaces,
-	mountPlaceAutocompleteElement,
-} from "../utils/googleMaps";
+import { mountPlaceAutocompleteElement } from "../utils/googleMaps";
 import { pickArray } from "../utils/api";
+import {
+	fetchOpenStreetSuggestions,
+	loadGoogleMapsFromPublicConfig,
+	mapAutocompletePlaceToLocation,
+} from "../utils/locationHelpers";
 
 const SPEC_TEMPLATES = [
 	{
@@ -209,9 +211,7 @@ export default function EditListing() {
 		let active = true;
 		const loadMaps = async () => {
 			try {
-				const { data } = await api.get("/config/public");
-				const key = data?.googleMapsBrowserApiKey;
-				await loadGoogleMapsPlaces(key);
+				await loadGoogleMapsFromPublicConfig(api);
 				if (active) {
 					setMapsReady(true);
 					setMapsFailed(false);
@@ -240,16 +240,17 @@ export default function EditListing() {
 			container: autocompleteContainerRef.current,
 			placeholder: "Search and pick a real address...",
 			onPlaceSelected: (place) => {
+				const mapped = mapAutocompletePlaceToLocation(place, form.address);
 				setForm((prev) => ({
 					...prev,
-					address: place.formattedAddress || place.displayName || prev.address,
-					latitude: Number.isFinite(place.lat) ? String(place.lat) : "",
-					longitude: Number.isFinite(place.lng) ? String(place.lng) : "",
-					placeId: place.id || "",
+					address: mapped.address,
+					latitude: mapped.latitude,
+					longitude: mapped.longitude,
+					placeId: mapped.placeId,
 				}));
 			},
 		});
-	}, [mapsReady]);
+	}, [mapsReady, form.address]);
 
 	useEffect(() => {
 		if (!mapsFailed) {
@@ -269,42 +270,10 @@ export default function EditListing() {
 		const timeoutId = window.setTimeout(async () => {
 			try {
 				setFallbackSearching(true);
-				const params = new URLSearchParams({
-					q: query,
-					format: "jsonv2",
-					addressdetails: "1",
-					"accept-language": "en",
-					limit: "6",
+				const suggestions = await fetchOpenStreetSuggestions(query, {
+					signal: controller.signal,
+					limit: 6,
 				});
-				const response = await fetch(
-					`https://nominatim.openstreetmap.org/search?${params.toString()}`,
-					{
-						headers: { Accept: "application/json" },
-						signal: controller.signal,
-					},
-				);
-
-				if (!response.ok) {
-					throw new Error("Location lookup failed");
-				}
-
-				const data = await response.json();
-				const suggestions = Array.isArray(data)
-					? data
-							.map((item) => {
-								const lat = Number(item?.lat);
-								const lng = Number(item?.lon);
-								if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-								return {
-									id: String(item?.place_id || `${lat}:${lng}`),
-									label: item?.display_name || "",
-									lat,
-									lng,
-								};
-							})
-							.filter(Boolean)
-					: [];
-
 				setFallbackSuggestions(suggestions);
 			} catch (error) {
 				if (error?.name !== "AbortError") {
@@ -802,9 +771,7 @@ export default function EditListing() {
 										))}
 										{/* Show existing specs that aren't in curated list */}
 										{Object.entries(curatedSpecs)
-											.filter(
-												([key]) => !curatedSpecFields.includes(key),
-											)
+											.filter(([key]) => !curatedSpecFields.includes(key))
 											.map(([key]) => (
 												<input
 													key={key}
@@ -860,10 +827,7 @@ export default function EditListing() {
 							</h2>
 							<div className="mt-4 rounded-2xl border border-brand-border bg-white p-2">
 								{mapsReady ? (
-									<div
-										ref={autocompleteContainerRef}
-										className="w-full"
-									/>
+									<div ref={autocompleteContainerRef} className="w-full" />
 								) : (
 									<div className="space-y-2 px-1 py-1">
 										<input

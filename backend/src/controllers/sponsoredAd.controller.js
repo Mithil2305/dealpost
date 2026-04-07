@@ -3,8 +3,52 @@ import { models } from "../config/db.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const GOOGLE_ADS_SNIPPET_KEY = "google_ads_snippet";
-const ALLOWED_SNIPPET_PATTERN =
-	/^(?:\s*|<script[^>]*src=["']https:\/\/pagead2\.googlesyndication\.com[^"']*["'][^>]*><\/script>\s*)$/i;
+const ALLOWED_GOOGLE_ADS_SCRIPT_SRC =
+	/^https:\/\/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js(?:\?.*)?$/i;
+
+function isAllowedGoogleAdsSnippet(snippet) {
+	const value = String(snippet || "").trim();
+	if (!value) return true;
+
+	const scriptTagPattern = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+	const srcPattern = /\bsrc\s*=\s*["']([^"']+)["']/i;
+	let hasLoaderScript = false;
+	let foundScriptTag = false;
+	let match;
+
+	while ((match = scriptTagPattern.exec(value))) {
+		foundScriptTag = true;
+		const fullTag = match[0] || "";
+		const inlineCode = String(match[1] || "").trim();
+		const srcMatch = fullTag.match(srcPattern);
+
+		if (srcMatch?.[1]) {
+			const src = String(srcMatch[1] || "").trim();
+			if (!ALLOWED_GOOGLE_ADS_SCRIPT_SRC.test(src)) {
+				return false;
+			}
+			hasLoaderScript = true;
+			continue;
+		}
+
+		// Allow inline script blocks only when they are the standard adsbygoogle push call.
+		if (
+			inlineCode &&
+			!/adsbygoogle\s*\.|\(adsbygoogle\s*=\s*window\.adsbygoogle\s*\|\|\s*\[\]\)\s*\.push/i.test(
+				inlineCode,
+			)
+		) {
+			return false;
+		}
+	}
+
+	if (foundScriptTag && hasLoaderScript) {
+		return true;
+	}
+
+	// Also accept non-script ad containers (e.g., ins.adsbygoogle markup).
+	return /<ins\b[^>]*\badsbygoogle\b/i.test(value);
+}
 
 function normalizePlacement(value) {
 	const next = String(value || "any").toLowerCase();
@@ -392,10 +436,11 @@ export const getAdminGoogleAdsSnippet = asyncHandler(async (_req, res) => {
 export const upsertAdminGoogleAdsSnippet = asyncHandler(async (req, res) => {
 	const snippet = String(req.body?.googleAdsSnippet || "").trim();
 
-	if (snippet && !ALLOWED_SNIPPET_PATTERN.test(snippet)) {
-		return res
-			.status(400)
-			.json({ message: "Invalid Google Ads snippet format" });
+	if (!isAllowedGoogleAdsSnippet(snippet)) {
+		return res.status(400).json({
+			message:
+				"Invalid Google Ads snippet format. Use the official pagead2 adsbygoogle snippet.",
+		});
 	}
 
 	const existing = await models.AppSetting.findOne({

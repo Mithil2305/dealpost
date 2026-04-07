@@ -1,4 +1,5 @@
 import {
+	ArrowRightLeft,
 	Clock3,
 	Gavel,
 	Heart,
@@ -222,9 +223,40 @@ export default function ProductDetail() {
 		}
 	};
 
+	const goToCompare = () => {
+		if (!listing) return;
+		const identifier = String(
+			listing?.productId || listing?._id || listing?.id || "",
+		).trim();
+		if (!identifier) {
+			toast.error("Listing cannot be compared right now");
+			return;
+		}
+		navigate(`/compare?seed=${encodeURIComponent(identifier)}`);
+	};
+
 	const auction = listing?.auction;
 	const isAuctionListing =
 		String(listing?.listingType || "").toLowerCase() === "auction";
+	const parentCategoryLabel =
+		listing?.parentCategory ||
+		String(listing?.category || "")
+			.split(">")
+			.map((part) => part.trim())
+			.filter(Boolean)[0] ||
+		"Category";
+	const subCategoryLabel =
+		listing?.subCategory ||
+		String(listing?.category || "")
+			.split(">")
+			.map((part) => part.trim())
+			.filter(Boolean)
+			.slice(1)
+			.join(" > ") ||
+		"";
+	const subCategoryFilterValue = subCategoryLabel
+		? `${parentCategoryLabel} > ${subCategoryLabel}`
+		: parentCategoryLabel;
 	const tabOptions = [
 		["description", "Description"],
 		["specifications", "Specifications"],
@@ -292,7 +324,17 @@ export default function ProductDetail() {
 								Explore
 							</Link>
 							<span>&gt;</span>
-							<span>{listing?.category || "Category"}</span>
+							<Link
+								to={{
+									pathname: "/explore",
+									search: new URLSearchParams({
+										category: subCategoryFilterValue,
+									}).toString(),
+								}}
+								className="font-semibold hover:text-brand-dark"
+							>
+								{subCategoryLabel || parentCategoryLabel}
+							</Link>
 							<span>&gt;</span>
 							<span className="line-clamp-1 font-medium text-brand-dark">
 								{listing?.title}
@@ -476,6 +518,16 @@ export default function ProductDetail() {
 										>
 											<Share2 size={15} className="mr-2 inline" /> Share Product
 										</Button>
+										<Button
+											type="button"
+											onClick={goToCompare}
+											variant="outline"
+											size="lg"
+											className="rounded-xl sm:col-span-2"
+										>
+											<ArrowRightLeft size={15} className="mr-2 inline" />{" "}
+											Compare
+										</Button>
 									</div>
 
 									<div className="flex flex-wrap items-center gap-5 text-sm text-brand-muted">
@@ -628,7 +680,7 @@ export default function ProductDetail() {
 
 			{listing ? (
 				<div className="fixed inset-x-0 bottom-0 z-30 border-t border-brand-border bg-white/95 p-3 backdrop-blur lg:hidden">
-					<div className="mx-auto flex max-w-5xl items-center gap-2">
+					<div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2">
 						<Button
 							type="button"
 							onClick={toggleLike}
@@ -642,6 +694,15 @@ export default function ProductDetail() {
 								className={isLiked ? "mr-1 fill-current text-red-500" : "mr-1"}
 							/>
 							{isLiked ? "Liked" : "Like"}
+						</Button>
+						<Button
+							type="button"
+							onClick={goToCompare}
+							variant="outline"
+							size="md"
+							className="h-11 flex-1 rounded-xl"
+						>
+							<ArrowRightLeft size={15} className="mr-1" /> Compare
 						</Button>
 						<Button
 							type="button"

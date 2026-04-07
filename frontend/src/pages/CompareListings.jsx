@@ -1,11 +1,12 @@
 import {
 	ArrowRightLeft,
 	CalendarClock,
+	Check,
 	Heart,
 	Scale,
 	Sparkles,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "../api/axios";
@@ -19,6 +20,12 @@ const formatPrice = (price) =>
 		maximumFractionDigits: 0,
 	}).format(Number(price || 0));
 
+const getListingThumbnail = (listing) =>
+	listing?.images?.[0]?.url ||
+	listing?.images?.[0] ||
+	listing?.image ||
+	"https://placehold.co/360x240?text=DealPost";
+
 const getCategoryLeaf = (value) => {
 	if (!value) return "General";
 	const parts = String(value)
@@ -26,6 +33,15 @@ const getCategoryLeaf = (value) => {
 		.map((segment) => segment.trim())
 		.filter(Boolean);
 	return parts[parts.length - 1] || "General";
+};
+
+const getCategoryRoot = (value) => {
+	if (!value) return "";
+	const parts = String(value)
+		.split(">")
+		.map((segment) => segment.trim())
+		.filter(Boolean);
+	return parts[0] || "";
 };
 
 const getListedDaysAgo = (createdAt) => {
@@ -86,6 +102,9 @@ export default function CompareListings() {
 	const [entries, setEntries] = useState([]);
 	const [manualOptions, setManualOptions] = useState([]);
 	const [manualSelection, setManualSelection] = useState([]);
+	const [browseOptions, setBrowseOptions] = useState([]);
+	const [browseSelection, setBrowseSelection] = useState([]);
+	const noSimilarToastSeedRef = useRef("");
 
 	const seed = useMemo(() => {
 		return String(searchParams.get("seed") || "").trim();
@@ -103,8 +122,18 @@ export default function CompareListings() {
 
 	const getComparableId = (listing) => {
 		return String(
-			listing?.productId || listing?.id || listing?._id || "",
+			listing?._id || listing?.id || listing?.productId || "",
 		).trim();
+	};
+
+	const getLeafCategory = (listing) =>
+		String(getCategoryLeaf(listing?.category || "")).toLowerCase();
+
+	const getCategoryKey = (listing) => {
+		const raw = String(listing?.category || "")
+			.trim()
+			.toLowerCase();
+		return raw || getLeafCategory(listing);
 	};
 
 	const extractListingRows = (payload) => {
@@ -116,6 +145,32 @@ export default function CompareListings() {
 		return [];
 	};
 
+	const fetchListingByIdentifier = useCallback(async (identifier) => {
+		const value = String(identifier || "").trim();
+		if (!value) return null;
+
+		try {
+			const response = await api.get(`/listings/${value}`);
+			return response?.data?.listing || response?.data || null;
+		} catch {
+			try {
+				const response = await api.get("/listings", {
+					params: { search: value, limit: 60 },
+				});
+				const rows = extractListingRows(response?.data);
+				return (
+					rows.find((item) => {
+						const itemId = String(item?._id || item?.id || "");
+						const productId = String(item?.productId || "");
+						return itemId === value || productId === value;
+					}) || null
+				);
+			} catch {
+				return null;
+			}
+		}
+	}, []);
+
 	useEffect(() => {
 		let active = true;
 
@@ -125,15 +180,14 @@ export default function CompareListings() {
 				if (active) {
 					setManualOptions([]);
 					setManualSelection([]);
+					setBrowseOptions([]);
+					setBrowseSelection([]);
 				}
 
 				if (ids.length >= 2) {
-					const responses = await Promise.all(
-						ids.map((id) => api.get(`/listings/${id}`)),
-					);
-					const rows = responses
-						.map((response) => response?.data?.listing || response?.data)
-						.filter(Boolean);
+					const rows = (
+						await Promise.all(ids.map((id) => fetchListingByIdentifier(id)))
+					).filter(Boolean);
 
 					if (active) {
 						setEntries(rows);
@@ -142,15 +196,18 @@ export default function CompareListings() {
 				}
 
 				if (!seed) {
+					const response = await api.get("/listings", {
+						params: { limit: 24, sort: "Most Popular" },
+					});
+					const pool = extractListingRows(response?.data).slice(0, 12);
 					if (active) {
 						setEntries([]);
+						setBrowseOptions(pool);
 					}
 					return;
 				}
 
-				const selectedResponse = await api.get(`/listings/${seed}`);
-				const selected =
-					selectedResponse?.data?.listing || selectedResponse?.data || null;
+				const selected = await fetchListingByIdentifier(seed);
 
 				if (!selected) {
 					if (active) {
@@ -174,6 +231,41 @@ export default function CompareListings() {
 					relatedRows = extractListingRows(relatedResponse?.data);
 				}
 
+				if (!relatedRows.length) {
+					const broadResponse = await api.get("/listings", {
+						params: {
+							limit: 120,
+							sort: "Most Popular",
+						},
+					});
+					const broadRows = extractListingRows(broadResponse?.data);
+
+					const leafCategory = String(getCategoryLeaf(selected?.category || ""))
+						.trim()
+						.toLowerCase();
+					const rootCategory = String(getCategoryRoot(selected?.category || ""))
+						.trim()
+						.toLowerCase();
+
+					relatedRows = broadRows.filter((item) => {
+						return (
+							String(getCategoryLeaf(item?.category || ""))
+								.trim()
+								.toLowerCase() === leafCategory
+						);
+					});
+
+					if (!relatedRows.length && rootCategory) {
+						relatedRows = broadRows.filter((item) => {
+							return (
+								String(getCategoryRoot(item?.category || ""))
+									.trim()
+									.toLowerCase() === rootCategory
+							);
+						});
+					}
+				}
+
 				const alternatives = relatedRows
 					.filter((item) => getComparableId(item) !== selectedId)
 					.slice(0, 3);
@@ -183,8 +275,11 @@ export default function CompareListings() {
 					setManualOptions(alternatives);
 				}
 
-				if (!alternatives.length) {
+				if (!alternatives.length && noSimilarToastSeedRef.current !== seed) {
+					noSimilarToastSeedRef.current = seed;
 					toast.error("No similar products found in the same subcategory");
+				} else if (alternatives.length) {
+					noSimilarToastSeedRef.current = "";
 				}
 			} catch {
 				if (active) {
@@ -205,7 +300,7 @@ export default function CompareListings() {
 		return () => {
 			active = false;
 		};
-	}, [ids, seed]);
+	}, [ids, seed, fetchListingByIdentifier]);
 
 	const toggleManualPick = (entry) => {
 		const id = getComparableId(entry);
@@ -215,6 +310,12 @@ export default function CompareListings() {
 			if (prev.some((item) => getComparableId(item) === id)) {
 				return prev.filter((item) => getComparableId(item) !== id);
 			}
+			const baseCategory = getLeafCategory(entries[0]);
+			const nextCategory = getLeafCategory(entry);
+			if (baseCategory && nextCategory && baseCategory !== nextCategory) {
+				toast.error("Select products from the same subcategory");
+				return prev;
+			}
 			if (prev.length >= 3) {
 				toast.error("You can select up to 3 additional products");
 				return prev;
@@ -223,11 +324,45 @@ export default function CompareListings() {
 		});
 	};
 
+	const toggleBrowsePick = (entry) => {
+		const id = getComparableId(entry);
+		if (!id) return;
+
+		setBrowseSelection((prev) => {
+			if (prev.some((item) => getComparableId(item) === id)) {
+				return prev.filter((item) => getComparableId(item) !== id);
+			}
+			if (prev.length >= 4) {
+				toast.error("You can compare up to 4 products at once");
+				return prev;
+			}
+			if (prev.length >= 1) {
+				const baseCategory = getCategoryKey(prev[0]);
+				const nextCategory = getCategoryKey(entry);
+				if (baseCategory && nextCategory && baseCategory !== nextCategory) {
+					toast.error("Select products from the same subcategory");
+					return prev;
+				}
+			}
+			return [...prev, entry];
+		});
+	};
+
+	const filteredBrowseOptions = useMemo(() => {
+		if (!browseSelection.length) return browseOptions;
+		const selectedCategory = getCategoryKey(browseSelection[0]);
+		if (!selectedCategory) return browseOptions;
+		return browseOptions.filter(
+			(item) => getCategoryKey(item) === selectedCategory,
+		);
+	}, [browseOptions, browseSelection]);
+
 	const selectedEntries = useMemo(() => {
 		if (ids.length >= 2) return entries;
+		if (!seed) return browseSelection;
 		if (!seed) return entries;
 		return [...entries, ...manualSelection].slice(0, 4);
-	}, [ids, seed, entries, manualSelection]);
+	}, [ids, seed, entries, manualSelection, browseSelection]);
 
 	const scoredEntries = useMemo(() => {
 		return selectedEntries
@@ -267,7 +402,10 @@ export default function CompareListings() {
 		<div className="min-h-screen bg-[#f7f7f4] text-black flex flex-col">
 			<Navbar />
 
-			<main id="main-content" className="mx-auto w-full max-w-[1360px] px-4 py-8 sm:px-6 lg:px-8 flex-1">
+			<main
+				id="main-content"
+				className="mx-auto w-full max-w-[1360px] px-4 py-8 sm:px-6 lg:px-8 flex-1"
+			>
 				<section className="rounded-[32px] bg-[#111111] p-8 text-white md:p-12">
 					<div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.14em]">
 						<Sparkles size={12} className="text-[#FFD600]" />
@@ -310,6 +448,18 @@ export default function CompareListings() {
 												onClick={() => toggleManualPick(item)}
 												className={`rounded-2xl border p-4 text-left transition ${picked ? "border-[#FFD600] bg-[#fff9df]" : "border-[#e8e8e8] bg-white hover:border-[#d6d6d6]"}`}
 											>
+												<img
+													src={getListingThumbnail(item)}
+													alt={item?.title || "Listing thumbnail"}
+													className="mb-3 h-24 w-full rounded-xl object-cover"
+												/>
+												<div className="mb-3 flex items-center justify-end">
+													<span
+														className={`grid h-5 w-5 place-items-center rounded-md border transition ${picked ? "border-[#FFD600] bg-[#FFD600] text-black" : "border-[#cfcfcf] bg-white text-transparent"}`}
+													>
+														<Check size={13} strokeWidth={3} />
+													</span>
+												</div>
 												<p className="line-clamp-1 text-sm font-bold text-black">
 													{item?.title}
 												</p>
@@ -320,12 +470,69 @@ export default function CompareListings() {
 													{formatPrice(item?.price)}
 												</p>
 												<p className="mt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[#8a8a8a]">
-													{picked ? "Selected" : "Tap to select"}
+													{picked ? "Selected" : "Select"}
 												</p>
 											</button>
 										);
 									})}
 								</div>
+							</div>
+						) : null}
+						{!seed && browseOptions.length > 0 ? (
+							<div className="mt-2">
+								<p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[#666]">
+									{browseSelection.length
+										? `Choose more from ${getCategoryLeaf(browseSelection[0]?.category)} only`
+										: "Pick at least 2 products to compare"}
+								</p>
+								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+									{filteredBrowseOptions.map((item) => {
+										const itemId = getComparableId(item);
+										const picked = browseSelection.some(
+											(row) => getComparableId(row) === itemId,
+										);
+										return (
+											<button
+												key={itemId}
+												type="button"
+												onClick={() => toggleBrowsePick(item)}
+												className={`rounded-2xl border p-4 text-left transition ${picked ? "border-[#FFD600] bg-[#fff9df]" : "border-[#e8e8e8] bg-white hover:border-[#d6d6d6]"}`}
+											>
+												<img
+													src={getListingThumbnail(item)}
+													alt={item?.title || "Listing thumbnail"}
+													className="mb-3 h-24 w-full rounded-xl object-cover"
+												/>
+												<div className="flex items-start justify-between gap-3">
+													<div>
+														<p className="line-clamp-1 text-sm font-bold text-black">
+															{item?.title}
+														</p>
+														<p className="mt-1 text-xs text-[#666]">
+															{getCategoryLeaf(item?.category)}
+														</p>
+													</div>
+													<span
+														className={`grid h-5 w-5 place-items-center rounded-md border transition ${picked ? "border-[#FFD600] bg-[#FFD600] text-black" : "border-[#cfcfcf] bg-white text-transparent"}`}
+													>
+														<Check size={13} strokeWidth={3} />
+													</span>
+												</div>
+												<p className="mt-3 text-sm font-semibold text-black">
+													{formatPrice(item?.price)}
+												</p>
+											</button>
+										);
+									})}
+								</div>
+								{browseSelection.length && !filteredBrowseOptions.length ? (
+									<p className="mt-2 text-xs text-[#6f6f6f]">
+										No more products available in this category.
+									</p>
+								) : null}
+								<p className="mt-3 text-xs text-[#6f6f6f]">
+									Selected: {browseSelection.length} / 4
+								</p>
 							</div>
 						) : null}
 						<Link
@@ -362,6 +569,11 @@ export default function CompareListings() {
 										key={entryId}
 										className={`rounded-3xl border p-5 transition ${isLeading ? "border-[#FFD600] bg-[#fff9df] shadow-[0_12px_24px_rgba(0,0,0,0.08)]" : "border-[#ececec] bg-white shadow-sm"}`}
 									>
+										<img
+											src={getListingThumbnail(entry)}
+											alt={entry?.title || "Listing thumbnail"}
+											className="mb-4 h-36 w-full rounded-2xl object-cover"
+										/>
 										<div className="flex items-start justify-between gap-3">
 											<h3 className="text-base font-bold line-clamp-2">
 												{entry?.title}
@@ -415,7 +627,14 @@ export default function CompareListings() {
 												key={entry?.id || entry?._id}
 												className="px-5 py-4 text-sm font-bold text-black min-w-[220px]"
 											>
-												{entry?.title}
+												<div className="flex items-center gap-3">
+													<img
+														src={getListingThumbnail(entry)}
+														alt={entry?.title || "Listing thumbnail"}
+														className="h-10 w-14 rounded-lg object-cover"
+													/>
+													<span className="line-clamp-2">{entry?.title}</span>
+												</div>
 											</th>
 										))}
 									</tr>
@@ -518,4 +737,3 @@ export default function CompareListings() {
 		</div>
 	);
 }
-

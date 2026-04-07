@@ -90,6 +90,7 @@ export function mountPlaceAutocompleteElement({
 		const autocomplete = new placesApi.Autocomplete(input, {
 			fields: ["place_id", "formatted_address", "name", "geometry"],
 			types: ["geocode"],
+			componentRestrictions: { country: "in" },
 		});
 
 		const handleInputFallback = (event) => {
@@ -127,6 +128,11 @@ export function mountPlaceAutocompleteElement({
 	const autocompleteElement =
 		new window.google.maps.places.PlaceAutocompleteElement();
 	autocompleteElement.className = "h-11 w-full";
+	try {
+		autocompleteElement.includedRegionCodes = ["in"];
+	} catch {
+		// Ignore in case the current Places widget version doesn't support this option.
+	}
 	if (placeholder) {
 		autocompleteElement.setAttribute("placeholder", placeholder);
 	}

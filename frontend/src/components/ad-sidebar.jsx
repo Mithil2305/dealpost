@@ -1,5 +1,5 @@
 import { ExternalLink } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getPublicSponsoredAds } from "../utils/sponsoredAds";
 
@@ -69,6 +69,7 @@ export default function AdSidebar({ side = "left" }) {
 	const layouts = SIDEBAR_LAYOUTS[side] || SIDEBAR_LAYOUTS.left;
 	const [ads, setAds] = useState([]);
 	const [googleAdsSnippet, setGoogleAdsSnippet] = useState("");
+	const googleSlotRef = useRef(null);
 
 	useEffect(() => {
 		let active = true;
@@ -93,6 +94,33 @@ export default function AdSidebar({ side = "left" }) {
 		};
 	}, [side]);
 
+	useEffect(() => {
+		const slot = googleSlotRef.current;
+		if (!slot) return;
+
+		slot.innerHTML = "";
+		const markup = String(googleAdsSnippet || "").trim();
+		if (!markup) return;
+
+		const template = document.createElement("template");
+		template.innerHTML = markup;
+
+		Array.from(template.content.childNodes).forEach((node) => {
+			if (node.nodeName.toLowerCase() === "script") {
+				const sourceScript = node;
+				const nextScript = document.createElement("script");
+				Array.from(sourceScript.attributes).forEach((attribute) => {
+					nextScript.setAttribute(attribute.name, attribute.value);
+				});
+				nextScript.text = sourceScript.text || "";
+				slot.appendChild(nextScript);
+				return;
+			}
+
+			slot.appendChild(node.cloneNode(true));
+		});
+	}, [googleAdsSnippet]);
+
 	return (
 		<aside className="hidden xl:block">
 			<div className="sticky top-24 space-y-4">
@@ -101,10 +129,10 @@ export default function AdSidebar({ side = "left" }) {
 						<p className="text-center text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#A0A0A0]">
 							Google Ad Slot
 						</p>
-						<p className="mt-2 rounded-xl border border-[#E2E2E2] bg-white px-3 py-2 text-[11px] text-[#666666]">
-							Google ad snippet is configured by admin and ready for future
-							placement.
-						</p>
+						<div
+							ref={googleSlotRef}
+							className="mt-2 min-h-[60px] rounded-xl border border-[#E2E2E2] bg-white px-3 py-2 text-[11px] text-[#666666]"
+						/>
 					</div>
 				) : null}
 				{layouts.map((slot, index) => (

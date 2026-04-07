@@ -26,6 +26,14 @@ import {
 	saveAdminGoogleAdsSnippet,
 	updateAdminSponsoredAd,
 } from "../utils/sponsoredAds";
+import {
+	clearStoredLocationCoords,
+	fetchOpenStreetSuggestions,
+	getStoredLocationCoords,
+	getStoredLocationLabel,
+	hasValidCoordinates,
+	persistStoredLocation,
+} from "../utils/locationHelpers";
 
 const REPORT_PAGE_SIZE = 8;
 const USERS_PAGE_SIZE = 10;
@@ -81,7 +89,25 @@ export default function AdminDashboard() {
 	const [adminProfileForm, setAdminProfileForm] = useState({
 		name: user?.name || "",
 		phone: user?.phone || "",
-		location: user?.location || "",
+		location: getStoredLocationLabel() || user?.location || "",
+	});
+	const [profileLocationSuggestions, setProfileLocationSuggestions] = useState(
+		[],
+	);
+	const [profileLocationSearching, setProfileLocationSearching] =
+		useState(false);
+	const [verifiedProfileLocation, setVerifiedProfileLocation] = useState(() => {
+		const label = getStoredLocationLabel() || user?.location || "";
+		const coords = getStoredLocationCoords();
+		if (!label || !hasValidCoordinates(coords.lat, coords.lng)) {
+			return null;
+		}
+		return {
+			id: "stored",
+			label,
+			lat: coords.lat,
+			lng: coords.lng,
+		};
 	});
 	const [sponsoredAds, setSponsoredAds] = useState([]);
 	const [sponsoredTotal, setSponsoredTotal] = useState(0);
@@ -255,9 +281,93 @@ export default function AdminDashboard() {
 		setAdminProfileForm({
 			name: user?.name || "",
 			phone: user?.phone || "",
-			location: user?.location || "",
+			location: getStoredLocationLabel() || user?.location || "",
 		});
+
+		const label = getStoredLocationLabel() || user?.location || "";
+		const coords = getStoredLocationCoords();
+		if (label && hasValidCoordinates(coords.lat, coords.lng)) {
+			setVerifiedProfileLocation({
+				id: "stored",
+				label,
+				lat: coords.lat,
+				lng: coords.lng,
+			});
+		} else {
+			setVerifiedProfileLocation(null);
+		}
 	}, [user]);
+
+	useEffect(() => {
+		const syncLocationFromNavbar = () => {
+			const nextLocation = getStoredLocationLabel();
+			if (!nextLocation) return;
+			setAdminProfileForm((prev) => ({ ...prev, location: nextLocation }));
+
+			const coords = getStoredLocationCoords();
+			if (hasValidCoordinates(coords.lat, coords.lng)) {
+				setVerifiedProfileLocation({
+					id: "stored",
+					label: nextLocation,
+					lat: coords.lat,
+					lng: coords.lng,
+				});
+			} else {
+				setVerifiedProfileLocation(null);
+			}
+		};
+
+		window.addEventListener(
+			"dealpost:location-changed",
+			syncLocationFromNavbar,
+		);
+		return () => {
+			window.removeEventListener(
+				"dealpost:location-changed",
+				syncLocationFromNavbar,
+			);
+		};
+	}, []);
+
+	useEffect(() => {
+		const query = String(adminProfileForm.location || "").trim();
+		if (
+			query &&
+			query === String(verifiedProfileLocation?.label || "").trim()
+		) {
+			setProfileLocationSuggestions([]);
+			setProfileLocationSearching(false);
+			return;
+		}
+		if (query.length < 3) {
+			setProfileLocationSuggestions([]);
+			setProfileLocationSearching(false);
+			return;
+		}
+
+		const controller = new AbortController();
+		const timer = setTimeout(async () => {
+			try {
+				setProfileLocationSearching(true);
+				const rows = await fetchOpenStreetSuggestions(query, {
+					limit: 6,
+					signal: controller.signal,
+				});
+				setProfileLocationSuggestions(rows);
+			} catch (error) {
+				if (error?.name !== "AbortError") {
+					setProfileLocationSuggestions([]);
+				}
+			} finally {
+				setProfileLocationSearching(false);
+			}
+		}, 250);
+
+		return () => {
+			controller.abort();
+			clearTimeout(timer);
+		};
+	}, [adminProfileForm.location, verifiedProfileLocation]);
 
 	const filteredReports = useMemo(() => {
 		const query = reportSearch.trim().toLowerCase();
@@ -481,15 +591,61 @@ export default function AdminDashboard() {
 			return;
 		}
 
+		const locationText = String(adminProfileForm.location || "").trim();
+		if (
+			locationText &&
+			(!verifiedProfileLocation ||
+				locationText !== String(verifiedProfileLocation.label || "").trim() ||
+				!hasValidCoordinates(
+					verifiedProfileLocation.lat,
+					verifiedProfileLocation.lng,
+				))
+		) {
+			toast.error("Select a verified location from suggestions");
+			return;
+		}
+
 		try {
 			await runAction("save-admin-profile", async () => {
-				const { data } = await api.put("/users/me", adminProfileForm);
+				const { data } = await api.put("/users/me", {
+					...adminProfileForm,
+					location: locationText,
+				});
 				setCurrentUser(data?.user || user);
 			});
+
+			if (locationText && verifiedProfileLocation) {
+				persistStoredLocation({
+					location: locationText,
+					lat: verifiedProfileLocation.lat,
+					lng: verifiedProfileLocation.lng,
+					placeId: verifiedProfileLocation.id,
+				});
+			} else if (!locationText) {
+				persistStoredLocation({ location: "" });
+				clearStoredLocationCoords();
+			}
+
+			window.dispatchEvent(new Event("dealpost:location-changed"));
 			toast.success("Profile updated");
 		} catch (error) {
 			toast.error(error?.response?.data?.message || "Unable to update profile");
 		}
+	};
+
+	const selectVerifiedProfileLocation = (suggestion) => {
+		if (!suggestion) return;
+		setAdminProfileForm((prev) => ({
+			...prev,
+			location: suggestion.label || "",
+		}));
+		setVerifiedProfileLocation({
+			id: String(suggestion.id || ""),
+			label: suggestion.label || "",
+			lat: Number(suggestion.lat),
+			lng: Number(suggestion.lng),
+		});
+		setProfileLocationSuggestions([]);
 	};
 
 	const resetSponsoredForm = () => {
@@ -586,8 +742,12 @@ export default function AdminDashboard() {
 				setGoogleAdsSnippet(snippet);
 			});
 			toast.success("Google Ads snippet saved");
-		} catch {
-			toast.error("Unable to save Google Ads snippet");
+		} catch (error) {
+			const message =
+				error?.response?.data?.message ||
+				error?.message ||
+				"Unable to save Google Ads snippet";
+			toast.error(message);
 		}
 	};
 
@@ -1436,6 +1596,10 @@ export default function AdminDashboard() {
 											setGoogleAdsSnippet(event.target.value)
 										}
 										rows={8}
+										spellCheck={false}
+										autoCorrect="off"
+										autoCapitalize="off"
+										wrap="off"
 										placeholder="<script async src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'></script>"
 										className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-mono text-gray-700"
 									/>
@@ -1675,17 +1839,61 @@ export default function AdminDashboard() {
 										placeholder="Phone"
 										className="h-11 w-full rounded-xl border border-gray-200 px-3"
 									/>
-									<input
-										value={adminProfileForm.location}
-										onChange={(event) =>
-											setAdminProfileForm((prev) => ({
-												...prev,
-												location: event.target.value,
-											}))
-										}
-										placeholder="Location"
-										className="h-11 w-full rounded-xl border border-gray-200 px-3"
-									/>
+									<div className="relative">
+										<input
+											value={adminProfileForm.location}
+											onChange={(event) => {
+												const nextValue = event.target.value;
+												setAdminProfileForm((prev) => ({
+													...prev,
+													location: nextValue,
+												}));
+												if (
+													String(
+														verifiedProfileLocation?.label || "",
+													).trim() !== String(nextValue || "").trim()
+												) {
+													setVerifiedProfileLocation(null);
+												}
+											}}
+											onBlur={() => {
+												setTimeout(
+													() => setProfileLocationSuggestions([]),
+													120,
+												);
+											}}
+											placeholder="Location"
+											className="h-11 w-full rounded-xl border border-gray-200 px-3"
+										/>
+										{(profileLocationSearching ||
+											profileLocationSuggestions.length > 0) &&
+										adminProfileForm.location.trim().length >= 3 ? (
+											<div className="absolute z-20 mt-1 max-h-52 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+												{profileLocationSearching ? (
+													<p className="px-3 py-2 text-xs text-gray-500">
+														Searching locations...
+													</p>
+												) : profileLocationSuggestions.length ? (
+													profileLocationSuggestions.map((suggestion) => (
+														<button
+															key={suggestion.id}
+															type="button"
+															onMouseDown={() =>
+																selectVerifiedProfileLocation(suggestion)
+															}
+															className="w-full border-b border-gray-100 px-3 py-2 text-left text-xs text-gray-700 last:border-b-0 hover:bg-gray-50"
+														>
+															{suggestion.label}
+														</button>
+													))
+												) : (
+													<p className="px-3 py-2 text-xs text-gray-500">
+														No verified locations found.
+													</p>
+												)}
+											</div>
+										) : null}
+									</div>
 									<button
 										type="submit"
 										disabled={actionKey === "save-admin-profile"}
@@ -1709,4 +1917,3 @@ export default function AdminDashboard() {
 		</div>
 	);
 }
-

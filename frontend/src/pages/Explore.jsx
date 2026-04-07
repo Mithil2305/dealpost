@@ -13,6 +13,10 @@ import Modal from "../components/ui/Modal";
 import Pagination from "../components/ui/Pagination";
 import SearchBar from "../components/ui/SearchBar";
 import { pickArray } from "../utils/api";
+import {
+	getStoredLocationCoords,
+	getStoredLocationLabel,
+} from "../utils/locationHelpers";
 
 const CATEGORIES_CACHE_KEY = "dealpost:explore:categories:v1";
 const LISTING_CACHE_TTL_MS = 12000;
@@ -92,25 +96,6 @@ const getSubCategoryPath = (value) => {
 	if (parts.length < 2) return "";
 	return parts.slice(1).join(" > ");
 };
-
-const getStoredLocationCoords = () => {
-	try {
-		const raw = sessionStorage.getItem("selectedLocationCoords");
-		if (!raw) return { lat: null, lng: null };
-		const parsed = JSON.parse(raw);
-		const lat = Number(parsed?.lat);
-		const lng = Number(parsed?.lng);
-		if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-			return { lat: null, lng: null };
-		}
-		return { lat, lng };
-	} catch {
-		return { lat: null, lng: null };
-	}
-};
-
-const getStoredLocationLabel = () =>
-	localStorage.getItem("selectedLocation") || "";
 
 export default function Explore() {
 	const [searchParams, setSearchParams] = useSearchParams();
