@@ -34,8 +34,15 @@ export const getUserProfile = asyncHandler(async (req, res) => {
 // Supports multipart/form-data with optional avatar file upload to R2
 // ---------------------------------------------------------------------------
 export const updateProfile = asyncHandler(async (req, res) => {
-	const { name, phone, location, accountType, businessName, gstOrMsme } =
-		req.body;
+	const {
+		name,
+		phone,
+		location,
+		accountType,
+		businessName,
+		gstOrMsme,
+		removeAvatar,
+	} = req.body;
 
 	const nextAccountType =
 		accountType !== undefined
@@ -107,6 +114,19 @@ export const updateProfile = asyncHandler(async (req, res) => {
 					: "Invalid GSTIN format. Use a valid 15-character GSTIN (e.g., 22AAAAA0000A1Z5)",
 			});
 		}
+	}
+
+	if (nextAccountType !== "business") {
+		req.user.businessName = null;
+		req.user.gstOrMsme = null;
+	}
+
+	const shouldRemoveAvatar =
+		String(removeAvatar || "") === "1" ||
+		String(removeAvatar || "").toLowerCase() === "true";
+
+	if (shouldRemoveAvatar) {
+		req.user.avatar = "";
 	}
 
 	// Upload new avatar to Cloudflare R2

@@ -911,7 +911,8 @@ export default function Navbar({
 			}
 		}
 
-		return Array.from(grouped.entries())
+		const sortedSections = Array.from(grouped.entries())
+			.filter(([title]) => title !== "General")
 			.map(([title, itemSet]) => ({
 				title,
 				items: Array.from(itemSet).sort((a, b) => a.localeCompare(b)),
@@ -922,8 +923,25 @@ export default function Navbar({
 					return b.items.length - a.items.length;
 				}
 				return a.title.localeCompare(b.title);
-			})
-			.slice(0, 10);
+			});
+
+		const explicitGeneralItems = grouped.has("General")
+			? Array.from(grouped.get("General")).sort((a, b) => a.localeCompare(b))
+			: [];
+
+		const fallbackGeneralItems = sortedSections
+			.map((section) => section.title)
+			.filter(Boolean)
+			.slice(0, 6);
+
+		const generalItems = explicitGeneralItems.length
+			? explicitGeneralItems
+			: fallbackGeneralItems;
+
+		return [{ title: "General", items: generalItems }, ...sortedSections].slice(
+			0,
+			10,
+		);
 	}, [navbarCategories]);
 
 	const openMessagesPopup = () => {
@@ -1443,13 +1461,22 @@ export default function Navbar({
 															key={`${section.title}-${itemLabel}`}
 															className="min-w-0"
 														>
-															<a
-																href={`/explore?category=${encodeURIComponent(`${section.title} > ${itemLabel}`)}`}
-																className="block max-w-full truncate text-[13px] text-gray-600 hover:text-black"
-																title={itemLabel}
-															>
-																{itemLabel}
-															</a>
+															{(() => {
+																const categoryQuery =
+																	section.title === "General"
+																		? itemLabel
+																		: `${section.title} > ${itemLabel}`;
+
+																return (
+																	<a
+																		href={`/explore?category=${encodeURIComponent(categoryQuery)}`}
+																		className="block max-w-full truncate text-[13px] text-gray-600 hover:text-black"
+																		title={itemLabel}
+																	>
+																		{itemLabel}
+																	</a>
+																);
+															})()}
 														</li>
 													))}
 												</ul>
@@ -1535,6 +1562,19 @@ export default function Navbar({
 										</p>
 									</div>
 								</div>
+							)}
+
+							{isAuthenticated && (
+								<button
+									type="button"
+									onClick={() => {
+										navigate("/profile");
+										setIsMobileNavOpen(false);
+									}}
+									className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold text-gray-700"
+								>
+									Edit Profile
+								</button>
 							)}
 
 							{/* Location picker */}

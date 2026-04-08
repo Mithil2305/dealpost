@@ -14,10 +14,11 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import Profile from "./Profile.jsx";
 import { useAuth } from "../context/useAuth";
 import {
 	createSponsoredAd,
@@ -25,44 +26,13 @@ import {
 	getMySponsoredAds,
 	updateSponsoredAd,
 } from "../utils/sponsoredAds";
-import {
-	clearStoredLocationCoords,
-	fetchOpenStreetSuggestions,
-	getStoredLocationCoords,
-	getStoredLocationLabel,
-	hasValidCoordinates,
-	persistStoredLocation,
-} from "../utils/locationHelpers";
 
 export default function UserDashboard() {
-	const { user, setCurrentUser, logout } = useAuth();
+	const { logout } = useAuth();
 	const navigate = useNavigate();
-	const preferredLocation = getStoredLocationLabel() || user?.location || "";
+	const location = useLocation();
 	const [activeTab, setActiveTab] = useState("overview");
-	const [saving, setSaving] = useState(false);
 	const [busyAction, setBusyAction] = useState("");
-	const [profileForm, setProfileForm] = useState({
-		name: user?.name || "",
-		phone: user?.phone || "",
-		location: preferredLocation,
-		businessName: user?.businessName || "",
-		gstOrMsme: user?.gstOrMsme || "",
-	});
-	const [locationSuggestions, setLocationSuggestions] = useState([]);
-	const [locationSearching, setLocationSearching] = useState(false);
-	const [verifiedLocation, setVerifiedLocation] = useState(() => {
-		const label = getStoredLocationLabel() || user?.location || "";
-		const coords = getStoredLocationCoords();
-		if (!label || !hasValidCoordinates(coords.lat, coords.lng)) {
-			return null;
-		}
-		return {
-			id: "stored",
-			label,
-			lat: coords.lat,
-			lng: coords.lng,
-		};
-	});
 	const [passwordForm, setPasswordForm] = useState({
 		currentPassword: "",
 		newPassword: "",
@@ -83,94 +53,19 @@ export default function UserDashboard() {
 	const [editingSponsoredId, setEditingSponsoredId] = useState(null);
 
 	useEffect(() => {
-		setProfileForm({
-			name: user?.name || "",
-			phone: user?.phone || "",
-			location: getStoredLocationLabel() || user?.location || "",
-			businessName: user?.businessName || "",
-			gstOrMsme: user?.gstOrMsme || "",
-		});
-
-		const label = getStoredLocationLabel() || user?.location || "";
-		const coords = getStoredLocationCoords();
-		if (label && hasValidCoordinates(coords.lat, coords.lng)) {
-			setVerifiedLocation({
-				id: "stored",
-				label,
-				lat: coords.lat,
-				lng: coords.lng,
-			});
-		} else {
-			setVerifiedLocation(null);
+		const requestedTab = new URLSearchParams(location.search)
+			.get("tab")
+			?.toLowerCase();
+		const allowedTabs = new Set([
+			"overview",
+			"profile",
+			"security",
+			"sponsored",
+		]);
+		if (requestedTab && allowedTabs.has(requestedTab)) {
+			setActiveTab(requestedTab);
 		}
-	}, [user]);
-
-	useEffect(() => {
-		const syncLocationFromNavbar = () => {
-			const nextLocation = getStoredLocationLabel();
-			if (!nextLocation) return;
-			setProfileForm((prev) => ({ ...prev, location: nextLocation }));
-			const coords = getStoredLocationCoords();
-			if (hasValidCoordinates(coords.lat, coords.lng)) {
-				setVerifiedLocation({
-					id: "stored",
-					label: nextLocation,
-					lat: coords.lat,
-					lng: coords.lng,
-				});
-			} else {
-				setVerifiedLocation(null);
-			}
-		};
-
-		window.addEventListener(
-			"dealpost:location-changed",
-			syncLocationFromNavbar,
-		);
-		return () => {
-			window.removeEventListener(
-				"dealpost:location-changed",
-				syncLocationFromNavbar,
-			);
-		};
-	}, []);
-
-	useEffect(() => {
-		const query = String(profileForm.location || "").trim();
-		if (query && query === String(verifiedLocation?.label || "").trim()) {
-			setLocationSuggestions([]);
-			setLocationSearching(false);
-			return;
-		}
-		if (query.length < 3) {
-			setLocationSuggestions([]);
-			setLocationSearching(false);
-			return;
-		}
-
-		const controller = new AbortController();
-		const timer = setTimeout(async () => {
-			try {
-				setLocationSearching(true);
-				const rows = await fetchOpenStreetSuggestions(query, {
-					limit: 6,
-					signal: controller.signal,
-				});
-				setLocationSuggestions(rows);
-			} catch (error) {
-				if (error?.name !== "AbortError") {
-					setLocationSuggestions([]);
-				}
-			} finally {
-				setLocationSearching(false);
-			}
-		}, 250);
-
-		return () => {
-			controller.abort();
-			clearTimeout(timer);
-		};
-	}, [profileForm.location, verifiedLocation]);
+	}, [location.search]);
 
 	useEffect(() => {
 		let active = true;
@@ -222,9 +117,6 @@ export default function UserDashboard() {
 		};
 	}, []);
 
-	const isBusinessAccount =
-		String(user?.accountType || "").toLowerCase() === "business";
-
 	const listingStats = useMemo(() => {
 		const initial = {
 			total: myListings.length,
@@ -244,69 +136,6 @@ export default function UserDashboard() {
 	}, [myListings]);
 
 	const recentListings = useMemo(() => myListings.slice(0, 4), [myListings]);
-
-	const updateProfile = async (event) => {
-		event.preventDefault();
-		if (!profileForm.name.trim()) {
-			toast.error("Name is required");
-			return;
-		}
-
-		const locationText = String(profileForm.location || "").trim();
-		if (
-			locationText &&
-			(!verifiedLocation ||
-				locationText !== String(verifiedLocation.label || "").trim() ||
-				!hasValidCoordinates(verifiedLocation.lat, verifiedLocation.lng))
-		) {
-			toast.error("Select a verified location from suggestions");
-			return;
-		}
-
-		try {
-			setSaving(true);
-			const payload = {
-				name: profileForm.name,
-				phone: profileForm.phone,
-				location: locationText,
-				businessName: isBusinessAccount ? profileForm.businessName : undefined,
-				gstOrMsme: isBusinessAccount ? profileForm.gstOrMsme : undefined,
-			};
-			const { data } = await api.put("/users/me", payload);
-			setCurrentUser(data?.user || user);
-
-			if (locationText && verifiedLocation) {
-				persistStoredLocation({
-					location: locationText,
-					lat: verifiedLocation.lat,
-					lng: verifiedLocation.lng,
-					placeId: verifiedLocation.id,
-				});
-			} else if (!locationText) {
-				persistStoredLocation({ location: "" });
-				clearStoredLocationCoords();
-			}
-
-			window.dispatchEvent(new Event("dealpost:location-changed"));
-			toast.success("Profile updated");
-		} catch (error) {
-			toast.error(error?.response?.data?.message || "Unable to update profile");
-		} finally {
-			setSaving(false);
-		}
-	};
-
-	const selectVerifiedLocation = (suggestion) => {
-		if (!suggestion) return;
-		setProfileForm((prev) => ({ ...prev, location: suggestion.label || "" }));
-		setVerifiedLocation({
-			id: String(suggestion.id || ""),
-			label: suggestion.label || "",
-			lat: Number(suggestion.lat),
-			lng: Number(suggestion.lng),
-		});
-		setLocationSuggestions([]);
-	};
 
 	const updatePassword = async (event) => {
 		event.preventDefault();
@@ -702,121 +531,7 @@ export default function UserDashboard() {
 							</>
 						) : null}
 
-						{activeTab === "profile" ? (
-							<form
-								onSubmit={updateProfile}
-								className="space-y-4 rounded-3xl border border-gray-200 bg-white p-6"
-							>
-								<h2 className="text-2xl font-display font-bold text-black">
-									Edit Profile
-								</h2>
-								<input
-									value={profileForm.name}
-									onChange={(event) =>
-										setProfileForm((prev) => ({
-											...prev,
-											name: event.target.value,
-										}))
-									}
-									placeholder="Full name"
-									className="h-11 w-full rounded-xl border border-gray-200 px-3"
-								/>
-								<input
-									value={profileForm.phone}
-									onChange={(event) =>
-										setProfileForm((prev) => ({
-											...prev,
-											phone: event.target.value,
-										}))
-									}
-									placeholder="Phone"
-									className="h-11 w-full rounded-xl border border-gray-200 px-3"
-								/>
-								<div className="relative">
-									<input
-										value={profileForm.location}
-										onChange={(event) => {
-											const nextValue = event.target.value;
-											setProfileForm((prev) => ({
-												...prev,
-												location: nextValue,
-											}));
-											if (
-												String(verifiedLocation?.label || "").trim() !==
-												String(nextValue || "").trim()
-											) {
-												setVerifiedLocation(null);
-											}
-										}}
-										onBlur={() => {
-											setTimeout(() => setLocationSuggestions([]), 120);
-										}}
-										placeholder="Location"
-										className="h-11 w-full rounded-xl border border-gray-200 px-3"
-									/>
-									{(locationSearching || locationSuggestions.length > 0) &&
-									profileForm.location.trim().length >= 3 ? (
-										<div className="absolute z-20 mt-1 max-h-52 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
-											{locationSearching ? (
-												<p className="px-3 py-2 text-xs text-gray-500">
-													Searching locations...
-												</p>
-											) : locationSuggestions.length ? (
-												locationSuggestions.map((suggestion) => (
-													<button
-														key={suggestion.id}
-														type="button"
-														onMouseDown={() =>
-															selectVerifiedLocation(suggestion)
-														}
-														className="w-full border-b border-gray-100 px-3 py-2 text-left text-xs text-gray-700 last:border-b-0 hover:bg-gray-50"
-													>
-														{suggestion.label}
-													</button>
-												))
-											) : (
-												<p className="px-3 py-2 text-xs text-gray-500">
-													No verified locations found.
-												</p>
-											)}
-										</div>
-									) : null}
-								</div>
-								{isBusinessAccount ? (
-									<>
-										<input
-											value={profileForm.businessName}
-											onChange={(event) =>
-												setProfileForm((prev) => ({
-													...prev,
-													businessName: event.target.value,
-												}))
-											}
-											placeholder="Business name"
-											className="h-11 w-full rounded-xl border border-gray-200 px-3"
-										/>
-										<input
-											value={profileForm.gstOrMsme}
-											onChange={(event) =>
-												setProfileForm((prev) => ({
-													...prev,
-													gstOrMsme: event.target.value,
-												}))
-											}
-											placeholder="GST / MSME number"
-											className="h-11 w-full rounded-xl border border-gray-200 px-3"
-										/>
-									</>
-								) : null}
-								<button
-									type="submit"
-									disabled={saving}
-									className="rounded-xl bg-black px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-								>
-									{saving ? "Saving..." : "Save Profile"}
-								</button>
-							</form>
-						) : null}
+						{activeTab === "profile" ? <Profile embedded /> : null}
 
 						{activeTab === "security" ? (
 							<form
