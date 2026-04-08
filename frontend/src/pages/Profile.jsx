@@ -21,6 +21,26 @@ import {
 	persistStoredLocation,
 } from "../utils/locationHelpers";
 
+const isCoordinateLocationString = (value) => {
+	const text = String(value || "").trim();
+	if (!text) return false;
+	return /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(text);
+};
+
+const getPreferredLocationLabel = (storedLabel, userLocation) => {
+	const stored = String(storedLabel || "").trim();
+	if (stored && !isCoordinateLocationString(stored)) {
+		return stored;
+	}
+
+	const fallback = String(userLocation || "").trim();
+	if (fallback && !isCoordinateLocationString(fallback)) {
+		return fallback;
+	}
+
+	return "";
+};
+
 export default function Profile({ embedded = false }) {
 	const { user, setCurrentUser } = useAuth();
 	const fileInputRef = useRef(null);
@@ -46,13 +66,19 @@ export default function Profile({ embedded = false }) {
 	const [profileForm, setProfileForm] = useState({
 		name: user?.name || "",
 		phone: user?.phone || "",
-		location: getStoredLocationLabel() || user?.location || "",
+		location: getPreferredLocationLabel(
+			getStoredLocationLabel(),
+			user?.location,
+		),
 		businessName: user?.businessName || "",
 		gstOrMsme: user?.gstOrMsme || "",
 	});
 
 	useEffect(() => {
-		const label = getStoredLocationLabel() || user?.location || "";
+		const label = getPreferredLocationLabel(
+			getStoredLocationLabel(),
+			user?.location,
+		);
 		const coords = getStoredLocationCoords();
 
 		setProfileForm({
@@ -157,6 +183,10 @@ export default function Profile({ embedded = false }) {
 			})
 		: "Recently";
 
+	const profileLocationLabel =
+		getPreferredLocationLabel(getStoredLocationLabel(), user?.location) ||
+		"Location not set";
+
 	const onUpdateProfile = async (event) => {
 		event.preventDefault();
 		if (!profileForm.name.trim()) {
@@ -165,6 +195,10 @@ export default function Profile({ embedded = false }) {
 		}
 
 		const locationText = String(profileForm.location || "").trim();
+		if (isCoordinateLocationString(locationText)) {
+			toast.error("Choose a valid location from suggestions");
+			return;
+		}
 		if (
 			locationText &&
 			(!verifiedLocation ||
@@ -270,7 +304,10 @@ export default function Profile({ embedded = false }) {
 	};
 
 	const resetForm = () => {
-		const label = getStoredLocationLabel() || user?.location || "";
+		const label = getPreferredLocationLabel(
+			getStoredLocationLabel(),
+			user?.location,
+		);
 		const coords = getStoredLocationCoords();
 
 		setProfileForm({
@@ -347,7 +384,7 @@ export default function Profile({ embedded = false }) {
 							</span>
 							<span className="bg-[#F5F6F8] text-gray-600 text-sm font-semibold px-3.5 py-1.5 rounded-full flex items-center gap-1.5 border border-gray-200">
 								<MapPin size={16} className="text-gray-400" />
-								{user?.location || "Location not set"}
+								{profileLocationLabel}
 							</span>
 						</div>
 					</div>

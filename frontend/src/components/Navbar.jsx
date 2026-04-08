@@ -32,6 +32,8 @@ import {
 } from "../utils/locationHelpers";
 
 const ALERTS_CACHE_TTL_MS = 15000;
+const UNREAD_FETCH_COOLDOWN_MS = 5000;
+const MAPS_LOAD_RETRY_COOLDOWN_MS = 30000;
 let cachedAlerts = { ts: 0, rows: [] };
 
 function getReadableLocationLabel(placeLike) {
@@ -231,6 +233,11 @@ export default function Navbar({
 	const mobileSearchRef = useRef(null);
 	const categoryNavRef = useRef(null);
 	const categoryMegaCloseTimerRef = useRef(null);
+	const unreadFetchInFlightRef = useRef(false);
+	const lastUnreadFetchAtRef = useRef(0);
+	const categoriesLoadedRef = useRef(false);
+	const categoriesFetchInFlightRef = useRef(false);
+	const lastMapsLoadAttemptAtRef = useRef(0);
 
 	const openCategoryMegaMenu = useCallback(() => {
 		if (categoryMegaCloseTimerRef.current) {
@@ -303,25 +310,6 @@ export default function Navbar({
 		}
 	}, []);
 
-	/* ── Load Google Maps ── */
-	useEffect(() => {
-		let active = true;
-
-		const setupMaps = async () => {
-			const loaded = await loadMapsForNavbar();
-			if (!active) return;
-			if (loaded) {
-				setMapsReady(true);
-				setMapsFailed(false);
-			}
-		};
-
-		setupMaps();
-		return () => {
-			active = false;
-		};
-	}, [loadMapsForNavbar]);
-
 	useEffect(() => {
 		if (!isLocationOpen && !isMobileNavOpen) return;
 
@@ -331,6 +319,12 @@ export default function Navbar({
 			return;
 		}
 
+		const now = Date.now();
+		if (now - lastMapsLoadAttemptAtRef.current < MAPS_LOAD_RETRY_COOLDOWN_MS) {
+			return;
+		}
+
+		lastMapsLoadAttemptAtRef.current = now;
 		loadMapsForNavbar();
 	}, [isLocationOpen, isMobileNavOpen, loadMapsForNavbar]);
 
@@ -504,6 +498,12 @@ export default function Navbar({
 			return;
 		}
 
+		const now = Date.now();
+		if (unreadFetchInFlightRef.current) return;
+		if (now - lastUnreadFetchAtRef.current < UNREAD_FETCH_COOLDOWN_MS) return;
+
+		unreadFetchInFlightRef.current = true;
+
 		try {
 			const { data } = await api.get("/conversations");
 			const rows = Array.isArray(data?.conversations) ? data.conversations : [];
@@ -511,6 +511,9 @@ export default function Navbar({
 			setRecentConversations(rows.slice(0, 5));
 		} catch {
 			// Ignore unread badge refresh failures.
+		} finally {
+			lastUnreadFetchAtRef.current = Date.now();
+			unreadFetchInFlightRef.current = false;
 		}
 	}, [isAuthenticated, user?.id]);
 
@@ -539,25 +542,9 @@ export default function Navbar({
 	useEffect(() => {
 		if (!isAuthenticated || !user?.id) {
 			setUnreadCount(0);
-			return;
+			setRecentConversations([]);
 		}
-
-		refreshUnreadCount();
-		const intervalId = window.setInterval(refreshUnreadCount, 7000);
-		const onSeenUpdated = () => refreshUnreadCount();
-		window.addEventListener(
-			"dealpost:conversation-seen-updated",
-			onSeenUpdated,
-		);
-
-		return () => {
-			window.clearInterval(intervalId);
-			window.removeEventListener(
-				"dealpost:conversation-seen-updated",
-				onSeenUpdated,
-			);
-		};
-	}, [isAuthenticated, refreshUnreadCount, user?.id]);
+	}, [isAuthenticated, user?.id]);
 
 	/* ── Close desktop popups on outside click ── */
 	useEffect(() => {
@@ -616,7 +603,12 @@ export default function Navbar({
 	}, [isMobileNavOpen]);
 
 	useEffect(() => {
+		if (!isCategoryMegaOpen) return;
+		if (categoriesLoadedRef.current || categoriesFetchInFlightRef.current)
+			return;
+
 		let active = true;
+		categoriesFetchInFlightRef.current = true;
 
 		const fetchNavbarCategories = async () => {
 			try {
@@ -624,10 +616,13 @@ export default function Navbar({
 				const rows = pickArray(data, ["categories", "data", "items"]);
 				if (!active) return;
 				setNavbarCategories(Array.isArray(rows) ? rows : []);
+				categoriesLoadedRef.current = true;
 			} catch {
 				if (active) {
 					setNavbarCategories([]);
 				}
+			} finally {
+				categoriesFetchInFlightRef.current = false;
 			}
 		};
 
@@ -636,7 +631,7 @@ export default function Navbar({
 		return () => {
 			active = false;
 		};
-	}, []);
+	}, [isCategoryMegaOpen]);
 
 	useEffect(() => {
 		if (!isCategoryMegaOpen) return;
@@ -946,7 +941,11 @@ export default function Navbar({
 
 	const openMessagesPopup = () => {
 		if (redirectUnauthenticatedUser()) return;
-		setIsMessagesOpen((prev) => !prev);
+		setIsMessagesOpen((prev) => {
+			const next = !prev;
+			if (next) refreshUnreadCount();
+			return next;
+		});
 		setIsAlertsOpen(false);
 		setIsProfileMenuOpen(false);
 	};
@@ -1278,11 +1277,11 @@ export default function Navbar({
 						<span>Sell</span>
 					</button>
 
-					{/* Profile avatar — hidden on smallest mobile; shown from sm+ */}
+					{/* Profile avatar */}
 					<button
 						type="button"
 						onClick={onProfileAvatarClick}
-						className="hidden sm:flex h-9 w-9 lg:ml-5 sm:h-10 sm:w-10 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-gray-50 transition-all hover:border-[#FFD600] group shrink-0"
+						className="flex h-9 w-9 lg:ml-5 sm:h-10 sm:w-10 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-gray-50 transition-all hover:border-[#FFD600] group shrink-0"
 						aria-label="Open profile menu"
 						aria-haspopup="menu"
 						aria-expanded={isProfileMenuOpen}
