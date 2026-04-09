@@ -3,6 +3,7 @@ import { loadGoogleMapsPlaces } from "./googleMaps";
 const STORAGE_LOCATION_LABEL_KEY = "selectedLocation";
 const STORAGE_LOCATION_COORDS_KEY = "selectedLocationCoords";
 const STORAGE_LOCATION_PLACE_ID_KEY = "selectedLocationPlaceId";
+export const LOCATION_UPDATED_EVENT = "dealpost:location-changed";
 
 export const hasValidCoordinates = (lat, lng) =>
 	Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
@@ -142,14 +143,44 @@ export function persistStoredLocation({ location, lat, lng, placeId }) {
 		} else {
 			sessionStorage.removeItem(STORAGE_LOCATION_PLACE_ID_KEY);
 		}
+		window.dispatchEvent(
+			new CustomEvent(LOCATION_UPDATED_EVENT, {
+				detail: {
+					location: getStoredLocationLabel(),
+					lat: Number(lat),
+					lng: Number(lng),
+					placeId: placeId ? String(placeId) : "",
+				},
+			}),
+		);
 		return;
 	}
 
 	sessionStorage.removeItem(STORAGE_LOCATION_COORDS_KEY);
 	sessionStorage.removeItem(STORAGE_LOCATION_PLACE_ID_KEY);
+	window.dispatchEvent(
+		new CustomEvent(LOCATION_UPDATED_EVENT, {
+			detail: {
+				location: getStoredLocationLabel(),
+				lat: null,
+				lng: null,
+				placeId: "",
+			},
+		}),
+	);
 }
 
 export function clearStoredLocationCoords() {
 	sessionStorage.removeItem(STORAGE_LOCATION_COORDS_KEY);
 	sessionStorage.removeItem(STORAGE_LOCATION_PLACE_ID_KEY);
+	window.dispatchEvent(
+		new CustomEvent(LOCATION_UPDATED_EVENT, {
+			detail: {
+				location: getStoredLocationLabel(),
+				lat: null,
+				lng: null,
+				placeId: "",
+			},
+		}),
+	);
 }

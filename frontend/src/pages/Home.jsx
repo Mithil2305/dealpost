@@ -33,6 +33,12 @@ import Navbar from "../components/Navbar";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
 import {
+	getStoredLocationCoords,
+	getStoredLocationLabel,
+	hasValidCoordinates,
+	LOCATION_UPDATED_EVENT,
+} from "../utils/locationHelpers";
+import {
 	fetchMyLikedListingIds,
 	getListingLikedCount,
 	getListingNumericId,
@@ -57,6 +63,9 @@ const CATEGORY_ICON_MAP = {
 const DEALS_PER_ROW_DESKTOP = 4;
 const PROMO_EVERY_ROWS = 5;
 const PROMO_INSERT_INTERVAL = DEALS_PER_ROW_DESKTOP * PROMO_EVERY_ROWS;
+const DEFAULT_LOCATION_RADIUS_KM = 50;
+const LOCATION_RADIUS_OPTIONS_KM = [5, 10, 25, 50];
+const LOCATION_RADIUS_STORAGE_KEY = "homeLocationRadiusKm";
 const DISPLAY_CATEGORIES = [
 	"Cars",
 	"Bikes",
@@ -152,14 +161,37 @@ const getEndSubCategory = (value) => {
 };
 
 const getLocationLabel = (value) => {
-	if (!value) return "Chennai";
+	if (!value) return "Location unavailable";
 	if (typeof value === "string") return value;
 	if (typeof value === "object") {
 		return (
-			value?.name || value?.label || value?.city || value?.district || "Chennai"
+			value?.name ||
+			value?.label ||
+			value?.city ||
+			value?.district ||
+			"Location unavailable"
 		);
 	}
 	return String(value);
+};
+
+const readStoredUserLocation = () => {
+	const label = String(getStoredLocationLabel() || "").trim();
+	const coords = getStoredLocationCoords();
+	const hasCoords = hasValidCoordinates(coords?.lat, coords?.lng);
+
+	return {
+		label,
+		lat: hasCoords ? Number(coords.lat) : null,
+		lng: hasCoords ? Number(coords.lng) : null,
+	};
+};
+
+const getStoredLocationRadius = () => {
+	const raw = Number(localStorage.getItem(LOCATION_RADIUS_STORAGE_KEY));
+	return LOCATION_RADIUS_OPTIONS_KM.includes(raw)
+		? raw
+		: DEFAULT_LOCATION_RADIUS_KM;
 };
 
 const normalizeListing = (item) => {
@@ -207,6 +239,8 @@ export default function Home() {
 	const [slideDirection, setSlideDirection] = useState("next");
 	const [isMegaMenuOpen, setIsMegaMenuOpen] = useState(false);
 	const [allCategories, setAllCategories] = useState([]);
+	const [userLocation, setUserLocation] = useState(readStoredUserLocation);
+	const [locationRadiusKm] = useState(getStoredLocationRadius);
 	const categoryMenuRef = useRef(null);
 
 	// Hero Slider State
@@ -214,11 +248,39 @@ export default function Home() {
 
 	// Fetch Data Effect
 	useEffect(() => {
+		const syncLocation = () => {
+			setUserLocation(readStoredUserLocation());
+		};
+
+		window.addEventListener(LOCATION_UPDATED_EVENT, syncLocation);
+		window.addEventListener("focus", syncLocation);
+
+		return () => {
+			window.removeEventListener(LOCATION_UPDATED_EVENT, syncLocation);
+			window.removeEventListener("focus", syncLocation);
+		};
+	}, []);
+
+	useEffect(() => {
+		localStorage.setItem(LOCATION_RADIUS_STORAGE_KEY, String(locationRadiusKm));
+	}, [locationRadiusKm]);
+
+	useEffect(() => {
 		const fetchHomeData = async () => {
 			try {
 				setLoading(true);
+				const hasLocationFilter =
+					Number.isFinite(userLocation.lat) &&
+					Number.isFinite(userLocation.lng);
 				const listingsRes = await api.get("/listings", {
-					params: { limit: 40, sort: "Newest", search: search || undefined },
+					params: {
+						limit: 40,
+						sort: "Newest",
+						search: search || undefined,
+						radius: hasLocationFilter ? locationRadiusKm : undefined,
+						originLat: hasLocationFilter ? userLocation.lat : undefined,
+						originLng: hasLocationFilter ? userLocation.lng : undefined,
+					},
 				});
 
 				const listingRows = pickArray(listingsRes?.data, [
@@ -235,7 +297,7 @@ export default function Home() {
 		};
 
 		fetchHomeData();
-	}, [search]);
+	}, [search, locationRadiusKm, userLocation.lat, userLocation.lng]);
 
 	// Liked Items Effect
 	useEffect(() => {
@@ -411,6 +473,9 @@ export default function Home() {
 		.slice(0, 4);
 	const topDeals = displayListings.slice(0, 8);
 	const topDealsCount = topDeals.length;
+	const currentLocationLabel = userLocation.label || "All locations";
+	const hasCoordinates =
+		Number.isFinite(userLocation.lat) && Number.isFinite(userLocation.lng);
 
 	useEffect(() => {
 		if (!topDealsCount) {
@@ -802,7 +867,13 @@ export default function Home() {
 										Fresh recommendations
 									</h2>
 									<p className="flex items-center gap-1.5 text-sm font-semibold text-[#888888]">
-										<MapPin size={14} /> Current location: Chennai
+										<MapPin size={14} /> Current location:{" "}
+										{currentLocationLabel}
+									</p>
+									<p className="mt-1 text-xs text-[#7a7a7a]">
+										{hasCoordinates
+											? `Showing deals within ${locationRadiusKm} km`
+											: "Set an exact location to enable distance filtering"}
 									</p>
 								</div>
 								<Link
