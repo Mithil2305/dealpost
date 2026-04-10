@@ -5,8 +5,14 @@ const STORAGE_LOCATION_COORDS_KEY = "selectedLocationCoords";
 const STORAGE_LOCATION_PLACE_ID_KEY = "selectedLocationPlaceId";
 export const LOCATION_UPDATED_EVENT = "dealpost:location-changed";
 
+const isCoordinateLikeValue = (value) => {
+	if (value == null) return false;
+	if (typeof value === "string" && value.trim() === "") return false;
+	return Number.isFinite(Number(value));
+};
+
 export const hasValidCoordinates = (lat, lng) =>
-	Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+	isCoordinateLikeValue(lat) && isCoordinateLikeValue(lng);
 
 export const mapAutocompletePlaceToLocation = (
 	place,
