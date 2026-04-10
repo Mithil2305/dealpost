@@ -7,7 +7,7 @@ import ProductDetail from "./pages/ProductDetail.jsx";
 import Explore from "./pages/Explore.jsx";
 import Categories from "./pages/Categories.jsx";
 import BusinessListings from "./pages/BusinessListings.jsx";
-import BusinessPostAd from "./pages/BusinessPostAd.jsx";
+import BusinessRegistration from "./pages/BusinessRegistration.jsx";
 import PostAd from "./pages/PostAd.jsx";
 import EditListing from "./pages/EditListing.jsx";
 import MyAds from "./pages/MyAds.jsx";
@@ -121,12 +121,16 @@ function App() {
 				/>
 				<Route path="/business-listings" element={<BusinessListings />} />
 				<Route
-					path="/post-business-ad"
+					path="/business-registration"
 					element={
 						<ProtectedRoute>
-							<BusinessPostAd />
+							<BusinessRegistration />
 						</ProtectedRoute>
 					}
+				/>
+				<Route
+					path="/post-business-ad"
+					element={<Navigate to="/business-registration" replace />}
 				/>
 				<Route
 					path="/post-ad"

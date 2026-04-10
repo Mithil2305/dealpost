@@ -30,6 +30,26 @@ export function defineUser(sequelize) {
 				type: DataTypes.STRING,
 				defaultValue: "",
 			},
+			businessBanner: {
+				type: DataTypes.STRING,
+				defaultValue: "",
+			},
+			businessLatitude: {
+				type: DataTypes.DECIMAL(10, 7),
+				allowNull: true,
+			},
+			businessLongitude: {
+				type: DataTypes.DECIMAL(10, 7),
+				allowNull: true,
+			},
+			businessPlaceId: {
+				type: DataTypes.STRING,
+				allowNull: true,
+			},
+			businessLocationUrl: {
+				type: DataTypes.STRING,
+				defaultValue: "",
+			},
 			location: {
 				type: DataTypes.STRING,
 			},

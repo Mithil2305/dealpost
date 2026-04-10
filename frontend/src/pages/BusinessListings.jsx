@@ -1,14 +1,12 @@
 import {
 	ArrowUpRight,
 	BadgeCheck,
-	BriefcaseBusiness,
 	Building2,
 	Filter,
 	MapPin,
 	Search,
 	Sparkles,
 	Store,
-	Tag,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -33,8 +31,21 @@ const toAmount = (value) => {
 
 const formatInr = (value) => INR_FORMATTER.format(toAmount(value));
 
+const getSubCategoryOnly = (value) => {
+	const normalized = String(value || "").trim();
+	if (!normalized) return "General";
+
+	const parts = normalized
+		.split(">")
+		.map((part) => part.trim())
+		.filter(Boolean);
+
+	if (!parts.length) return "General";
+	return parts[parts.length - 1];
+};
+
 export default function BusinessListings() {
-	const { isAuthenticated } = useAuth();
+	const { isAuthenticated, user } = useAuth();
 	const [remoteStores, setRemoteStores] = useState([]);
 	const [listings, setListings] = useState([]);
 	const [loading, setLoading] = useState(true);
@@ -96,20 +107,68 @@ export default function BusinessListings() {
 		return unique;
 	}, [remoteStores]);
 
+	const localBusinessMetaByName = useMemo(() => {
+		const normalized = new Map();
+
+		try {
+			const mapRaw = JSON.parse(
+				localStorage.getItem("dealpost:business-registration-meta-map") || "{}",
+			);
+			if (mapRaw && typeof mapRaw === "object") {
+				Object.entries(mapRaw).forEach(([name, meta]) => {
+					const key = String(name || "")
+						.trim()
+						.toLowerCase();
+					if (!key) return;
+					normalized.set(key, meta || {});
+				});
+			}
+		} catch {
+			// no-op: local storage may be empty or malformed
+		}
+
+		// Backward compatibility for old single-object format.
+		try {
+			const legacy = JSON.parse(
+				localStorage.getItem("dealpost:business-registration-meta") || "null",
+			);
+			const legacyBusinessName = String(
+				legacy?.businessName || user?.businessName || "",
+			)
+				.trim()
+				.toLowerCase();
+			if (legacyBusinessName && legacy) {
+				normalized.set(legacyBusinessName, legacy);
+			}
+		} catch {
+			// no-op: local storage may be empty or malformed
+		}
+
+		return normalized;
+	}, [user?.businessName]);
+
 	const getStoreListings = useCallback(
 		(store) => {
+			const ownerId = Number(store?.ownerId || store?.owner?.id || store?.id);
 			const businessName = String(
 				store?.businessName || store?.name || "",
 			).toLowerCase();
 			const ownerEmail = String(store?.email || "").toLowerCase();
 
 			return listings.filter((item) => {
+				const sellerId = Number(
+					item?.seller?.id || item?.sellerId || item?.ownerId,
+				);
 				const listingBusiness = String(
 					item?.business?.name || item?.businessName || item?.storeName || "",
 				).toLowerCase();
 				const sellerEmail = String(
 					item?.seller?.email || item?.owner?.email || "",
 				).toLowerCase();
+
+				if (Number.isFinite(ownerId) && Number.isFinite(sellerId)) {
+					if (ownerId === sellerId) return true;
+				}
 
 				if (
 					businessName &&
@@ -134,6 +193,20 @@ export default function BusinessListings() {
 			const storeListings = getStoreListings(store);
 			const name = store?.businessName || store?.name || "Unnamed Business";
 			const location = store?.location || "Not specified";
+			const localMeta = localBusinessMetaByName.get(
+				String(name).trim().toLowerCase(),
+			);
+			const categoryLabel = getSubCategoryOnly(
+				store?.category || localMeta?.primaryCategory || "General",
+			);
+			const description =
+				String(store?.description || "").trim() ||
+				String(localMeta?.description || "").trim() ||
+				"No description available";
+			const businessLocationUrl =
+				String(store?.businessLocationUrl || "").trim() ||
+				String(localMeta?.locationUrl || "").trim() ||
+				"";
 			const totalValue = storeListings.reduce(
 				(sum, item) => sum + Number(item?.price || 0),
 				0,
@@ -143,11 +216,14 @@ export default function BusinessListings() {
 				store,
 				name,
 				location,
+				categoryLabel,
+				description,
+				businessLocationUrl,
 				storeListings,
 				totalValue,
 			};
 		});
-	}, [getStoreListings, stores]);
+	}, [getStoreListings, localBusinessMetaByName, stores]);
 
 	const locations = useMemo(() => {
 		const unique = new Set(
@@ -183,72 +259,87 @@ export default function BusinessListings() {
 		[locations],
 	);
 
-	const businessCtaPath = isAuthenticated ? "/post-business-ad" : "/signup";
+	const businessCtaPath = isAuthenticated
+		? "/business-registration"
+		: "/signup";
 	const businessCtaLabel = isAuthenticated
-		? "Register Business Listing"
-		: "Register Business";
+		? "Register a Business "
+		: "Register a Business";
+	const hasBusinessAccount =
+		isAuthenticated &&
+		String(user?.accountType || "").toLowerCase() === "business";
 
 	return (
 		<div className="min-h-screen bg-brand-bg text-brand-dark font-body flex flex-col">
 			<Navbar />
 
 			<main id="main-content" className="container-shell py-8 flex-1">
-				<section className="relative overflow-hidden rounded-[36px] bg-[#101010] p-6 text-white md:p-10">
-					<div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-brand-yellow/25 blur-3xl" />
-					<div className="pointer-events-none absolute -bottom-24 -left-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+				<section className="relative overflow-hidden rounded-[28px] bg-[#101010] p-5 text-white md:p-7 lg:p-8">
+					<div className="pointer-events-none absolute -right-16 -top-16 h-52 w-52 rounded-full bg-brand-yellow/25 blur-3xl" />
+					<div className="pointer-events-none absolute -bottom-16 -left-12 h-44 w-44 rounded-full bg-white/10 blur-3xl" />
 
-					<div className="relative z-10 grid gap-7 lg:grid-cols-[1.2fr_0.8fr]">
+					<div className="relative z-10 space-y-6 lg:space-y-7">
 						<div>
-							<p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.15em]">
-								<Sparkles size={12} className="text-brand-yellow" />
-								Marketplace Directory
-							</p>
-							<h1 className="mt-4 text-4xl font-display font-bold leading-tight md:text-6xl">
-								Business Listings
-							</h1>
-							<p className="mt-4 max-w-2xl text-sm text-white/70 md:text-base">
-								Explore verified stores, scan their newest products, and compare
-								multiple business catalogs in one feed.
-							</p>
-
-							<div className="mt-6 flex flex-wrap items-center gap-3">
-								<Link
-									to={businessCtaPath}
-									className="inline-flex h-11 items-center rounded-full bg-brand-yellow px-5 text-sm font-semibold text-brand-dark"
-								>
-									{businessCtaLabel}
-								</Link>
-								<Link
-									to="/explore"
-									className="inline-flex h-11 items-center rounded-full border border-white/30 bg-white/10 px-5 text-sm font-semibold"
-								>
-									Browse Public Listings
-								</Link>
+							<div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start xl:gap-8">
+								<div className="space-y-3">
+									<h1 className="text-3xl font-display font-bold leading-[1.05] md:text-5xl">
+										Business Listings
+									</h1>
+									<p className="max-w-2xl text-sm leading-relaxed text-white/75 md:text-base">
+										Explore verified stores, scan their newest products, and
+										compare multiple business catalogs in one feed.
+									</p>
+									<p className="text-[11px] uppercase tracking-[0.14em] text-brand-yellow/90">
+										Business listing is free forever
+									</p>
+								</div>
+								<div className="flex w-full max-w-xs flex-col gap-3 xl:ml-auto">
+									<Link
+										to={businessCtaPath}
+										className="inline-flex h-11 w-full items-center justify-center rounded-full bg-brand-yellow px-5 text-sm font-semibold text-brand-dark transition hover:brightness-95"
+									>
+										{businessCtaLabel}
+									</Link>
+									{hasBusinessAccount ? (
+										<Link
+											to="/post-ad?mode=business"
+											className="inline-flex h-11 w-full items-center justify-center rounded-full border border-white/30 bg-white/10 px-5 text-sm font-semibold transition hover:bg-white/15"
+										>
+											Post Business Deal
+										</Link>
+									) : null}
+									<Link
+										to="/explore"
+										className="inline-flex h-11 w-full items-center justify-center rounded-full border border-white/30 bg-white/10 px-5 text-sm font-semibold transition hover:bg-white/15"
+									>
+										Browse Public Listings
+									</Link>
+								</div>
 							</div>
 						</div>
 
-						<div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-							<div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-								<p className="text-xs uppercase tracking-[0.15em] text-white/65">
+						<div className="grid gap-3 sm:grid-cols-3 md:gap-4">
+							<div className="rounded-2xl border border-white/15 bg-white/10 p-4 md:p-5">
+								<p className="text-[11px] uppercase tracking-[0.14em] text-white/65">
 									Active Stores
 								</p>
-								<p className="mt-2 text-4xl font-display font-bold">
+								<p className="mt-2 text-3xl font-display font-bold md:text-4xl">
 									{storesWithMeta.length}
 								</p>
 							</div>
-							<div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-								<p className="text-xs uppercase tracking-[0.15em] text-white/65">
+							<div className="rounded-2xl border border-white/15 bg-white/10 p-4 md:p-5">
+								<p className="text-[11px] uppercase tracking-[0.14em] text-white/65">
 									Total Listings
 								</p>
-								<p className="mt-2 text-4xl font-display font-bold">
+								<p className="mt-2 text-3xl font-display font-bold md:text-4xl">
 									{totalListingCount}
 								</p>
 							</div>
-							<div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-								<p className="text-xs uppercase tracking-[0.15em] text-white/65">
+							<div className="rounded-2xl border border-white/15 bg-white/10 p-4 md:p-5">
+								<p className="text-[11px] uppercase tracking-[0.14em] text-white/65">
 									Cities Covered
 								</p>
-								<p className="mt-2 text-4xl font-display font-bold">
+								<p className="mt-2 text-3xl font-display font-bold md:text-4xl">
 									{liveCities}
 								</p>
 							</div>
@@ -313,7 +404,14 @@ export default function BusinessListings() {
 				) : filteredStores.length ? (
 					<div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
 						{filteredStores.map((item, index) => {
-							const { store, storeListings, name, location, totalValue } = item;
+							const {
+								store,
+								storeListings,
+								name,
+								location,
+								totalValue,
+								categoryLabel,
+							} = item;
 
 							return (
 								<article
@@ -388,14 +486,11 @@ export default function BusinessListings() {
 
 										<div className="space-y-2 text-sm text-brand-muted">
 											<p className="inline-flex items-center gap-2">
-												<Tag size={14} /> GST/MSME: {store?.gstOrMsme || "-"}
-											</p>
-											<p className="inline-flex items-center gap-2">
 												<MapPin size={14} /> {location}
 											</p>
 											<p className="inline-flex items-center gap-2">
-												<BriefcaseBusiness size={14} />
-												{store?.email || "No contact email"}
+												<Building2 size={14} />
+												Category: {categoryLabel || "General"}
 											</p>
 										</div>
 									</div>
@@ -496,7 +591,7 @@ export default function BusinessListings() {
 						<div className="space-y-4">
 							<div className="grid gap-3 rounded-2xl bg-brand-bg p-4 sm:grid-cols-2">
 								<p className="text-sm">
-									<span className="font-semibold">Business:</span>{" "}
+									<span className="font-semibold">Business Name:</span>{" "}
 									{selectedBusiness.name}
 								</p>
 								<p className="text-sm">
@@ -518,6 +613,25 @@ export default function BusinessListings() {
 								<p className="text-sm">
 									<span className="font-semibold">Total Value:</span>{" "}
 									{formatInr(selectedBusiness.totalValue)}
+								</p>
+								<p className="text-sm sm:col-span-2">
+									<span className="font-semibold">Description:</span>{" "}
+									{selectedBusiness.description || "No description available"}
+								</p>
+								<p className="text-sm sm:col-span-2">
+									<span className="font-semibold">Business Location Link:</span>{" "}
+									{selectedBusiness.businessLocationUrl ? (
+										<a
+											href={selectedBusiness.businessLocationUrl}
+											target="_blank"
+											rel="noreferrer"
+											className="font-semibold text-[#8b7008] underline"
+										>
+											Open in Google Maps
+										</a>
+									) : (
+										"-"
+									)}
 								</p>
 							</div>
 

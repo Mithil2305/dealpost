@@ -897,46 +897,51 @@ export default function Navbar({
 			if (!parts.length) continue;
 
 			const mainCategory = parts[0];
+			const groupLabel = parts[1] || "More";
+			const leafLabel = parts.slice(2).join(" > ");
+
 			if (!grouped.has(mainCategory)) {
-				grouped.set(mainCategory, new Set());
+				grouped.set(mainCategory, new Map());
 			}
 
-			if (parts.length > 1) {
-				grouped.get(mainCategory).add(parts.slice(1).join(" > "));
+			const mainGroups = grouped.get(mainCategory);
+			if (!mainGroups.has(groupLabel)) {
+				mainGroups.set(groupLabel, new Set());
+			}
+
+			if (leafLabel) {
+				mainGroups.get(groupLabel).add(leafLabel);
 			}
 		}
 
-		const sortedSections = Array.from(grouped.entries())
-			.filter(([title]) => title !== "General")
-			.map(([title, itemSet]) => ({
-				title,
-				items: Array.from(itemSet).sort((a, b) => a.localeCompare(b)),
-			}))
-			.filter((section) => section.items.length > 0)
+		return Array.from(grouped.entries())
+			.map(([title, groupMap]) => {
+				const groups = Array.from(groupMap.entries())
+					.map(([label, itemSet]) => ({
+						label,
+						items: Array.from(itemSet).sort((a, b) => a.localeCompare(b)),
+					}))
+					.sort((a, b) => {
+						if (b.items.length !== a.items.length) {
+							return b.items.length - a.items.length;
+						}
+						return a.label.localeCompare(b.label);
+					});
+
+				const childCount = groups.reduce(
+					(sum, group) => sum + Math.max(group.items.length, 1),
+					0,
+				);
+
+				return { title, groups, childCount };
+			})
 			.sort((a, b) => {
-				if (b.items.length !== a.items.length) {
-					return b.items.length - a.items.length;
+				if (b.childCount !== a.childCount) {
+					return b.childCount - a.childCount;
 				}
 				return a.title.localeCompare(b.title);
-			});
-
-		const explicitGeneralItems = grouped.has("General")
-			? Array.from(grouped.get("General")).sort((a, b) => a.localeCompare(b))
-			: [];
-
-		const fallbackGeneralItems = sortedSections
-			.map((section) => section.title)
-			.filter(Boolean)
-			.slice(0, 6);
-
-		const generalItems = explicitGeneralItems.length
-			? explicitGeneralItems
-			: fallbackGeneralItems;
-
-		return [{ title: "General", items: generalItems }, ...sortedSections].slice(
-			0,
-			10,
-		);
+			})
+			.slice(0, 12);
 	}, [navbarCategories]);
 
 	const openMessagesPopup = () => {
@@ -1394,14 +1399,6 @@ export default function Navbar({
 						>
 							Business Listings
 						</a>
-						<button
-							type="button"
-							onClick={() => navigate("/post-business-ad")}
-							className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition hover:border-[#FFD600] hover:text-black shrink-0"
-							aria-label="Add business listing"
-						>
-							<Plus size={14} />
-						</button>
 					</div>
 					<a
 						href="/explore?listingType=auction&sort=Auction%20Ending%20Soon"
@@ -1444,7 +1441,7 @@ export default function Navbar({
 									</a>
 								</div>
 								{categoryMegaSections.length ? (
-									<div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+									<div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
 										{categoryMegaSections.map((section) => (
 											<div key={section.title} className="min-w-0">
 												<a
@@ -1454,31 +1451,53 @@ export default function Navbar({
 												>
 													{section.title}
 												</a>
-												<ul className="space-y-1 min-w-0">
-													{section.items.slice(0, 6).map((itemLabel) => (
-														<li
-															key={`${section.title}-${itemLabel}`}
-															className="min-w-0"
+												<div className="space-y-1.5 min-w-0">
+													{section.groups.slice(0, 6).map((group) => (
+														<details
+															key={`${section.title}-${group.label}`}
+															className="rounded-lg border border-gray-200 bg-[#fafafa] px-2 py-1"
 														>
-															{(() => {
-																const categoryQuery =
-																	section.title === "General"
-																		? itemLabel
-																		: `${section.title} > ${itemLabel}`;
-
-																return (
-																	<a
-																		href={`/explore?category=${encodeURIComponent(categoryQuery)}`}
-																		className="block max-w-full truncate text-[13px] text-gray-600 hover:text-black"
-																		title={itemLabel}
+															<summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-700">
+																<div className="flex items-center justify-between gap-2">
+																	<span
+																		className="truncate"
+																		title={group.label}
 																	>
-																		{itemLabel}
+																		{group.label}
+																	</span>
+																	<span className="shrink-0 text-[10px] font-bold text-gray-500">
+																		{group.items.length || 1}
+																	</span>
+																</div>
+															</summary>
+															<div className="mt-1 space-y-1 pl-1">
+																{group.items.length ? (
+																	group.items.slice(0, 6).map((itemLabel) => {
+																		const categoryQuery = `${section.title} > ${group.label} > ${itemLabel}`;
+																		return (
+																			<a
+																				key={`${section.title}-${group.label}-${itemLabel}`}
+																				href={`/explore?category=${encodeURIComponent(categoryQuery)}`}
+																				className="block max-w-full truncate text-[12px] text-gray-600 hover:text-black"
+																				title={itemLabel}
+																			>
+																				{itemLabel}
+																			</a>
+																		);
+																	})
+																) : (
+																	<a
+																		href={`/explore?category=${encodeURIComponent(`${section.title} > ${group.label}`)}`}
+																		className="block max-w-full truncate text-[12px] text-gray-600 hover:text-black"
+																		title={group.label}
+																	>
+																		Browse {group.label}
 																	</a>
-																);
-															})()}
-														</li>
+																)}
+															</div>
+														</details>
 													))}
-												</ul>
+												</div>
 											</div>
 										))}
 									</div>

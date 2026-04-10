@@ -63,6 +63,8 @@ const CATEGORY_ICON_MAP = {
 const DEALS_PER_ROW_DESKTOP = 4;
 const PROMO_EVERY_ROWS = 5;
 const PROMO_INSERT_INTERVAL = DEALS_PER_ROW_DESKTOP * PROMO_EVERY_ROWS;
+const SECURITY_EVERY_MIN_ROWS = 5;
+const SECURITY_EVERY_MAX_ROWS = 9;
 const DEFAULT_LOCATION_RADIUS_KM = 50;
 const LOCATION_RADIUS_OPTIONS_KM = [5, 10, 25, 50];
 const LOCATION_RADIUS_STORAGE_KEY = "homeLocationRadiusKm";
@@ -402,13 +404,41 @@ export default function Home() {
 	};
 
 	const displayListings = listings.map(normalizeListing);
-	const dealFeedItems = displayListings.flatMap((item, index) => {
-		const next = [{ type: "deal", item, key: `deal-${item.id || index}` }];
-		if ((index + 1) % PROMO_INSERT_INTERVAL === 0) {
-			next.push({ type: "promo", key: `promo-${index}` });
-		}
+	const dealFeedItems = useMemo(() => {
+		const next = [];
+		let seed = displayListings.length || 1;
+		const nextSeed = () => {
+			seed = (seed * 1664525 + 1013904223) % 4294967296;
+			return seed;
+		};
+		const randomRowsBetween = () => {
+			const range = SECURITY_EVERY_MAX_ROWS - SECURITY_EVERY_MIN_ROWS + 1;
+			return SECURITY_EVERY_MIN_ROWS + (nextSeed() % range);
+		};
+
+		let nextSecurityRow = randomRowsBetween();
+
+		displayListings.forEach((item, index) => {
+			next.push({ type: "deal", item, key: `deal-${item.id || index}` });
+
+			if ((index + 1) % PROMO_INSERT_INTERVAL === 0) {
+				next.push({ type: "promo", key: `promo-${index}` });
+			}
+
+			if ((index + 1) % DEALS_PER_ROW_DESKTOP === 0) {
+				const completedRows = (index + 1) / DEALS_PER_ROW_DESKTOP;
+				if (completedRows >= nextSecurityRow) {
+					next.push({
+						type: "security",
+						key: `security-${index}`,
+					});
+					nextSecurityRow += randomRowsBetween();
+				}
+			}
+		});
+
 		return next;
-	});
+	}, [displayListings]);
 	const sidebarCategories = DISPLAY_CATEGORIES;
 	const megaMenuSections = useMemo(() => {
 		const grouped = new Map();
@@ -425,25 +455,52 @@ export default function Home() {
 
 			const mainCategory = parts[0];
 			if (/funeral/i.test(mainCategory)) continue;
+			const groupLabel = parts[1] || "More";
+			const leafLabel = parts.slice(2).join(" > ");
 
 			if (!grouped.has(mainCategory)) {
-				grouped.set(mainCategory, new Set());
+				grouped.set(mainCategory, new Map());
 			}
 
-			if (parts.length > 1) {
-				grouped.get(mainCategory).add(parts.slice(1).join(" > "));
+			const mainGroups = grouped.get(mainCategory);
+			if (!mainGroups.has(groupLabel)) {
+				mainGroups.set(groupLabel, new Set());
+			}
+
+			if (leafLabel) {
+				mainGroups.get(groupLabel).add(leafLabel);
 			}
 		}
 
 		const ranked = Array.from(grouped.entries())
-			.map(([title, itemSet]) => ({
-				title,
-				items: Array.from(itemSet).sort((a, b) => a.localeCompare(b)),
-			}))
-			.filter((section) => section.items.length > 0)
+			.map(([title, groupMap]) => {
+				const groups = Array.from(groupMap.entries())
+					.map(([label, itemSet]) => ({
+						label,
+						items: Array.from(itemSet).sort((a, b) => a.localeCompare(b)),
+					}))
+					.sort((a, b) => {
+						if (b.items.length !== a.items.length) {
+							return b.items.length - a.items.length;
+						}
+						return a.label.localeCompare(b.label);
+					});
+
+				const childCount = groups.reduce(
+					(sum, group) => sum + Math.max(group.items.length, 1),
+					0,
+				);
+
+				return {
+					title,
+					groups,
+					childCount,
+				};
+			})
+			.filter((section) => section.childCount > 0)
 			.sort((a, b) => {
-				if (b.items.length !== a.items.length) {
-					return b.items.length - a.items.length;
+				if (b.childCount !== a.childCount) {
+					return b.childCount - a.childCount;
 				}
 				return a.title.localeCompare(b.title);
 			});
@@ -474,8 +531,6 @@ export default function Home() {
 	const topDeals = displayListings.slice(0, 8);
 	const topDealsCount = topDeals.length;
 	const currentLocationLabel = userLocation.label || "All locations";
-	const hasCoordinates =
-		Number.isFinite(userLocation.lat) && Number.isFinite(userLocation.lng);
 
 	useEffect(() => {
 		if (!topDealsCount) {
@@ -600,6 +655,7 @@ export default function Home() {
 						{/* Categories Row */}
 						<div
 							ref={categoryMenuRef}
+							onMouseLeave={() => setIsMegaMenuOpen(false)}
 							className="top-20 z-20 -mx-2 mb-4 rounded-2xl bg-white/95 px-2 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80"
 							aria-label="Browse categories"
 						>
@@ -618,7 +674,8 @@ export default function Home() {
 							>
 								<button
 									type="button"
-									onClick={() => setIsMegaMenuOpen((prev) => !prev)}
+									onMouseEnter={() => setIsMegaMenuOpen(true)}
+									onFocus={() => setIsMegaMenuOpen(true)}
 									aria-expanded={isMegaMenuOpen}
 									aria-controls="home-mega-category-panel"
 									className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
@@ -690,22 +747,61 @@ export default function Home() {
 																<TitleIcon size={15} />
 																{section.title}
 																<span className="rounded-full bg-[#EEF4FF] px-2 py-0.5 text-[10px] font-bold text-[#1677ff]">
-																	{section.items.length}
+																	{section.childCount}
 																</span>
 															</Link>
-															<ul className="space-y-1.5">
-																{section.items.map((itemLabel) => (
-																	<li key={`${section.title}-${itemLabel}`}>
-																		<Link
-																			onClick={() => setIsMegaMenuOpen(false)}
-																			to={`/explore?category=${encodeURIComponent(`${section.title} > ${itemLabel}`)}`}
-																			className="text-[13px] text-[#666666] hover:text-black"
-																		>
-																			{itemLabel}
-																		</Link>
-																	</li>
+															<div className="space-y-1.5">
+																{section.groups.slice(0, 6).map((group) => (
+																	<div
+																		key={`${section.title}-${group.label}`}
+																		className="group rounded-lg border border-[#EAEAEA] bg-[#FAFAFA] px-2 py-1"
+																	>
+																		<div className="text-[13px] font-semibold text-[#555]">
+																			<div className="flex items-center justify-between gap-2">
+																				<span
+																					className="truncate"
+																					title={group.label}
+																				>
+																					{group.label}
+																				</span>
+																				<span className="shrink-0 text-[10px] font-bold text-[#777]">
+																					{group.items.length || 1}
+																				</span>
+																			</div>
+																		</div>
+																		<div className="mt-1 hidden space-y-1 pl-1 group-hover:block group-focus-within:block">
+																			{group.items.length ? (
+																				group.items
+																					.slice(0, 6)
+																					.map((itemLabel) => (
+																						<Link
+																							key={`${section.title}-${group.label}-${itemLabel}`}
+																							onClick={() =>
+																								setIsMegaMenuOpen(false)
+																							}
+																							to={`/explore?category=${encodeURIComponent(`${section.title} > ${group.label} > ${itemLabel}`)}`}
+																							className="block text-[12px] text-[#666666] hover:text-black"
+																							title={itemLabel}
+																						>
+																							{itemLabel}
+																						</Link>
+																					))
+																			) : (
+																				<Link
+																					onClick={() =>
+																						setIsMegaMenuOpen(false)
+																					}
+																					to={`/explore?category=${encodeURIComponent(`${section.title} > ${group.label}`)}`}
+																					className="block text-[12px] text-[#666666] hover:text-black"
+																					title={group.label}
+																				>
+																					Browse {group.label}
+																				</Link>
+																			)}
+																		</div>
+																	</div>
 																))}
-															</ul>
+															</div>
 														</div>
 													);
 												})}
@@ -870,11 +966,6 @@ export default function Home() {
 										<MapPin size={14} /> Current location:{" "}
 										{currentLocationLabel}
 									</p>
-									<p className="mt-1 text-xs text-[#7a7a7a]">
-										{hasCoordinates
-											? `Showing deals within ${locationRadiusKm} km`
-											: "Set an exact location to enable distance filtering"}
-									</p>
 								</div>
 								<Link
 									to="/explore"
@@ -908,6 +999,26 @@ export default function Home() {
 												>
 													Start selling
 												</Link>
+											</div>
+										);
+									}
+
+									if (feedItem.type === "security") {
+										return (
+											<div
+												key={feedItem.key}
+												className="col-span-2 self-start rounded-2xl border border-[#D9E7FF] bg-[#F5F9FF] p-4 sm:col-span-1"
+											>
+												<p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#2a57b6]">
+													Security Note
+												</p>
+												<p className="mt-2 text-sm font-semibold text-[#1E2D52]">
+													Your data is encrypted and safe with us.
+												</p>
+												<p className="mt-1 text-xs text-[#4c5f87]">
+													We use secure storage and controlled access for
+													account information.
+												</p>
 											</div>
 										);
 									}

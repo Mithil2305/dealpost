@@ -70,8 +70,6 @@ export default function Profile({ embedded = false }) {
 			getStoredLocationLabel(),
 			user?.location,
 		),
-		businessName: user?.businessName || "",
-		gstOrMsme: user?.gstOrMsme || "",
 	});
 
 	useEffect(() => {
@@ -85,8 +83,6 @@ export default function Profile({ embedded = false }) {
 			name: user?.name || "",
 			phone: user?.phone || "",
 			location: label,
-			businessName: user?.businessName || "",
-			gstOrMsme: user?.gstOrMsme || "",
 		});
 		if (label && hasValidCoordinates(coords.lat, coords.lng)) {
 			setVerifiedLocation({
@@ -173,9 +169,6 @@ export default function Profile({ embedded = false }) {
 		};
 	}, [profileForm.location, verifiedLocation]);
 
-	const isBusinessAccount =
-		String(user?.accountType || "").toLowerCase() === "business";
-
 	const joinDate = user?.createdAt
 		? new Date(user.createdAt).toLocaleDateString("en-US", {
 				month: "long",
@@ -215,11 +208,6 @@ export default function Profile({ embedded = false }) {
 			payload.append("name", profileForm.name);
 			payload.append("phone", profileForm.phone || "");
 			payload.append("location", locationText);
-
-			if (isBusinessAccount) {
-				payload.append("businessName", profileForm.businessName || "");
-				payload.append("gstOrMsme", profileForm.gstOrMsme || "");
-			}
 
 			if (avatarFile) {
 				payload.append("avatar", avatarFile);
@@ -314,8 +302,6 @@ export default function Profile({ embedded = false }) {
 			name: user?.name || "",
 			phone: user?.phone || "",
 			location: label,
-			businessName: user?.businessName || "",
-			gstOrMsme: user?.gstOrMsme || "",
 		});
 
 		if (label && hasValidCoordinates(coords.lat, coords.lng)) {
@@ -523,48 +509,6 @@ export default function Profile({ embedded = false }) {
 							</div>
 						</label>
 					</div>
-
-					{isBusinessAccount && (
-						<div className="mt-6 pt-6 border-t border-gray-100">
-							<h3 className="text-lg font-display font-bold text-black mb-5">
-								Business Information
-							</h3>
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-								<label className="space-y-2">
-									<span className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">
-										Business Name
-									</span>
-									<input
-										value={profileForm.businessName}
-										onChange={(event) =>
-											setProfileForm((prev) => ({
-												...prev,
-												businessName: event.target.value,
-											}))
-										}
-										placeholder="Business or brand name"
-										className="h-12 w-full rounded-xl border border-transparent bg-[#F5F6F8] px-4 text-[15px] text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FFD24D] focus:bg-white focus:ring-4 focus:ring-[#FFD24D]/20"
-									/>
-								</label>
-								<label className="space-y-2">
-									<span className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">
-										GST / MSME
-									</span>
-									<input
-										value={profileForm.gstOrMsme}
-										onChange={(event) =>
-											setProfileForm((prev) => ({
-												...prev,
-												gstOrMsme: event.target.value,
-											}))
-										}
-										placeholder="Enter GST / MSME number"
-										className="h-12 w-full rounded-xl border border-transparent bg-[#F5F6F8] px-4 text-[15px] text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FFD24D] focus:bg-white focus:ring-4 focus:ring-[#FFD24D]/20"
-									/>
-								</label>
-							</div>
-						</div>
-					)}
 
 					{/* Footer Actions */}
 					<div className="mt-8 pt-5 border-t border-gray-100 flex flex-col-reverse sm:flex-row items-center justify-between gap-4">

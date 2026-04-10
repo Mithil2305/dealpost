@@ -16,8 +16,10 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import ProductCard from "../components/ProductCard";
 import Button from "../components/ui/Button";
 import { useAuth } from "../context/useAuth";
+import { pickArray } from "../utils/api";
 import { getListingLikedCount, updateListingLikeStatus } from "../utils/likes";
 
 const formatPrice = (price) =>
@@ -41,13 +43,18 @@ export default function ProductDetail() {
 	const [likedByCount, setLikedByCount] = useState(0);
 	const [bidAmount, setBidAmount] = useState("");
 	const [placingBid, setPlacingBid] = useState(false);
+	const [relatedListings, setRelatedListings] = useState([]);
 
 	useEffect(() => {
+		let active = true;
+
 		const fetchListing = async () => {
 			try {
 				setLoading(true);
 				const { data } = await api.get(`/listings/${id}`);
 				const entry = data?.listing || data;
+				if (!active) return;
+
 				setListing(entry);
 				setLikedByCount(getListingLikedCount(entry));
 				setIsLiked(Boolean(entry?.isLiked));
@@ -56,14 +63,67 @@ export default function ProductDetail() {
 						entry?.image ||
 						"https://placehold.co/1000x700?text=Deal Post",
 				);
+
+				try {
+					const relatedCategory =
+						entry?.category ||
+						[entry?.parentCategory, entry?.subCategory]
+							.filter(Boolean)
+							.join(" > ");
+					if (!String(relatedCategory || "").trim()) {
+						setRelatedListings([]);
+						return;
+					}
+
+					const { data: relatedData } = await api.get("/listings", {
+						params: {
+							category: relatedCategory,
+							limit: 12,
+						},
+					});
+
+					if (!active) return;
+
+					const rows = pickArray(relatedData, ["listings", "items", "data"]);
+					const currentId = String(entry?._id || entry?.id || "").trim();
+					const currentProductId = String(entry?.productId || "").trim();
+
+					const related = rows
+						.filter((item) => {
+							const rowId = String(item?._id || item?.id || "").trim();
+							const rowProductId = String(item?.productId || "").trim();
+							if (currentId && rowId && currentId === rowId) return false;
+							if (
+								currentProductId &&
+								rowProductId &&
+								currentProductId === rowProductId
+							) {
+								return false;
+							}
+							return true;
+						})
+						.slice(0, 8);
+
+					setRelatedListings(related);
+				} catch {
+					if (active) {
+						setRelatedListings([]);
+					}
+				}
 			} catch {
 				toast.error("Unable to load listing details");
 			} finally {
-				setLoading(false);
+				if (active) {
+					setLoading(false);
+				}
 			}
 		};
 
 		fetchListing();
+
+		return () => {
+			active = false;
+		};
 	}, [id]);
 
 	const allImages = useMemo(() => {
@@ -257,6 +317,10 @@ export default function ProductDetail() {
 	const subCategoryFilterValue = subCategoryLabel
 		? `${parentCategoryLabel} > ${subCategoryLabel}`
 		: parentCategoryLabel;
+	const categoryBreadcrumbs = String(listing?.category || "")
+		.split(">")
+		.map((segment) => segment.trim())
+		.filter(Boolean);
 	const tabOptions = [
 		["description", "Description"],
 		["specifications", "Specifications"],
@@ -316,24 +380,43 @@ export default function ProductDetail() {
 				) : listing ? (
 					<>
 						<div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-brand-muted">
+							<Link to="/" className="font-semibold hover:text-brand-dark">
+								Home
+							</Link>
+							<span>&gt;</span>
 							<Link
 								to="/explore"
 								className="font-semibold hover:text-brand-dark"
 							>
 								Explore
 							</Link>
-							<span>&gt;</span>
-							<Link
-								to={{
-									pathname: "/explore",
-									search: new URLSearchParams({
-										category: subCategoryFilterValue,
-									}).toString(),
-								}}
-								className="font-semibold hover:text-brand-dark"
-							>
-								{subCategoryLabel || parentCategoryLabel}
-							</Link>
+							{categoryBreadcrumbs.length ? <span>&gt;</span> : null}
+							{categoryBreadcrumbs.map((crumb, index) => {
+								const path = categoryBreadcrumbs
+									.slice(0, index + 1)
+									.join(" > ");
+								const isLastCategory = index === categoryBreadcrumbs.length - 1;
+
+								return (
+									<div
+										key={`${crumb}-${index}`}
+										className="inline-flex items-center gap-2"
+									>
+										<Link
+											to={{
+												pathname: "/explore",
+												search: new URLSearchParams({
+													category: path,
+												}).toString(),
+											}}
+											className="font-semibold hover:text-brand-dark"
+										>
+											{crumb}
+										</Link>
+										{!isLastCategory ? <span>&gt;</span> : null}
+									</div>
+								);
+							})}
 							<span>&gt;</span>
 							<span className="line-clamp-1 font-medium text-brand-dark">
 								{listing?.title}
@@ -556,6 +639,18 @@ export default function ProductDetail() {
 						</section>
 
 						<section
+							className="mt-8 grid gap-3"
+							aria-label="Promotional ad slots"
+						>
+							<div className="h-[92px] rounded-2xl border border-dashed border-[#D8CC9B] bg-[#FFF9E8] px-4 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-[#8B7322] grid place-items-center">
+								Horizontal Ad Space
+							</div>
+							<div className="h-[92px] rounded-2xl border border-dashed border-[#D8CC9B] bg-[#FFF9E8] px-4 text-center text-[11px] font-bold uppercase tracking-[0.12em] text-[#8B7322] grid place-items-center">
+								Horizontal Ad Space
+							</div>
+						</section>
+
+						<section
 							className="mt-10 rounded-[30px] border border-brand-border bg-white p-6 shadow-sm sm:p-8"
 							aria-label="Listing information panels"
 						>
@@ -646,6 +741,45 @@ export default function ProductDetail() {
 										No specifications were added for this product yet.
 									</div>
 								))}
+						</section>
+
+						<section className="mt-10" aria-label="Related product suggestions">
+							<div className="mb-4 flex items-center justify-between gap-3">
+								<div>
+									<h2 className="text-2xl font-display font-bold text-brand-dark">
+										Related Products
+									</h2>
+									<p className="mt-1 text-sm text-brand-muted">
+										More listings in similar category.
+									</p>
+								</div>
+								<Link
+									to={{
+										pathname: "/explore",
+										search: new URLSearchParams({
+											category: subCategoryFilterValue,
+										}).toString(),
+									}}
+									className="text-xs font-bold uppercase tracking-[0.12em] text-[#8b7008]"
+								>
+									View all similar
+								</Link>
+							</div>
+
+							{relatedListings.length ? (
+								<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+									{relatedListings.map((item) => (
+										<ProductCard
+											key={item?._id || item?.id || item?.productId}
+											listing={item}
+										/>
+									))}
+								</div>
+							) : (
+								<div className="rounded-2xl border border-brand-border bg-white p-6 text-sm text-brand-muted">
+									No related products available right now.
+								</div>
+							)}
 						</section>
 					</>
 				) : (

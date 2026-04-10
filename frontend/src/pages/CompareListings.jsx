@@ -126,15 +126,14 @@ export default function CompareListings() {
 		).trim();
 	};
 
-	const getLeafCategory = (listing) =>
-		String(getCategoryLeaf(listing?.category || "")).toLowerCase();
-
-	const getCategoryKey = (listing) => {
+	const getCategoryKey = useCallback((listing) => {
 		const raw = String(listing?.category || "")
 			.trim()
 			.toLowerCase();
-		return raw || getLeafCategory(listing);
-	};
+		return (
+			raw || String(getCategoryLeaf(listing?.category || "")).toLowerCase()
+		);
+	}, []);
 
 	const extractListingRows = (payload) => {
 		if (!payload) return [];
@@ -310,8 +309,12 @@ export default function CompareListings() {
 			if (prev.some((item) => getComparableId(item) === id)) {
 				return prev.filter((item) => getComparableId(item) !== id);
 			}
-			const baseCategory = getLeafCategory(entries[0]);
-			const nextCategory = getLeafCategory(entry);
+			const baseCategory = String(
+				getCategoryLeaf(entries[0]?.category || ""),
+			).toLowerCase();
+			const nextCategory = String(
+				getCategoryLeaf(entry?.category || ""),
+			).toLowerCase();
 			if (baseCategory && nextCategory && baseCategory !== nextCategory) {
 				toast.error("Select products from the same subcategory");
 				return prev;
@@ -355,7 +358,7 @@ export default function CompareListings() {
 		return browseOptions.filter(
 			(item) => getCategoryKey(item) === selectedCategory,
 		);
-	}, [browseOptions, browseSelection]);
+	}, [browseOptions, browseSelection, getCategoryKey]);
 
 	const selectedEntries = useMemo(() => {
 		if (ids.length >= 2) return entries;

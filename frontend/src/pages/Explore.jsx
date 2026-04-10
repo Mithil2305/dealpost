@@ -13,10 +13,7 @@ import Modal from "../components/ui/Modal";
 import Pagination from "../components/ui/Pagination";
 import SearchBar from "../components/ui/SearchBar";
 import { pickArray } from "../utils/api";
-import {
-	getStoredLocationCoords,
-	getStoredLocationLabel,
-} from "../utils/locationHelpers";
+import { getStoredLocationCoords } from "../utils/locationHelpers";
 
 const CATEGORIES_CACHE_KEY = "dealpost:explore:categories:v1";
 const LISTING_CACHE_TTL_MS = 12000;
@@ -66,8 +63,7 @@ const defaultFilters = {
 	minPrice: "",
 	maxPrice: "",
 	condition: "",
-	sellerType: [],
-	radius: "25km",
+	radius: "25",
 	sort: "Newest",
 };
 
@@ -115,9 +111,6 @@ export default function Explore() {
 	const [expandedMainCategory, setExpandedMainCategory] = useState("");
 	const mainCategoryRefs = useRef({});
 	const [selectedCoords, setSelectedCoords] = useState(getStoredLocationCoords);
-	const [selectedLocationLabel, setSelectedLocationLabel] = useState(
-		getStoredLocationLabel,
-	);
 
 	useEffect(() => {
 		let active = true;
@@ -224,7 +217,6 @@ export default function Explore() {
 	useEffect(() => {
 		const syncSelectedLocation = () => {
 			setSelectedCoords(getStoredLocationCoords());
-			setSelectedLocationLabel(getStoredLocationLabel());
 		};
 
 		syncSelectedLocation();
@@ -250,7 +242,7 @@ export default function Explore() {
 					minPrice: filters.minPrice || undefined,
 					maxPrice: filters.maxPrice || undefined,
 					condition: filters.condition || undefined,
-					radius: filters.radius || undefined,
+					radius: filters.radius ? `${filters.radius}km` : undefined,
 					originLat: Number.isFinite(selectedCoords.lat)
 						? selectedCoords.lat
 						: undefined,
@@ -291,14 +283,10 @@ export default function Explore() {
 				filters.listingType ||
 				filters.minPrice ||
 				filters.maxPrice ||
-				filters.condition ||
-				filters.sellerType.length,
+				filters.condition,
 			),
 		[filters],
 	);
-
-	const hasGeoContext =
-		Number.isFinite(selectedCoords.lat) && Number.isFinite(selectedCoords.lng);
 
 	const mainCategoryOptions = useMemo(
 		() =>
@@ -769,7 +757,7 @@ export default function Explore() {
 								<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
 									Condition
 								</p>
-								{["New", "Like New", "Good", "Fair"].map((value) => (
+								{["New", "Used"].map((value) => (
 									<label
 										key={value}
 										className="mb-1 flex items-center gap-2 text-sm"
@@ -789,47 +777,29 @@ export default function Explore() {
 
 							<div>
 								<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
-									Seller Type
-								</p>
-								{["Verified", "Premium", "Dealer"].map((value) => (
-									<label
-										key={value}
-										className="mb-1 flex items-center gap-2 text-sm"
-									>
-										<input
-											type="checkbox"
-											checked={filters.sellerType.includes(value)}
-											onChange={() => toggleArrayFilter("sellerType", value)}
-										/>
-										{value}
-									</label>
-								))}
-							</div>
-
-							<div>
-								<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
 									Location Radius
 								</p>
-								<select
-									className="input-shell"
-									value={filters.radius}
+								<input
+									type="range"
+									min="5"
+									max="100"
+									step="5"
+									value={Number(filters.radius) || 25}
 									onChange={(event) =>
 										setFilters((prev) => ({
 											...prev,
 											radius: event.target.value,
 										}))
 									}
-								>
-									<option>5km</option>
-									<option>10km</option>
-									<option>25km</option>
-									<option>50km</option>
-								</select>
-								<p className="mt-2 text-[11px] text-brand-muted">
-									{hasGeoContext
-										? `Using location: ${selectedLocationLabel || "Selected location"}`
-										: "Choose location in navbar to enable real distance radius filtering."}
-								</p>
+									className="w-full accent-[#D6AE00]"
+								/>
+								<div className="mt-2 flex items-center justify-between text-[11px] text-brand-muted">
+									<span>5 km</span>
+									<span className="font-semibold text-brand-dark">
+										{Number(filters.radius) || 25} km
+									</span>
+									<span>100 km</span>
+								</div>
 							</div>
 
 							<button

@@ -1,7 +1,7 @@
 ﻿import { ImagePlus, MapPin, Rocket } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
@@ -235,8 +235,13 @@ function getCuratedSpecFields(parentCategory, subCategory) {
 
 export default function PostAd({ variant = "personal" }) {
 	const navigate = useNavigate();
-	const { user, setCurrentUser } = useAuth();
-	const isBusinessFlow = variant === "business";
+	const [searchParams, setSearchParams] = useSearchParams();
+	const { user } = useAuth();
+	const isBusinessOwner =
+		String(user?.accountType || "").toLowerCase() === "business";
+	const modeFromQuery = String(searchParams.get("mode") || "").toLowerCase();
+	const isBusinessFlow =
+		variant === "business" || (isBusinessOwner && modeFromQuery === "business");
 	const pageTitle = isBusinessFlow
 		? "Register Business Listing"
 		: "Start Listing";
@@ -257,6 +262,7 @@ export default function PostAd({ variant = "personal" }) {
 	const [fallbackSuggestions, setFallbackSuggestions] = useState([]);
 	const [fallbackSearching, setFallbackSearching] = useState(false);
 	const [previews, setPreviews] = useState([null, null, null]);
+	const [acceptTerms, setAcceptTerms] = useState(false);
 	const autocompleteContainerRef = useRef(null);
 	const mapPreviewRef = useRef(null);
 	const mapInstanceRef = useRef(null);
@@ -266,9 +272,6 @@ export default function PostAd({ variant = "personal" }) {
 	const [curatedSpecs, setCuratedSpecs] = useState({});
 	const [form, setForm] = useState({
 		title: "",
-		gstOrMsme: "",
-		verifiedBusinessName: "",
-		verifiedBusinessAddress: "",
 		listingType: "fixed",
 		parentCategory: "",
 		subCategory: "",
@@ -285,34 +288,16 @@ export default function PostAd({ variant = "personal" }) {
 		premiumBoost: false,
 	});
 
-	const needsBusinessVerification = useMemo(() => {
-		if (!isBusinessFlow) return false;
-		const role = String(user?.accountType || "").toLowerCase();
-		const missingBusinessName = !String(user?.businessName || "").trim();
-		const missingGst = !String(user?.gstOrMsme || "").trim();
-		const missingAddress = !String(user?.location || "").trim();
-		return (
-			role !== "business" || missingBusinessName || missingGst || missingAddress
-		);
-	}, [
-		isBusinessFlow,
-		user?.accountType,
-		user?.businessName,
-		user?.gstOrMsme,
-		user?.location,
-	]);
-
-	useEffect(() => {
-		if (!isBusinessFlow) return;
-		setForm((prev) => ({
-			...prev,
-			gstOrMsme: prev.gstOrMsme || user?.gstOrMsme || "",
-			verifiedBusinessName:
-				prev.verifiedBusinessName || user?.businessName || "",
-			verifiedBusinessAddress:
-				prev.verifiedBusinessAddress || user?.location || "",
-		}));
-	}, [isBusinessFlow, user?.businessName, user?.gstOrMsme, user?.location]);
+	const setListingMode = (mode) => {
+		if (!isBusinessOwner) return;
+		const next = new URLSearchParams(searchParams);
+		if (mode === "business") {
+			next.set("mode", "business");
+		} else {
+			next.delete("mode");
+		}
+		setSearchParams(next, { replace: true });
+	};
 
 	useEffect(() => {
 		const nextPreviews = files.map((file) =>
@@ -677,15 +662,6 @@ export default function PostAd({ variant = "personal" }) {
 			return toast.error("Please add at least one specification");
 		}
 		if (!form.description.trim()) return toast.error("Description is required");
-		if (isBusinessFlow && !form.gstOrMsme.trim()) {
-			return toast.error("GST/MSME number is required for business listing");
-		}
-		if (isBusinessFlow && !form.verifiedBusinessName.trim()) {
-			return toast.error("Verified business name is required");
-		}
-		if (isBusinessFlow && !form.verifiedBusinessAddress.trim()) {
-			return toast.error("Verified business address is required");
-		}
 		if (!form.address.trim()) return toast.error("Pickup location is required");
 		if (!hasValidCoordinates(form.latitude, form.longitude)) {
 			return toast.error(
@@ -693,6 +669,9 @@ export default function PostAd({ variant = "personal" }) {
 			);
 		}
 		if (!files[0]) return toast.error("Please add a hero image");
+		if (!acceptTerms) {
+			return toast.error("Please accept terms and conditions");
+		}
 
 		try {
 			setSubmitting(true);
@@ -721,23 +700,6 @@ export default function PostAd({ variant = "personal" }) {
 				...customSpecsObject,
 			};
 
-			if (isBusinessFlow) {
-				const businessProfilePayload = {
-					accountType: "business",
-					gstOrMsme: form.gstOrMsme.trim(),
-					businessName: form.verifiedBusinessName.trim(),
-					location: form.verifiedBusinessAddress.trim(),
-				};
-
-				const { data: profileData } = await api.put(
-					"/users/me",
-					businessProfilePayload,
-				);
-				if (profileData?.user) {
-					setCurrentUser(profileData.user);
-				}
-			}
-
 			const selectedFiles = files.filter(Boolean);
 			const uploadedImages = await Promise.all(
 				selectedFiles.map((file) => uploadCompressedImageToR2(file)),
@@ -762,9 +724,6 @@ export default function PostAd({ variant = "personal" }) {
 				latitude: form.latitude,
 				longitude: form.longitude,
 				...(form.placeId ? { placeId: form.placeId } : {}),
-				...(isBusinessFlow && form.gstOrMsme.trim()
-					? { gstOrMsme: form.gstOrMsme.trim() }
-					: {}),
 				premiumBoost: form.premiumBoost,
 				images: uploadedImages,
 			};
@@ -792,6 +751,48 @@ export default function PostAd({ variant = "personal" }) {
 			<main id="main-content" className="container-shell py-6 flex-1">
 				<h1 className="text-5xl font-display font-bold">{pageTitle}</h1>
 				<p className="mt-2 text-brand-muted">{pageSubtitle}</p>
+
+				{isBusinessOwner ? (
+					<section className="mt-5 rounded-2xl border border-brand-border bg-white p-4">
+						<p className="text-xs font-bold uppercase tracking-[0.12em] text-brand-muted">
+							Choose Listing Type
+						</p>
+						<div className="mt-3 grid gap-3 sm:grid-cols-2">
+							<button
+								type="button"
+								onClick={() => setListingMode("normal")}
+								className={`rounded-xl border px-4 py-3 text-left transition ${
+									!isBusinessFlow
+										? "border-[#FFD600] bg-[#FFF8DB]"
+										: "border-brand-border bg-white hover:bg-brand-bg"
+								}`}
+							>
+								<p className="text-sm font-bold text-brand-dark">
+									Normal Listing
+								</p>
+								<p className="mt-1 text-xs text-brand-muted">
+									Post as a standard marketplace ad.
+								</p>
+							</button>
+							<button
+								type="button"
+								onClick={() => setListingMode("business")}
+								className={`rounded-xl border px-4 py-3 text-left transition ${
+									isBusinessFlow
+										? "border-[#FFD600] bg-[#FFF8DB]"
+										: "border-brand-border bg-white hover:bg-brand-bg"
+								}`}
+							>
+								<p className="text-sm font-bold text-brand-dark">
+									Business Listing
+								</p>
+								<p className="mt-1 text-xs text-brand-muted">
+									Post business deals under your verified business profile.
+								</p>
+							</button>
+						</div>
+					</section>
+				) : null}
 
 				<form
 					className="mt-6 grid gap-5 lg:grid-cols-[1.4fr_1fr]"
@@ -847,77 +848,15 @@ export default function PostAd({ variant = "personal" }) {
 								<FormField
 									id="postad-title"
 									name="title"
-									label="Ad Title"
+									label="Deal Title"
 									required
 									value={form.title}
 									onChange={(event) =>
 										setForm((prev) => ({ ...prev, title: event.target.value }))
 									}
-									placeholder="Ad title"
+									placeholder="Deal title"
 									inputClassName="input-shell bg-brand-bg"
 								/>
-								{isBusinessFlow ? (
-									<div className="space-y-3 rounded-2xl border border-[#E7D89F] bg-[#FFF9E5] p-4">
-										<p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8B7322]">
-											Business Verification
-										</p>
-										{needsBusinessVerification ? (
-											<p className="text-xs text-[#7B6A26]">
-												Complete this once for your first business listing.
-											</p>
-										) : (
-											<p className="text-xs text-[#7B6A26]">
-												Your verified business profile will be used for this
-												listing.
-											</p>
-										)}
-
-										<FormField
-											id="postad-gst"
-											name="gstOrMsme"
-											label="GST / MSME Number"
-											value={form.gstOrMsme}
-											onChange={(event) =>
-												setForm((prev) => ({
-													...prev,
-													gstOrMsme: event.target.value,
-												}))
-											}
-											placeholder="GST / MSME Number"
-											inputClassName="input-shell bg-brand-bg"
-										/>
-										<FormField
-											id="postad-business-name"
-											name="verifiedBusinessName"
-											label="Verified Business Name"
-											required
-											value={form.verifiedBusinessName}
-											onChange={(event) =>
-												setForm((prev) => ({
-													...prev,
-													verifiedBusinessName: event.target.value,
-												}))
-											}
-											placeholder="Verified Business Name"
-											inputClassName="input-shell bg-brand-bg"
-										/>
-										<FormField
-											id="postad-business-address"
-											name="verifiedBusinessAddress"
-											label="Verified Business Address"
-											required
-											value={form.verifiedBusinessAddress}
-											onChange={(event) =>
-												setForm((prev) => ({
-													...prev,
-													verifiedBusinessAddress: event.target.value,
-												}))
-											}
-											placeholder="Verified Business Address"
-											inputClassName="input-shell bg-brand-bg"
-										/>
-									</div>
-								) : null}
 								<div className="grid gap-3 sm:grid-cols-3">
 									<FormField
 										id="postad-listing-type"
@@ -1114,6 +1053,26 @@ export default function PostAd({ variant = "personal" }) {
 								/>
 							</div>
 
+							<label className="mt-4 flex items-start gap-3 rounded-xl border border-brand-border bg-[#FAFAFA] p-3">
+								<input
+									type="checkbox"
+									checked={acceptTerms}
+									onChange={(event) => setAcceptTerms(event.target.checked)}
+									className="mt-1 h-4 w-4"
+								/>
+								<span className="text-xs leading-relaxed text-brand-muted">
+									I accept the{" "}
+									<Link
+										to="/legal/terms-and-conditions"
+										target="_blank"
+										rel="noreferrer"
+										className="font-semibold text-[#8b7008] hover:underline"
+									>
+										Terms & Conditions
+									</Link>{" "}
+									for posting this deal.
+								</span>
+							</label>
 							<Button
 								disabled={submitting}
 								isLoading={submitting}

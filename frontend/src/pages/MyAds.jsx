@@ -1,10 +1,11 @@
 import { Check, Pencil, RotateCw, Search, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { useAuth } from "../context/useAuth";
 
 const TABS = [
 	{ label: "All Ads", key: "all" },
@@ -55,11 +56,14 @@ const getLocationLabel = (value) => {
 
 export default function MyAds() {
 	const navigate = useNavigate();
+	const { user } = useAuth();
 	const [tab, setTab] = useState("all");
 	const [search, setSearch] = useState("");
 	const [page, setPage] = useState(1);
 	const [loading, setLoading] = useState(true);
 	const [listings, setListings] = useState([]);
+	const hasBusinessAccount =
+		String(user?.accountType || "").toLowerCase() === "business";
 
 	const fetchMyListings = useCallback(async () => {
 		try {
@@ -141,6 +145,35 @@ export default function MyAds() {
 				<p className="mt-2 text-brand-muted">
 					Manage your gallery of curated listings
 				</p>
+
+				{hasBusinessAccount ? (
+					<section className="mt-4 rounded-2xl border border-[#E8DDAD] bg-[#FFF9E8] p-4 sm:p-5">
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<div>
+								<p className="text-xs font-bold uppercase tracking-[0.12em] text-[#8b7008]">
+									Business Listing
+								</p>
+								<h2 className="mt-1 text-lg font-bold text-brand-dark">
+									Manage your business storefront deals
+								</h2>
+							</div>
+							<div className="flex flex-wrap items-center gap-2">
+								<Link
+									to="/business-listings"
+									className="inline-flex h-10 items-center rounded-full border border-[#d9c679] bg-white px-4 text-xs font-bold uppercase tracking-[0.08em] text-[#755e0a]"
+								>
+									View Business Listings
+								</Link>
+								<Link
+									to="/post-ad?mode=business"
+									className="inline-flex h-10 items-center rounded-full bg-[#111111] px-4 text-xs font-bold uppercase tracking-[0.08em] text-white"
+								>
+									Post Business Deal
+								</Link>
+							</div>
+						</div>
+					</section>
+				) : null}
 
 				<section className="mt-6 rounded-3xl bg-white p-4 sm:p-5">
 					<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -287,4 +320,3 @@ export default function MyAds() {
 		</div>
 	);
 }
-

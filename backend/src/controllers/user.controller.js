@@ -16,7 +16,15 @@ export const getUserProfile = asyncHandler(async (req, res) => {
 	const attributes =
 		isOwner || isAdmin
 			? { exclude: ["password"] }
-			: ["id", "name", "avatar", "accountType", "businessName", "createdAt"];
+			: [
+					"id",
+					"name",
+					"avatar",
+					"businessBanner",
+					"accountType",
+					"businessName",
+					"createdAt",
+				];
 
 	const user = await models.User.findByPk(req.params.id, {
 		attributes,
@@ -38,10 +46,15 @@ export const updateProfile = asyncHandler(async (req, res) => {
 		name,
 		phone,
 		location,
+		businessLatitude,
+		businessLongitude,
+		businessPlaceId,
+		businessLocationUrl,
 		accountType,
 		businessName,
 		gstOrMsme,
 		removeAvatar,
+		removeBusinessBanner,
 	} = req.body;
 
 	const nextAccountType =
@@ -65,6 +78,24 @@ export const updateProfile = asyncHandler(async (req, res) => {
 		req.user.phone = normalizedPhone || null;
 	}
 	if (location !== undefined) req.user.location = location;
+
+	if (businessLatitude !== undefined) {
+		const parsed = Number(businessLatitude);
+		req.user.businessLatitude = Number.isFinite(parsed) ? parsed : null;
+	}
+
+	if (businessLongitude !== undefined) {
+		const parsed = Number(businessLongitude);
+		req.user.businessLongitude = Number.isFinite(parsed) ? parsed : null;
+	}
+
+	if (businessPlaceId !== undefined) {
+		req.user.businessPlaceId = String(businessPlaceId).trim() || null;
+	}
+
+	if (businessLocationUrl !== undefined) {
+		req.user.businessLocationUrl = String(businessLocationUrl).trim() || "";
+	}
 
 	if (accountType !== undefined) {
 		if (!["personal", "business"].includes(nextAccountType)) {
@@ -119,6 +150,11 @@ export const updateProfile = asyncHandler(async (req, res) => {
 	if (nextAccountType !== "business") {
 		req.user.businessName = null;
 		req.user.gstOrMsme = null;
+		req.user.businessBanner = "";
+		req.user.businessLatitude = null;
+		req.user.businessLongitude = null;
+		req.user.businessPlaceId = null;
+		req.user.businessLocationUrl = "";
 	}
 
 	const shouldRemoveAvatar =
@@ -129,10 +165,29 @@ export const updateProfile = asyncHandler(async (req, res) => {
 		req.user.avatar = "";
 	}
 
+	const shouldRemoveBusinessBanner =
+		String(removeBusinessBanner || "") === "1" ||
+		String(removeBusinessBanner || "").toLowerCase() === "true";
+
+	if (shouldRemoveBusinessBanner) {
+		req.user.businessBanner = "";
+	}
+
+	const avatarFile = req.file || req.files?.avatar?.[0];
+	const businessBannerFile = req.files?.businessBanner?.[0];
+
 	// Upload new avatar to Cloudflare R2
-	if (req.file) {
-		const uploaded = await uploadToR2(req.file, "dealpost/avatars");
+	if (avatarFile) {
+		const uploaded = await uploadToR2(avatarFile, "dealpost/avatars");
 		req.user.avatar = uploaded.url;
+	}
+
+	if (businessBannerFile) {
+		const uploaded = await uploadToR2(
+			businessBannerFile,
+			"dealpost/business-banners",
+		);
+		req.user.businessBanner = uploaded.url;
 	}
 
 	await req.user.save();
@@ -208,6 +263,11 @@ export const deleteMyAccount = asyncHandler(async (req, res) => {
 	req.user.email = `deleted+${suffix}@dealpost.local`;
 	req.user.phone = null;
 	req.user.avatar = "";
+	req.user.businessBanner = "";
+	req.user.businessLatitude = null;
+	req.user.businessLongitude = null;
+	req.user.businessPlaceId = null;
+	req.user.businessLocationUrl = "";
 	req.user.location = null;
 	req.user.businessName = null;
 	req.user.gstOrMsme = null;

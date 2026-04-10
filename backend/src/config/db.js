@@ -154,6 +154,43 @@ async function ensureUserBusinessColumns() {
 		});
 	}
 
+	if (!columns.business_banner && !columns.businessBanner) {
+		await queryInterface.addColumn("users", "business_banner", {
+			type: DataTypes.STRING,
+			allowNull: false,
+			defaultValue: "",
+		});
+	}
+
+	if (!columns.business_latitude && !columns.businessLatitude) {
+		await queryInterface.addColumn("users", "business_latitude", {
+			type: DataTypes.DECIMAL(10, 7),
+			allowNull: true,
+		});
+	}
+
+	if (!columns.business_longitude && !columns.businessLongitude) {
+		await queryInterface.addColumn("users", "business_longitude", {
+			type: DataTypes.DECIMAL(10, 7),
+			allowNull: true,
+		});
+	}
+
+	if (!columns.business_place_id && !columns.businessPlaceId) {
+		await queryInterface.addColumn("users", "business_place_id", {
+			type: DataTypes.STRING,
+			allowNull: true,
+		});
+	}
+
+	if (!columns.business_location_url && !columns.businessLocationUrl) {
+		await queryInterface.addColumn("users", "business_location_url", {
+			type: DataTypes.STRING,
+			allowNull: false,
+			defaultValue: "",
+		});
+	}
+
 	if (!columns.liked_listing_ids && !columns.likedListingIds) {
 		await queryInterface.addColumn("users", "liked_listing_ids", {
 			type: DataTypes.JSON,

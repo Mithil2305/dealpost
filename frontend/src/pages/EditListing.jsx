@@ -7,7 +7,6 @@ import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import Button from "../components/ui/Button";
 import FormField from "../components/ui/FormField";
-import { useAuth } from "../context/useAuth";
 import { compressImageFile } from "../utils/imageCompressor";
 import { mountPlaceAutocompleteElement } from "../utils/googleMaps";
 import { pickArray } from "../utils/api";
@@ -96,7 +95,6 @@ function getCuratedSpecFields(parentCategory, subCategory) {
 export default function EditListing() {
 	const { id } = useParams();
 	const navigate = useNavigate();
-	const { user } = useAuth();
 	const [submitting, setSubmitting] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [categories, setCategories] = useState([]);
@@ -109,11 +107,6 @@ export default function EditListing() {
 	const [fallbackSearching, setFallbackSearching] = useState(false);
 	const [previews, setPreviews] = useState([null, null, null]);
 	const autocompleteContainerRef = useRef(null);
-	const mapPreviewRef = useRef(null);
-	const mapInstanceRef = useRef(null);
-	const mapMarkerRef = useRef(null);
-	const mapGeocoderRef = useRef(null);
-	const mapListenersBoundRef = useRef(false);
 	const [curatedSpecs, setCuratedSpecs] = useState({});
 	const [form, setForm] = useState({
 		title: "",

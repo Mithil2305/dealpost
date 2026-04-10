@@ -35,6 +35,11 @@ export default function ProductCard({ listing }) {
 	const listingDetailId =
 		listing?.productId || listing?._id || listing?.id || "";
 	const compareSeed = listing?._id || listing?.id || listing?.productId || "";
+	const areaName =
+		String(listing?.location?.name || listing?.location || "")
+			.split(",")
+			.map((part) => part.trim())
+			.filter(Boolean)[0] || "Area unavailable";
 
 	return (
 		<article className="group flex h-full flex-col rounded-[18px] border border-[#F0F2F5] bg-white p-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(40,40,90,0.1)] sm:rounded-[24px] sm:p-3">
@@ -86,7 +91,7 @@ export default function ProductCard({ listing }) {
 
 				<div className="my-2.5 h-px w-full bg-[#F0F2F5] sm:my-4" />
 
-				<div className="mt-auto flex items-end justify-between">
+				<div className="mt-auto flex items-end justify-between gap-2">
 					<div>
 						<div className="flex items-baseline gap-2">
 							<span className="leading-none text-[0.9rem] font-bold tracking-tight text-[#1E1E38] sm:text-[1.4rem]">
@@ -98,11 +103,10 @@ export default function ProductCard({ listing }) {
 								</span>
 							)}
 						</div>
+						<p className="mt-1 text-[0.55rem] font-bold uppercase tracking-[0.12em] text-[#6a6a7c] sm:text-[0.62rem]">
+							{areaName}
+						</p>
 					</div>
-
-					<span className="rounded-full border border-[#d8dbe2] px-2 py-1 text-[0.5rem] font-bold uppercase tracking-[0.12em] text-[#4f4f5f] sm:px-3 sm:text-[0.62rem]">
-						{listing?.sellerType || "Verified"}
-					</span>
 				</div>
 
 				<Link
