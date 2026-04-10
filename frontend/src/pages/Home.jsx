@@ -23,7 +23,7 @@ import {
 	Zap,
 	ChevronLeft,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
@@ -33,10 +33,12 @@ import Navbar from "../components/Navbar";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
 import {
+	fetchOpenStreetSuggestions,
 	getStoredLocationCoords,
 	getStoredLocationLabel,
 	hasValidCoordinates,
 	LOCATION_UPDATED_EVENT,
+	persistStoredLocation,
 } from "../utils/locationHelpers";
 import {
 	fetchMyLikedListingIds,
@@ -67,7 +69,9 @@ const SECURITY_EVERY_MIN_ROWS = 5;
 const SECURITY_EVERY_MAX_ROWS = 9;
 const DEFAULT_LOCATION_RADIUS_KM = 50;
 const LOCATION_RADIUS_OPTIONS_KM = [5, 10, 25, 50];
+const LOCATION_RADIUS_EXPANSION_STEPS_KM = [5, 10, 25, 50, 75, 100, 150, 200];
 const LOCATION_RADIUS_STORAGE_KEY = "homeLocationRadiusKm";
+const HOME_LISTINGS_PAGE_SIZE = 40;
 const DISPLAY_CATEGORIES = [
 	"Cars",
 	"Bikes",
@@ -196,6 +200,11 @@ const getStoredLocationRadius = () => {
 		: DEFAULT_LOCATION_RADIUS_KM;
 };
 
+const getNextBroaderRadiusKm = (currentRadiusKm) =>
+	LOCATION_RADIUS_EXPANSION_STEPS_KM.find(
+		(radiusKm) => radiusKm > Number(currentRadiusKm || 0),
+	) || null;
+
 const normalizeListing = (item) => {
 	const id = item?._id || item?.id;
 	const numericPrice = Number(item?.price || 15006);
@@ -243,7 +252,14 @@ export default function Home() {
 	const [allCategories, setAllCategories] = useState([]);
 	const [userLocation, setUserLocation] = useState(readStoredUserLocation);
 	const [locationRadiusKm] = useState(getStoredLocationRadius);
+	const [loadMoreRadiusKm, setLoadMoreRadiusKm] = useState(
+		getStoredLocationRadius,
+	);
+	const [currentPage, setCurrentPage] = useState(1);
+	const [hasMoreListings, setHasMoreListings] = useState(true);
+	const [isLoadingMore, setIsLoadingMore] = useState(false);
 	const categoryMenuRef = useRef(null);
+	const geocodedLocationCacheRef = useRef(new Map());
 
 	// Hero Slider State
 	const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
@@ -268,38 +284,139 @@ export default function Home() {
 	}, [locationRadiusKm]);
 
 	useEffect(() => {
+		setLoadMoreRadiusKm(locationRadiusKm);
+		setCurrentPage(1);
+		setHasMoreListings(true);
+	}, [
+		search,
+		locationRadiusKm,
+		userLocation.label,
+		userLocation.lat,
+		userLocation.lng,
+	]);
+
+	const resolveLocationCoordinates = useCallback(async () => {
+		let locationCoords = {
+			lat: userLocation.lat,
+			lng: userLocation.lng,
+		};
+		const locationLabel = String(userLocation.label || "").trim();
+
+		if (
+			!hasValidCoordinates(locationCoords.lat, locationCoords.lng) &&
+			locationLabel.length >= 3
+		) {
+			const cachedCoords = geocodedLocationCacheRef.current.get(locationLabel);
+			if (cachedCoords) {
+				locationCoords = cachedCoords;
+			} else {
+				const suggestions = await fetchOpenStreetSuggestions(locationLabel, {
+					limit: 1,
+				});
+				const firstMatch = suggestions[0];
+				if (firstMatch && hasValidCoordinates(firstMatch.lat, firstMatch.lng)) {
+					locationCoords = {
+						lat: Number(firstMatch.lat),
+						lng: Number(firstMatch.lng),
+					};
+					geocodedLocationCacheRef.current.set(locationLabel, locationCoords);
+
+					persistStoredLocation({
+						location: locationLabel,
+						lat: locationCoords.lat,
+						lng: locationCoords.lng,
+					});
+					setUserLocation((prev) => ({
+						...prev,
+						lat: locationCoords.lat,
+						lng: locationCoords.lng,
+					}));
+				}
+			}
+		}
+
+		return locationCoords;
+	}, [userLocation.label, userLocation.lat, userLocation.lng]);
+
+	const fetchHomeListingsPage = useCallback(
+		async ({ page, radiusKm }) => {
+			const locationCoords = await resolveLocationCoordinates();
+			const hasLocationFilter =
+				Number.isFinite(locationCoords.lat) &&
+				Number.isFinite(locationCoords.lng);
+
+			const listingsRes = await api.get("/listings", {
+				params: {
+					limit: HOME_LISTINGS_PAGE_SIZE,
+					page,
+					sort: "Newest",
+					search: search || undefined,
+					radius: hasLocationFilter ? `${radiusKm}km` : undefined,
+					originLat: hasLocationFilter ? locationCoords.lat : undefined,
+					originLng: hasLocationFilter ? locationCoords.lng : undefined,
+				},
+			});
+
+			const listingRows = pickArray(listingsRes?.data, [
+				"listings",
+				"items",
+				"data",
+			]);
+			const totalPages = Number(listingsRes?.data?.pages);
+
+			return {
+				listingRows,
+				totalPages,
+				hasLocationFilter,
+			};
+		},
+		[resolveLocationCoordinates, search],
+	);
+
+	useEffect(() => {
+		let active = true;
+
 		const fetchHomeData = async () => {
 			try {
 				setLoading(true);
-				const hasLocationFilter =
-					Number.isFinite(userLocation.lat) &&
-					Number.isFinite(userLocation.lng);
-				const listingsRes = await api.get("/listings", {
-					params: {
-						limit: 40,
-						sort: "Newest",
-						search: search || undefined,
-						radius: hasLocationFilter ? locationRadiusKm : undefined,
-						originLat: hasLocationFilter ? userLocation.lat : undefined,
-						originLng: hasLocationFilter ? userLocation.lng : undefined,
-					},
+				const { listingRows, totalPages } = await fetchHomeListingsPage({
+					page: 1,
+					radiusKm: locationRadiusKm,
 				});
 
-				const listingRows = pickArray(listingsRes?.data, [
-					"listings",
-					"items",
-					"data",
-				]);
+				if (!active) return;
+
 				setListings(listingRows);
+				setCurrentPage(1);
+				if (Number.isFinite(totalPages) && totalPages > 0) {
+					setHasMoreListings(1 < totalPages);
+				} else {
+					setHasMoreListings(listingRows.length >= HOME_LISTINGS_PAGE_SIZE);
+				}
 			} catch {
-				toast.error("Could not load homepage data");
+				if (active) {
+					toast.error("Could not load homepage data");
+				}
 			} finally {
-				setLoading(false);
+				if (active) {
+					setLoading(false);
+				}
 			}
 		};
 
 		fetchHomeData();
-	}, [search, locationRadiusKm, userLocation.lat, userLocation.lng]);
+
+		return () => {
+			active = false;
+		};
+	}, [
+		search,
+		fetchHomeListingsPage,
+		locationRadiusKm,
+		userLocation.label,
+		userLocation.lat,
+		userLocation.lng,
+	]);
 
 	// Liked Items Effect
 	useEffect(() => {
@@ -451,11 +568,11 @@ export default function Home() {
 				.split(">")
 				.map((entry) => entry.trim())
 				.filter(Boolean);
-			if (!parts.length) continue;
+			if (parts.length < 2) continue;
 
 			const mainCategory = parts[0];
 			if (/funeral/i.test(mainCategory)) continue;
-			const groupLabel = parts[1] || "More";
+			const groupLabel = parts[1];
 			const leafLabel = parts.slice(2).join(" > ");
 
 			if (!grouped.has(mainCategory)) {
@@ -638,6 +755,88 @@ export default function Home() {
 				delete next[listingId];
 				return next;
 			});
+		}
+	};
+
+	const mergeUniqueListings = (existingRows, incomingRows) => {
+		const seen = new Set(
+			existingRows
+				.map((row) => row?._id || row?.id || row?.productId)
+				.filter(Boolean),
+		);
+
+		const additions = incomingRows.filter((row) => {
+			const key = row?._id || row?.id || row?.productId;
+			if (!key || seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
+
+		return [...existingRows, ...additions];
+	};
+
+	const onLoadMoreListings = async () => {
+		if (loading || isLoadingMore) return;
+
+		setIsLoadingMore(true);
+
+		try {
+			let nextPage = currentPage + 1;
+			let targetRadiusKm = loadMoreRadiusKm;
+			let loadedRows = [];
+			let hasLocationFilter = false;
+			let totalPages = 0;
+
+			while (true) {
+				const result = await fetchHomeListingsPage({
+					page: nextPage,
+					radiusKm: targetRadiusKm,
+				});
+
+				loadedRows = result.listingRows;
+				hasLocationFilter = result.hasLocationFilter;
+				totalPages = result.totalPages;
+
+				if (loadedRows.length > 0) {
+					break;
+				}
+
+				if (!hasLocationFilter) {
+					setHasMoreListings(false);
+					toast("No more listings available right now");
+					return;
+				}
+
+				const broaderRadiusKm = getNextBroaderRadiusKm(targetRadiusKm);
+				if (!broaderRadiusKm) {
+					setHasMoreListings(false);
+					toast("No more nearby listings found");
+					return;
+				}
+
+				targetRadiusKm = broaderRadiusKm;
+				nextPage = 1;
+			}
+
+			setListings((prev) => mergeUniqueListings(prev, loadedRows));
+			setCurrentPage(nextPage);
+			setLoadMoreRadiusKm(targetRadiusKm);
+
+			if (Number.isFinite(totalPages) && totalPages > 0) {
+				setHasMoreListings(nextPage < totalPages);
+			} else {
+				setHasMoreListings(loadedRows.length >= HOME_LISTINGS_PAGE_SIZE);
+			}
+
+			if (targetRadiusKm > loadMoreRadiusKm) {
+				toast.success(
+					`Expanded search radius to ${targetRadiusKm} km for more nearby listings`,
+				);
+			}
+		} catch {
+			toast.error("Could not load more listings");
+		} finally {
+			setIsLoadingMore(false);
 		}
 	};
 
@@ -1104,14 +1303,18 @@ export default function Home() {
 								</div>
 							)}
 
-							<div className="mt-12 text-center">
-								<button
-									type="button"
-									className="rounded-full border border-[#EAEAEA] bg-white px-10 py-3.5 text-sm font-bold text-black hover:bg-[#F8F8F8] shadow-sm transition"
-								>
-									Load More
-								</button>
-							</div>
+							{hasMoreListings ? (
+								<div className="mt-12 text-center">
+									<button
+										type="button"
+										onClick={onLoadMoreListings}
+										disabled={loading || isLoadingMore}
+										className="rounded-full border border-[#EAEAEA] bg-white px-10 py-3.5 text-sm font-bold text-black hover:bg-[#F8F8F8] shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
+									>
+										{isLoadingMore ? "Loading..." : "Load More"}
+									</button>
+								</div>
+							) : null}
 						</section>
 
 						{/* Category Deal Carousels */}

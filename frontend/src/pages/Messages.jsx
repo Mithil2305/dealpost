@@ -321,7 +321,10 @@ export default function Messages() {
 		<div className="min-h-screen bg-[#F6F6F6] font-sans flex flex-col">
 			<Navbar />
 
-			<main id="main-content" className="flex-1 w-full max-w-[1400px] mx-auto p-0 md:p-6 lg:p-8 flex items-center justify-center">
+			<main
+				id="main-content"
+				className="flex-1 w-full max-w-[1400px] mx-auto p-0 md:p-6 lg:p-8 flex items-center justify-center"
+			>
 				<div className="flex w-full h-[calc(100vh-64px)] md:h-[calc(100vh-140px)] bg-white md:rounded-[32px] overflow-hidden shadow-sm border border-gray-100">
 					{/* Left Sidebar - Conversation List */}
 					<aside
@@ -434,22 +437,6 @@ export default function Messages() {
 										</span>
 									</div>
 								</div>
-							</div>
-
-							<div className="flex items-center gap-3">
-								<button
-									type="button"
-									onClick={() => toast("Voice calls coming soon")}
-									className="grid h-10 w-10 place-items-center rounded-full bg-[#F4F4F4] hover:bg-[#EAEAEA] transition text-black"
-								>
-									<Phone size={18} fill="currentColor" className="text-black" />
-								</button>
-								<button
-									type="button"
-									className="grid h-10 w-10 place-items-center rounded-full bg-[#F4F4F4] hover:bg-[#EAEAEA] transition text-black"
-								>
-									<EllipsisVertical size={20} />
-								</button>
 							</div>
 						</header>
 
@@ -596,4 +583,3 @@ export default function Messages() {
 		</div>
 	);
 }
-

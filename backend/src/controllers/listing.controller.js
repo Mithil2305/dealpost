@@ -604,14 +604,14 @@ export const getListings = asyncHandler(async (req, res) => {
 			req.user?.likedListingIds,
 		);
 		const countMap = await buildListingLikeCountMap(rows.map((row) => row?.id));
+		const normalizedRows = rows.map((row) =>
+			enrichListingWithLikeMeta(normalizeListingPayload(row), {
+				countMap,
+				currentUserLikedIds,
+			}),
+		);
 
-		const withinRadius = rows
-			.map((row) =>
-				enrichListingWithLikeMeta(normalizeListingPayload(row), {
-					countMap,
-					currentUserLikedIds,
-				}),
-			)
+		const withinRadius = normalizedRows
 			.map((listing) => {
 				const coords = extractListingCoordinates(listing.location);
 				if (!coords) return null;

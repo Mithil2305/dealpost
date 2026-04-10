@@ -8,7 +8,8 @@
 		"start": "node server.js",
 		"seed:categories": "node scripts/seedCategories.js",
 		"seed:admin": "node scripts/seedAdmin.js",
-		"seed:dummy-listings": "node scripts/seedDummyListings.js"
+		"seed:dummy-listings": "node scripts/seedDummyListings.js",
+		"clean:db:keep-admin": "node scripts/cleanDbKeepAdmin.js"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1014.0",

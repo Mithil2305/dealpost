@@ -894,10 +894,10 @@ export default function Navbar({
 				.split(">")
 				.map((entry) => entry.trim())
 				.filter(Boolean);
-			if (!parts.length) continue;
+			if (parts.length < 2) continue;
 
 			const mainCategory = parts[0];
-			const groupLabel = parts[1] || "More";
+			const groupLabel = parts[1];
 			const leafLabel = parts.slice(2).join(" > ");
 
 			if (!grouped.has(mainCategory)) {
@@ -995,17 +995,33 @@ export default function Navbar({
 									setActiveSuggestionIndex(index);
 								}}
 								onClick={() => onSelectSuggestion(item)}
-								className="flex w-full items-center justify-between border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50"
+								className="flex w-full items-center gap-3 border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50"
 							>
-								<div>
-									<p className="text-sm font-semibold text-gray-900">
+								<img
+									src={
+										item?.images?.[0]?.url ||
+										item?.images?.[0] ||
+										item?.image ||
+										item?.thumbnail ||
+										"/logo.png"
+									}
+									alt={item?.title || "Listing"}
+									loading="lazy"
+									onError={(event) => {
+										event.currentTarget.onerror = null;
+										event.currentTarget.src = "/logo.png";
+									}}
+									className="h-11 w-11 shrink-0 rounded-lg border border-gray-200 object-cover"
+								/>
+								<div className="min-w-0 flex-1">
+									<p className="truncate text-sm font-semibold text-gray-900">
 										{item?.title || "Listing"}
 									</p>
-									<p className="text-xs text-gray-500">
+									<p className="truncate text-xs text-gray-500">
 										{item?.location?.name || item?.location || ""}
 									</p>
 								</div>
-								<ExternalLink size={14} className="text-gray-400" />
+								<ExternalLink size={14} className="shrink-0 text-gray-400" />
 							</button>
 						))}
 					</>
@@ -1441,65 +1457,67 @@ export default function Navbar({
 									</a>
 								</div>
 								{categoryMegaSections.length ? (
-									<div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-										{categoryMegaSections.map((section) => (
-											<div key={section.title} className="min-w-0">
-												<a
-													href={`/explore?category=${encodeURIComponent(section.title)}`}
-													className="mb-1 block max-w-full truncate text-sm font-bold text-[#171717] hover:text-[#1677ff]"
-													title={section.title}
-												>
-													{section.title}
-												</a>
-												<div className="space-y-1.5 min-w-0">
-													{section.groups.slice(0, 6).map((group) => (
-														<details
-															key={`${section.title}-${group.label}`}
-															className="rounded-lg border border-gray-200 bg-[#fafafa] px-2 py-1"
-														>
-															<summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-700">
-																<div className="flex items-center justify-between gap-2">
-																	<span
-																		className="truncate"
-																		title={group.label}
-																	>
-																		{group.label}
-																	</span>
-																	<span className="shrink-0 text-[10px] font-bold text-gray-500">
-																		{group.items.length || 1}
-																	</span>
+									<div className="max-h-[60vh] overflow-y-auto pr-1">
+										<div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+											{categoryMegaSections.map((section) => (
+												<div key={section.title} className="min-w-0">
+													<a
+														href={`/explore?category=${encodeURIComponent(section.title)}`}
+														className="mb-1 block max-w-full truncate text-sm font-bold text-[#171717] hover:text-[#1677ff]"
+														title={section.title}
+													>
+														{section.title}
+													</a>
+													<div className="space-y-1.5 min-w-0">
+														{section.groups.slice(0, 6).map((group) => (
+															<details
+																key={`${section.title}-${group.label}`}
+																className="rounded-lg border border-gray-200 bg-[#fafafa] px-2 py-1"
+															>
+																<summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-700">
+																	<div className="flex items-center justify-between gap-2">
+																		<span
+																			className="truncate"
+																			title={group.label}
+																		>
+																			{group.label}
+																		</span>
+																		<span className="shrink-0 text-[10px] font-bold text-gray-500">
+																			{group.items.length || 1}
+																		</span>
+																	</div>
+																</summary>
+																<div className="mt-1 space-y-1 pl-1">
+																	{group.items.length ? (
+																		group.items.slice(0, 6).map((itemLabel) => {
+																			const categoryQuery = `${section.title} > ${group.label} > ${itemLabel}`;
+																			return (
+																				<a
+																					key={`${section.title}-${group.label}-${itemLabel}`}
+																					href={`/explore?category=${encodeURIComponent(categoryQuery)}`}
+																					className="block max-w-full truncate text-[12px] text-gray-600 hover:text-black"
+																					title={itemLabel}
+																				>
+																					{itemLabel}
+																				</a>
+																			);
+																		})
+																	) : (
+																		<a
+																			href={`/explore?category=${encodeURIComponent(`${section.title} > ${group.label}`)}`}
+																			className="block max-w-full truncate text-[12px] text-gray-600 hover:text-black"
+																			title={group.label}
+																		>
+																			Browse {group.label}
+																		</a>
+																	)}
 																</div>
-															</summary>
-															<div className="mt-1 space-y-1 pl-1">
-																{group.items.length ? (
-																	group.items.slice(0, 6).map((itemLabel) => {
-																		const categoryQuery = `${section.title} > ${group.label} > ${itemLabel}`;
-																		return (
-																			<a
-																				key={`${section.title}-${group.label}-${itemLabel}`}
-																				href={`/explore?category=${encodeURIComponent(categoryQuery)}`}
-																				className="block max-w-full truncate text-[12px] text-gray-600 hover:text-black"
-																				title={itemLabel}
-																			>
-																				{itemLabel}
-																			</a>
-																		);
-																	})
-																) : (
-																	<a
-																		href={`/explore?category=${encodeURIComponent(`${section.title} > ${group.label}`)}`}
-																		className="block max-w-full truncate text-[12px] text-gray-600 hover:text-black"
-																		title={group.label}
-																	>
-																		Browse {group.label}
-																	</a>
-																)}
-															</div>
-														</details>
-													))}
+															</details>
+														))}
+													</div>
 												</div>
-											</div>
-										))}
+											))}
+										</div>
 									</div>
 								) : (
 									<div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
