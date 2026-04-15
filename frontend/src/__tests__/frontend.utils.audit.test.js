@@ -34,9 +34,13 @@ describe("frontend utility audit", () => {
 		expect(pickArray({ foo: "bar" })).toEqual([]);
 	});
 
-	it("covers GSTIN normalization and validation helpers", async () => {
-		const { normalizeGstin, hasValidGstinChecksum, isValidGstin } =
-			await importFresh("../utils/gstin.js");
+	it("covers GSTIN and MSME normalization/validation helpers", async () => {
+		const {
+			normalizeGstin,
+			hasValidGstinChecksum,
+			isValidGstin,
+			isValidMsmeNumber,
+		} = await importFresh("../utils/gstin.js");
 		const charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 		const base14 = "29AABCU9603R1Z";
 		const validWithChecksum = charset
@@ -56,6 +60,11 @@ describe("frontend utility audit", () => {
 		expect(isValidGstin(validWithChecksum, { requireChecksum: true })).toBe(
 			true,
 		);
+		expect(normalizeGstin(" udyam-tn-12-1234567 ")).toBe("UDYAM-TN-12-1234567");
+		expect(normalizeGstin("udyamtn121234567")).toBe("UDYAM-TN-12-1234567");
+		expect(isValidMsmeNumber("UDYAM-TN-12-1234567")).toBe(true);
+		expect(isValidGstin("UDYAM-TN-12-1234567")).toBe(true);
+		expect(isValidGstin("UDYAM-TN-XX-1234567")).toBe(false);
 	});
 
 	it("covers message notification storage helpers", async () => {

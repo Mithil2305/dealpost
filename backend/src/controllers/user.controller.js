@@ -131,7 +131,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
 		if (!nextGstin) {
 			return res
 				.status(400)
-				.json({ message: "GSTIN is required for business accounts" });
+				.json({ message: "GST/MSME number is required for business accounts" });
 		}
 
 		if (
@@ -141,8 +141,8 @@ export const updateProfile = asyncHandler(async (req, res) => {
 		) {
 			return res.status(400).json({
 				message: env.GSTIN_VALIDATE_CHECKSUM
-					? "Invalid GSTIN: format or checksum is invalid"
-					: "Invalid GSTIN format. Use a valid 15-character GSTIN (e.g., 22AAAAA0000A1Z5)",
+					? "Invalid GST/MSME number. Use a valid GSTIN or MSME UDYAM number"
+					: "Invalid GST/MSME number. Use GSTIN (e.g., 22AAAAA0000A1Z5) or UDYAM format (e.g., UDYAM-TN-12-1234567)",
 			});
 		}
 	}
