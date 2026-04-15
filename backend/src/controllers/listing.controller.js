@@ -763,7 +763,7 @@ export const createListing = asyncHandler(async (req, res) => {
 		if (!sellerGstin) {
 			return res.status(400).json({
 				message:
-					"Complete business verification before posting: GSTIN is required",
+					"Complete business verification before posting: GST/MSME number is required",
 			});
 		}
 
@@ -774,8 +774,8 @@ export const createListing = asyncHandler(async (req, res) => {
 		) {
 			return res.status(400).json({
 				message: env.GSTIN_VALIDATE_CHECKSUM
-					? "Complete business verification before posting: GSTIN format or checksum is invalid"
-					: "Complete business verification before posting: GSTIN format is invalid",
+					? "Complete business verification before posting: GST/MSME number is invalid"
+					: "Complete business verification before posting: provide valid GSTIN or MSME UDYAM number",
 			});
 		}
 	}

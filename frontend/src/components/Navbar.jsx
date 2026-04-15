@@ -1409,124 +1409,123 @@ export default function Navbar({
 					style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
 				>
 					<div className="inline-flex items-center gap-2 shrink-0">
-						<a
-							href="/business-listings"
-							className="transition hover:text-black"
-						>
-							Business Listings
+						<a href="/explore" className="transition hover:text-black shrink-0">
+							Marketplace
 						</a>
+						<div
+							ref={categoryNavRef}
+							className="relative shrink-0"
+							onMouseEnter={openCategoryMegaMenu}
+							onMouseLeave={closeCategoryMegaMenu}
+						>
+							<a
+								href="/categories"
+								className="transition hover:text-black"
+								onFocus={openCategoryMegaMenu}
+							>
+								Categories
+							</a>
+							{isCategoryMegaOpen ? (
+								<div
+									className="absolute left-0 top-7 z-[90] w-[min(92vw,980px)] whitespace-normal rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)]"
+									onMouseEnter={openCategoryMegaMenu}
+									onMouseLeave={closeCategoryMegaMenu}
+								>
+									<div className="mb-3 flex items-center justify-between">
+										<p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1677ff]">
+											Browse Categories
+										</p>
+										<a
+											href="/categories"
+											className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500 hover:text-black"
+										>
+											View all
+										</a>
+									</div>
+									{categoryMegaSections.length ? (
+										<div className="max-h-[60vh] overflow-y-auto pr-1">
+											<div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+												{categoryMegaSections.map((section) => (
+													<div key={section.title} className="min-w-0">
+														<a
+															href={`/explore?category=${encodeURIComponent(section.title)}`}
+															className="mb-1 block max-w-full truncate text-sm font-bold text-[#171717] hover:text-[#1677ff]"
+															title={section.title}
+														>
+															{section.title}
+														</a>
+														<div className="space-y-1.5 min-w-0">
+															{section.groups.slice(0, 6).map((group) => (
+																<details
+																	key={`${section.title}-${group.label}`}
+																	className="rounded-lg border border-gray-200 bg-[#fafafa] px-2 py-1"
+																>
+																	<summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-700">
+																		<div className="flex items-center justify-between gap-2">
+																			<span
+																				className="truncate"
+																				title={group.label}
+																			>
+																				{group.label}
+																			</span>
+																			<span className="shrink-0 text-[10px] font-bold text-gray-500">
+																				{group.items.length || 1}
+																			</span>
+																		</div>
+																	</summary>
+																	<div className="mt-1 space-y-1 pl-1">
+																		{group.items.length ? (
+																			group.items
+																				.slice(0, 6)
+																				.map((itemLabel) => {
+																					const categoryQuery = `${section.title} > ${group.label} > ${itemLabel}`;
+																					return (
+																						<a
+																							key={`${section.title}-${group.label}-${itemLabel}`}
+																							href={`/explore?category=${encodeURIComponent(categoryQuery)}`}
+																							className="block max-w-full truncate text-[12px] text-gray-600 hover:text-black"
+																							title={itemLabel}
+																						>
+																							{itemLabel}
+																						</a>
+																					);
+																				})
+																		) : (
+																			<a
+																				href={`/explore?category=${encodeURIComponent(`${section.title} > ${group.label}`)}`}
+																				className="block max-w-full truncate text-[12px] text-gray-600 hover:text-black"
+																				title={group.label}
+																			>
+																				Browse {group.label}
+																			</a>
+																		)}
+																	</div>
+																</details>
+															))}
+														</div>
+													</div>
+												))}
+											</div>
+										</div>
+									) : (
+										<div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
+											No categories available right now.
+										</div>
+									)}
+								</div>
+							) : null}
+						</div>
 					</div>
+
 					<a
-						href="/explore?listingType=auction&sort=Auction%20Ending%20Soon"
+						href="/explore?sort=Most%20Popular"
 						className="transition hover:text-black shrink-0"
 					>
-						Auctions
+						Top Deals
 					</a>
-					<a href="/explore" className="transition hover:text-black shrink-0">
-						Marketplace
+					<a href="/business-listings" className="transition hover:text-black">
+						Business Listings
 					</a>
-
-					<div
-						ref={categoryNavRef}
-						className="relative shrink-0"
-						onMouseEnter={openCategoryMegaMenu}
-						onMouseLeave={closeCategoryMegaMenu}
-					>
-						<a
-							href="/categories"
-							className="transition hover:text-black"
-							onFocus={openCategoryMegaMenu}
-						>
-							Categories
-						</a>
-						{isCategoryMegaOpen ? (
-							<div
-								className="absolute left-0 top-7 z-[90] w-[min(92vw,980px)] whitespace-normal rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)]"
-								onMouseEnter={openCategoryMegaMenu}
-								onMouseLeave={closeCategoryMegaMenu}
-							>
-								<div className="mb-3 flex items-center justify-between">
-									<p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#1677ff]">
-										Browse Categories
-									</p>
-									<a
-										href="/categories"
-										className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500 hover:text-black"
-									>
-										View all
-									</a>
-								</div>
-								{categoryMegaSections.length ? (
-									<div className="max-h-[60vh] overflow-y-auto pr-1">
-										<div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-											{categoryMegaSections.map((section) => (
-												<div key={section.title} className="min-w-0">
-													<a
-														href={`/explore?category=${encodeURIComponent(section.title)}`}
-														className="mb-1 block max-w-full truncate text-sm font-bold text-[#171717] hover:text-[#1677ff]"
-														title={section.title}
-													>
-														{section.title}
-													</a>
-													<div className="space-y-1.5 min-w-0">
-														{section.groups.slice(0, 6).map((group) => (
-															<details
-																key={`${section.title}-${group.label}`}
-																className="rounded-lg border border-gray-200 bg-[#fafafa] px-2 py-1"
-															>
-																<summary className="cursor-pointer list-none text-[13px] font-semibold text-gray-700">
-																	<div className="flex items-center justify-between gap-2">
-																		<span
-																			className="truncate"
-																			title={group.label}
-																		>
-																			{group.label}
-																		</span>
-																		<span className="shrink-0 text-[10px] font-bold text-gray-500">
-																			{group.items.length || 1}
-																		</span>
-																	</div>
-																</summary>
-																<div className="mt-1 space-y-1 pl-1">
-																	{group.items.length ? (
-																		group.items.slice(0, 6).map((itemLabel) => {
-																			const categoryQuery = `${section.title} > ${group.label} > ${itemLabel}`;
-																			return (
-																				<a
-																					key={`${section.title}-${group.label}-${itemLabel}`}
-																					href={`/explore?category=${encodeURIComponent(categoryQuery)}`}
-																					className="block max-w-full truncate text-[12px] text-gray-600 hover:text-black"
-																					title={itemLabel}
-																				>
-																					{itemLabel}
-																				</a>
-																			);
-																		})
-																	) : (
-																		<a
-																			href={`/explore?category=${encodeURIComponent(`${section.title} > ${group.label}`)}`}
-																			className="block max-w-full truncate text-[12px] text-gray-600 hover:text-black"
-																			title={group.label}
-																		>
-																			Browse {group.label}
-																		</a>
-																	)}
-																</div>
-															</details>
-														))}
-													</div>
-												</div>
-											))}
-										</div>
-									</div>
-								) : (
-									<div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
-										No categories available right now.
-									</div>
-								)}
-							</div>
-						) : null}
-					</div>
 					<a
 						href="/explore?category=Services"
 						className="transition hover:text-black shrink-0"
@@ -1534,10 +1533,10 @@ export default function Navbar({
 						Services
 					</a>
 					<a
-						href="/explore?sort=Most%20Popular"
+						href="/explore?listingType=auction&sort=Auction%20Ending%20Soon"
 						className="transition hover:text-black shrink-0"
 					>
-						Top Deals
+						Auctions
 					</a>
 					<a
 						href="/help-center"

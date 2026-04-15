@@ -88,10 +88,16 @@ export async function fetchOpenStreetSuggestions(query, options = {}) {
 
 	const mergeUniqueById = (...groups) => {
 		const seen = new Set();
+		const seenLabels = new Set();
 		const out = [];
 		for (const rows of groups) {
 			for (const row of rows || []) {
 				if (!row?.id || seen.has(row.id)) continue;
+				const label = String(row?.label || "")
+					.trim()
+					.toLowerCase();
+				if (label && seenLabels.has(label)) continue;
+				if (label) seenLabels.add(label);
 				seen.add(row.id);
 				out.push(row);
 				if (out.length >= limit) return out;

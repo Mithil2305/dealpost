@@ -22,6 +22,7 @@ import FormField from "../components/ui/FormField";
 import { pickArray } from "../utils/api";
 import { useAuth } from "../context/useAuth";
 import { compressImageFile } from "../utils/imageCompressor";
+import { isValidGstin, normalizeGstin } from "../utils/gstin";
 import {
 	getStoredLocationCoords,
 	getStoredLocationLabel,
@@ -29,7 +30,6 @@ import {
 
 const MAX_UPLOAD_IMAGES = 6;
 const MAX_UPLOAD_SIZE_MB = 5;
-const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
 export default function BusinessPostAd() {
 	const navigate = useNavigate();
@@ -239,14 +239,14 @@ export default function BusinessPostAd() {
 		if (!formData.category.trim()) {
 			return toast.error("Business category is required");
 		}
-		const normalizedGstin = String(formData.gstin || "")
-			.trim()
-			.toUpperCase();
+		const normalizedGstin = normalizeGstin(formData.gstin);
 		if (!normalizedGstin) {
-			return toast.error("GSTIN is required for business listings");
+			return toast.error("GST/MSME number is required for business listings");
 		}
-		if (!GSTIN_REGEX.test(normalizedGstin)) {
-			return toast.error("Please enter a valid GSTIN (e.g., 22AAAAA0000A1Z5)");
+		if (!isValidGstin(normalizedGstin)) {
+			return toast.error(
+				"Please enter a valid GSTIN or MSME UDYAM number (e.g., 22AAAAA0000A1Z5 or UDYAM-TN-12-1234567)",
+			);
 		}
 		if (!formData.adTitle.trim()) {
 			return toast.error("Ad title is required");
@@ -390,13 +390,9 @@ export default function BusinessPostAd() {
 								error={
 									showValidation &&
 									(!String(formData.gstin || "").trim()
-										? "GSTIN is required"
-										: !GSTIN_REGEX.test(
-													String(formData.gstin || "")
-														.trim()
-														.toUpperCase(),
-											  )
-											? "Enter a valid GSTIN (e.g., 22AAAAA0000A1Z5)"
+										? "GST/MSME number is required"
+										: !isValidGstin(normalizeGstin(formData.gstin))
+											? "Enter a valid GSTIN or MSME UDYAM number"
 											: "")
 								}
 							/>

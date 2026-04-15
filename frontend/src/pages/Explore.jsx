@@ -1308,8 +1308,8 @@ export default function Explore() {
 						</section>
 					</div>
 				</main>
+				<Footer />
 			</div>
-			<Footer />
 		</>
 	);
 }

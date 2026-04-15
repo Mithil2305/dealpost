@@ -1,5 +1,5 @@
 import { Eye, EyeOff, MapPin } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
@@ -12,6 +12,7 @@ import {
 	signInWithGoogleFirebase,
 } from "../utils/firebaseAuth";
 import { isValidGstin, normalizeGstin } from "../utils/gstin";
+import { fetchOpenStreetSuggestions } from "../utils/locationHelpers";
 
 const COUNTRY_CODE_OPTIONS = [
 	{ value: "+1", label: "+1 (US/CA)" },
@@ -34,6 +35,8 @@ export default function Signup() {
 	const [showPassword, setShowPassword] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [showValidation, setShowValidation] = useState(false);
+	const [locationSuggestions, setLocationSuggestions] = useState([]);
+	const [locationSearching, setLocationSearching] = useState(false);
 	const [form, setForm] = useState({
 		name: "",
 		email: "",
@@ -76,8 +79,8 @@ export default function Signup() {
 								requireChecksum: ENABLE_GSTIN_CHECKSUM,
 						  })
 						? ENABLE_GSTIN_CHECKSUM
-							? "Enter a valid GSTIN (format + checksum)"
-							: "Enter a valid GSTIN format (e.g. 22AAAAA0000A1Z5)"
+							? "Enter a valid GSTIN (with checksum) or MSME UDYAM number"
+							: "Enter a valid GSTIN (e.g. 22AAAAA0000A1Z5) or MSME UDYAM number"
 						: ""
 				: "",
 		location:
@@ -90,6 +93,53 @@ export default function Signup() {
 		const { name, value } = event.target;
 		setForm((prev) => ({ ...prev, [name]: value }));
 	};
+
+	useEffect(() => {
+		if (form.accountType !== "business") {
+			setLocationSuggestions([]);
+			setLocationSearching(false);
+			return;
+		}
+
+		const query = String(form.location || "").trim();
+		if (query.length < 3) {
+			setLocationSuggestions([]);
+			setLocationSearching(false);
+			return;
+		}
+
+		const controller = new AbortController();
+		const timeoutId = window.setTimeout(async () => {
+			try {
+				setLocationSearching(true);
+				const suggestions = await fetchOpenStreetSuggestions(query, {
+					signal: controller.signal,
+					limit: 6,
+				});
+				const seenLabels = new Set();
+				const deduped = suggestions.filter((item) => {
+					const label = String(item?.label || "")
+						.trim()
+						.toLowerCase();
+					if (label && seenLabels.has(label)) return false;
+					if (label) seenLabels.add(label);
+					return true;
+				});
+				setLocationSuggestions(deduped);
+			} catch (error) {
+				if (error?.name !== "AbortError") {
+					setLocationSuggestions([]);
+				}
+			} finally {
+				setLocationSearching(false);
+			}
+		}, 250);
+
+		return () => {
+			controller.abort();
+			window.clearTimeout(timeoutId);
+		};
+	}, [form.accountType, form.location]);
 
 	const onAccountTypeKeyDown = (event, currentType) => {
 		if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
@@ -135,7 +185,7 @@ export default function Signup() {
 				payload.business = {
 					name: form.businessName,
 					gstOrMsme: normalizeGstin(form.gstOrMsme),
-					location: form.location,
+					location: form.location.trim(),
 				};
 			}
 
@@ -193,7 +243,7 @@ export default function Signup() {
 				payload.business = {
 					name: form.businessName,
 					gstOrMsme: normalizeGstin(form.gstOrMsme),
-					location: form.location,
+					location: form.location.trim(),
 				};
 			}
 
@@ -550,10 +600,41 @@ export default function Signup() {
 											label="Location"
 											value={form.location}
 											onChange={onChange}
-											placeholder="Chennai"
+											placeholder="Type city/area (e.g. Chennai, T Nagar)"
 											error={showValidation ? errors.location : ""}
+											autoComplete="off"
 											required
 										/>
+
+										{locationSearching ? (
+											<p className="-mt-3 text-xs text-[#777777]">
+												Searching locations...
+											</p>
+										) : null}
+
+										{locationSuggestions.length > 0 ? (
+											<div className="-mt-1 overflow-hidden rounded-xl border border-[#E5E5E5] bg-white">
+												<ul className="max-h-52 overflow-y-auto" role="listbox">
+													{locationSuggestions.map((suggestion) => (
+														<li key={suggestion.id}>
+															<button
+																type="button"
+																className="w-full px-3 py-2 text-left text-sm text-[#333333] hover:bg-[#F7F7F7]"
+																onClick={() => {
+																	setForm((prev) => ({
+																		...prev,
+																		location: suggestion.label,
+																	}));
+																	setLocationSuggestions([]);
+																}}
+															>
+																{suggestion.label}
+															</button>
+														</li>
+													))}
+												</ul>
+											</div>
+										) : null}
 									</>
 								)}
 
