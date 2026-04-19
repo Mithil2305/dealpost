@@ -1295,7 +1295,7 @@ export default function Navbar({
 						className="flex items-center gap-1.5 rounded-full bg-[#FFF5D1] px-3 sm:px-4 lg:px-5 py-1.5 sm:py-2 text-xs sm:text-sm font-bold text-[#5C4D00] transition hover:bg-[#FFEAA3]"
 					>
 						<Plus size={16} />
-						<span>Sell</span>
+						<span>Post Deal</span>
 					</button>
 
 					{/* Profile avatar */}
@@ -1653,7 +1653,7 @@ export default function Navbar({
 									className="flex items-center justify-center gap-1.5 rounded-xl bg-[#FFF5D1] px-3 py-2.5 text-sm font-bold text-[#5C4D00]"
 								>
 									<Plus size={16} />
-									Post Ad
+									Post Deal
 								</button>
 								<button
 									type="button"

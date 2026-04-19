@@ -31,6 +31,39 @@ const toAmount = (value) => {
 
 const formatInr = (value) => INR_FORMATTER.format(toAmount(value));
 
+const PAGE_SIZE = 100;
+
+const fetchAllPages = async (path, keys) => {
+	let page = 1;
+	const rows = [];
+
+	while (true) {
+		const { data } = await api.get(path, {
+			params: {
+				page,
+				limit: PAGE_SIZE,
+			},
+		});
+
+		const chunk = pickArray(data, keys);
+		if (chunk.length) {
+			rows.push(...chunk);
+		}
+
+		const totalPages = Number(data?.pages);
+		if (Number.isFinite(totalPages) && totalPages > 0) {
+			if (page >= totalPages) break;
+			page += 1;
+			continue;
+		}
+
+		if (chunk.length < PAGE_SIZE) break;
+		page += 1;
+	}
+
+	return rows;
+};
+
 const getSubCategoryOnly = (value) => {
 	const normalized = String(value || "").trim();
 	if (!normalized) return "General";
@@ -58,24 +91,23 @@ export default function BusinessListings() {
 		const fetchData = async () => {
 			try {
 				setLoading(true);
-				const [storesRes, listingsRes] = await Promise.all([
-					api.get("/businesses").catch(() => ({ data: [] })),
-					api.get("/listings").catch(() => ({ data: [] })),
+				const [storesRows, listingRows] = await Promise.all([
+					fetchAllPages("/businesses", [
+						"businesses",
+						"stores",
+						"data",
+						"items",
+					]),
+					fetchAllPages("/listings", ["listings", "items", "data", "results"]),
 				]);
 
-				setRemoteStores(
-					pickArray(storesRes?.data, ["businesses", "stores", "data", "items"]),
+				setRemoteStores(storesRows);
+				setListings(listingRows);
+			} catch (error) {
+				toast.error(
+					error?.response?.data?.message ||
+						"Unable to load business listings from server",
 				);
-				setListings(
-					pickArray(listingsRes?.data, [
-						"listings",
-						"items",
-						"data",
-						"results",
-					]),
-				);
-			} catch {
-				toast.error("Unable to load business listings");
 			} finally {
 				setLoading(false);
 			}
@@ -85,7 +117,44 @@ export default function BusinessListings() {
 	}, []);
 
 	const stores = useMemo(() => {
-		const merged = [...remoteStores];
+		const derivedStores = listings
+			.map((listing, index) => {
+				const seller =
+					typeof listing?.seller === "object" && listing?.seller !== null
+						? listing.seller
+						: {};
+				const businessName = String(
+					listing?.business?.name ||
+						listing?.businessName ||
+						seller?.businessName ||
+						seller?.name ||
+						"",
+				).trim();
+				const ownerId =
+					seller?.id || listing?.sellerId || listing?.ownerId || null;
+
+				if (!businessName && !ownerId) {
+					return null;
+				}
+
+				return {
+					id: ownerId || `listing-owner-${index}`,
+					ownerId,
+					businessName,
+					name: String(seller?.name || businessName || "").trim(),
+					email: String(seller?.email || "").trim(),
+					location:
+						typeof seller?.location === "string"
+							? seller.location
+							: listing?.location?.name ||
+								listing?.location?.city ||
+								listing?.location?.label ||
+								"Not specified",
+				};
+			})
+			.filter(Boolean);
+
+		const merged = [...remoteStores, ...derivedStores];
 		const unique = [];
 		const seen = new Set();
 
@@ -105,47 +174,7 @@ export default function BusinessListings() {
 		}
 
 		return unique;
-	}, [remoteStores]);
-
-	const localBusinessMetaByName = useMemo(() => {
-		const normalized = new Map();
-
-		try {
-			const mapRaw = JSON.parse(
-				localStorage.getItem("dealpost:business-registration-meta-map") || "{}",
-			);
-			if (mapRaw && typeof mapRaw === "object") {
-				Object.entries(mapRaw).forEach(([name, meta]) => {
-					const key = String(name || "")
-						.trim()
-						.toLowerCase();
-					if (!key) return;
-					normalized.set(key, meta || {});
-				});
-			}
-		} catch {
-			// no-op: local storage may be empty or malformed
-		}
-
-		// Backward compatibility for old single-object format.
-		try {
-			const legacy = JSON.parse(
-				localStorage.getItem("dealpost:business-registration-meta") || "null",
-			);
-			const legacyBusinessName = String(
-				legacy?.businessName || user?.businessName || "",
-			)
-				.trim()
-				.toLowerCase();
-			if (legacyBusinessName && legacy) {
-				normalized.set(legacyBusinessName, legacy);
-			}
-		} catch {
-			// no-op: local storage may be empty or malformed
-		}
-
-		return normalized;
-	}, [user?.businessName]);
+	}, [remoteStores, listings]);
 
 	const getStoreListings = useCallback(
 		(store) => {
@@ -193,20 +222,11 @@ export default function BusinessListings() {
 			const storeListings = getStoreListings(store);
 			const name = store?.businessName || store?.name || "Unnamed Business";
 			const location = store?.location || "Not specified";
-			const localMeta = localBusinessMetaByName.get(
-				String(name).trim().toLowerCase(),
-			);
-			const categoryLabel = getSubCategoryOnly(
-				store?.category || localMeta?.primaryCategory || "General",
-			);
+			const categoryLabel = getSubCategoryOnly(store?.category || "General");
 			const description =
-				String(store?.description || "").trim() ||
-				String(localMeta?.description || "").trim() ||
-				"No description available";
+				String(store?.description || "").trim() || "No description available";
 			const businessLocationUrl =
-				String(store?.businessLocationUrl || "").trim() ||
-				String(localMeta?.locationUrl || "").trim() ||
-				"";
+				String(store?.businessLocationUrl || "").trim() || "";
 			const totalValue = storeListings.reduce(
 				(sum, item) => sum + Number(item?.price || 0),
 				0,
@@ -223,7 +243,7 @@ export default function BusinessListings() {
 				totalValue,
 			};
 		});
-	}, [getStoreListings, localBusinessMetaByName, stores]);
+	}, [getStoreListings, stores]);
 
 	const locations = useMemo(() => {
 		const unique = new Set(
