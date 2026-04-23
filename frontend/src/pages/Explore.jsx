@@ -1,5 +1,5 @@
 ﻿import { Check, ChevronDown, ChevronRight, Filter, Heart } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
@@ -197,7 +197,7 @@ export default function Explore() {
 		};
 	}, []);
 
-	useEffect(() => {
+	useLayoutEffect(() => {
 		const parsedParams = new URLSearchParams(queryString);
 		const nextSearch = parsedParams.get("search") || "";
 		const nextSort = parsedParams.get("sort") || defaultFilters.sort;
@@ -238,6 +238,7 @@ export default function Explore() {
 				category: nextCategory,
 			};
 		});
+		setPage(1);
 	}, [queryString]);
 
 	const urlStateQuery = useMemo(() => {

@@ -87,6 +87,29 @@ const DISPLAY_CATEGORIES = [
 	"Services",
 ];
 
+const SHORTCUT_CATEGORY_QUERY_MAP = {
+	Cars: "Vehicles > Cars",
+	Bikes: "Vehicles > Motorcycles",
+	Properties: "Property",
+	"Electronics & Appliances": "Electronics > TV & Home Appliances",
+	Mobiles: "Electronics > Mobile Phones",
+	"Commercial Vehicles & Spares": "Vehicles > Commercial Vehicles & Spares",
+	Jobs: "Services",
+	Furniture: "Property",
+	Fashion: "Fashion & Beauty",
+	Pets: "Pet Supplies",
+	"Books, Sports & Hobbies": "Sports",
+	Services: "Services",
+};
+
+const buildExploreCategoryHref = (shortcutLabel) => {
+	const categoryValue =
+		SHORTCUT_CATEGORY_QUERY_MAP[String(shortcutLabel || "").trim()] ||
+		String(shortcutLabel || "").trim() ||
+		"General";
+	return `/explore?category=${encodeURIComponent(categoryValue)}`;
+};
+
 const MEGA_CATEGORY_ICON_MAP = {
 	Electronics: Laptop,
 	"Fashion & Beauty": Shirt,
@@ -115,7 +138,7 @@ const HERO_SLIDES = [
 		image:
 			"https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000",
 		ctaText: "Explore Furniture",
-		ctaLink: "/explore?category=Furniture",
+		ctaLink: buildExploreCategoryHref("Furniture"),
 	},
 	{
 		id: 2,
@@ -124,7 +147,7 @@ const HERO_SLIDES = [
 		image:
 			"https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&q=80&w=2000",
 		ctaText: "View Vehicles",
-		ctaLink: "/explore?category=Vehicles",
+		ctaLink: buildExploreCategoryHref("Cars"),
 	},
 ];
 
@@ -164,6 +187,15 @@ const getEndSubCategory = (value) => {
 		.map((segment) => segment.trim())
 		.filter(Boolean);
 	return parts[parts.length - 1] || "General";
+};
+
+const getMainCategoryFromPath = (value) => {
+	if (!value) return "General";
+	const parts = String(value)
+		.split(">")
+		.map((segment) => segment.trim())
+		.filter(Boolean);
+	return parts[0] || "General";
 };
 
 const getLocationLabel = (value) => {
@@ -214,6 +246,7 @@ const normalizeListing = (item) => {
 		productId: item?.productId || null,
 		title: item?.title || "Heimer Miller Sofa",
 		category: getEndSubCategory(item?.category),
+		categoryMain: getMainCategoryFromPath(item?.category),
 		listingType: item?.listingType || "fixed",
 		auction: item?.auction || null,
 		startingBid: item?.startingBid || null,
@@ -633,7 +666,7 @@ export default function Home() {
 		.slice(0, 2);
 	const categoryDeals = Object.entries(
 		displayListings.reduce((acc, listing) => {
-			const categoryName = listing?.category || "General";
+			const categoryName = listing?.categoryMain || "General";
 			if (!acc[categoryName]) {
 				acc[categoryName] = [];
 			}
@@ -896,7 +929,7 @@ export default function Home() {
 										<Link
 											key={catName || index}
 											onClick={() => setIsMegaMenuOpen(false)}
-											to={`/explore?category=${encodeURIComponent(catName || "General")}`}
+											to={buildExploreCategoryHref(catName)}
 											className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold transition-all ${
 												active
 													? "bg-[#FFD600] text-black shadow-sm"

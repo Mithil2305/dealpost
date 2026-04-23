@@ -543,7 +543,10 @@ export const getListings = asyncHandler(async (req, res) => {
 				if (split.parentCategory && split.subCategory) {
 					categoryConditions.push({
 						parentCategory: split.parentCategory,
-						subCategory: split.subCategory,
+						[Op.or]: [
+							{ subCategory: split.subCategory },
+							{ subCategory: { [Op.like]: `${split.subCategory} > %` } },
+						],
 					});
 				}
 			}
