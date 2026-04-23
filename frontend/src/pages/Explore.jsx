@@ -129,7 +129,13 @@ export default function Explore() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const queryString = searchParams.toString();
 	const [categories, setCategories] = useState([]);
-	const [filters, setFilters] = useState(() => ({
+	const [pendingFilters, setPendingFilters] = useState(() => ({
+		...defaultFilters,
+		category: parseCategoryParam(searchParams.get("category")),
+		listingType: searchParams.get("listingType") || defaultFilters.listingType,
+		sort: searchParams.get("sort") || defaultFilters.sort,
+	}));
+	const [appliedFilters, setAppliedFilters] = useState(() => ({
 		...defaultFilters,
 		category: parseCategoryParam(searchParams.get("category")),
 		listingType: searchParams.get("listingType") || defaultFilters.listingType,
@@ -200,7 +206,23 @@ export default function Explore() {
 		const nextCategory = parseCategoryParam(parsedParams.get("category"));
 
 		setSearch((prev) => (prev === nextSearch ? prev : nextSearch));
-		setFilters((prev) => {
+		setAppliedFilters((prev) => {
+			if (
+				prev.sort === nextSort &&
+				prev.listingType === nextListingType &&
+				areSameArrays(prev.category, nextCategory)
+			) {
+				return prev;
+			}
+
+			return {
+				...prev,
+				sort: nextSort,
+				listingType: nextListingType,
+				category: nextCategory,
+			};
+		});
+		setPendingFilters((prev) => {
 			if (
 				prev.sort === nextSort &&
 				prev.listingType === nextListingType &&
@@ -223,17 +245,22 @@ export default function Explore() {
 		if (search.trim()) {
 			nextParams.set("search", search.trim());
 		}
-		if (filters.sort && filters.sort !== defaultFilters.sort) {
-			nextParams.set("sort", filters.sort);
+		if (appliedFilters.sort && appliedFilters.sort !== defaultFilters.sort) {
+			nextParams.set("sort", appliedFilters.sort);
 		}
-		if (filters.listingType) {
-			nextParams.set("listingType", filters.listingType);
+		if (appliedFilters.listingType) {
+			nextParams.set("listingType", appliedFilters.listingType);
 		}
-		if (filters.category.length) {
-			nextParams.set("category", filters.category.join(","));
+		if (appliedFilters.category.length) {
+			nextParams.set("category", appliedFilters.category.join(","));
 		}
 		return nextParams.toString();
-	}, [search, filters.sort, filters.listingType, filters.category]);
+	}, [
+		search,
+		appliedFilters.sort,
+		appliedFilters.listingType,
+		appliedFilters.category,
+	]);
 
 	useEffect(() => {
 		// Normalize: parse both into sorted key=value pairs for comparison
@@ -273,19 +300,21 @@ export default function Explore() {
 			try {
 				setLoading(true);
 				const params = {
-					category: filters.category.join(",") || undefined,
-					listingType: filters.listingType || undefined,
-					minPrice: filters.minPrice || undefined,
-					maxPrice: filters.maxPrice || undefined,
-					condition: filters.condition || undefined,
-					radius: filters.radius ? `${filters.radius}km` : undefined,
+					category: appliedFilters.category.join(",") || undefined,
+					listingType: appliedFilters.listingType || undefined,
+					minPrice: appliedFilters.minPrice || undefined,
+					maxPrice: appliedFilters.maxPrice || undefined,
+					condition: appliedFilters.condition || undefined,
+					radius: appliedFilters.radius
+						? `${appliedFilters.radius}km`
+						: undefined,
 					originLat: Number.isFinite(selectedCoords.lat)
 						? selectedCoords.lat
 						: undefined,
 					originLng: Number.isFinite(selectedCoords.lng)
 						? selectedCoords.lng
 						: undefined,
-					sort: filters.sort || undefined,
+					sort: appliedFilters.sort || undefined,
 					search: search || undefined,
 					page,
 				};
@@ -319,18 +348,18 @@ export default function Explore() {
 		return () => {
 			active = false;
 		};
-	}, [filters, search, page, selectedCoords.lat, selectedCoords.lng]);
+	}, [appliedFilters, search, page, selectedCoords.lat, selectedCoords.lng]);
 
 	const hasFilters = useMemo(
 		() =>
 			Boolean(
-				filters.category.length ||
-				filters.listingType ||
-				filters.minPrice ||
-				filters.maxPrice ||
-				filters.condition,
+				appliedFilters.category.length ||
+				appliedFilters.listingType ||
+				appliedFilters.minPrice ||
+				appliedFilters.maxPrice ||
+				appliedFilters.condition,
 			),
-		[filters],
+		[appliedFilters],
 	);
 
 	const mainCategoryOptions = useMemo(
@@ -407,7 +436,7 @@ export default function Explore() {
 			return;
 		}
 
-		const selectedMainCategory = filters.category
+		const selectedMainCategory = pendingFilters.category
 			.map((value) => getMainCategory(value))
 			.find((value) => mainCategoryOptions.includes(value));
 
@@ -416,31 +445,60 @@ export default function Explore() {
 			if (prev && mainCategoryOptions.includes(prev)) return prev;
 			return mainCategoryOptions[0];
 		});
-	}, [mainCategoryOptions, filters.category]);
+	}, [mainCategoryOptions, pendingFilters.category]);
 
 	useEffect(() => {
-		if (!mainCategoryOptions.length) return;
+		if (!mainCategoryOptions.length || !expandedMainCategory) return;
 
-		const selectedMainCategory = filters.category
-			.map((value) => getMainCategory(value))
-			.find((value) => mainCategoryOptions.includes(value));
-		const targetMain = selectedMainCategory || expandedMainCategory;
-		if (!targetMain) return;
+		const targetNode = mainCategoryRefs.current[expandedMainCategory];
+		if (!targetNode) return;
 
-		mainCategoryRefs.current[targetMain]?.scrollIntoView({
-			block: "nearest",
-			behavior: "smooth",
-		});
-	}, [filters.category, expandedMainCategory, mainCategoryOptions]);
+		const scrollContainer = targetNode.parentElement;
+		if (!scrollContainer) return;
+
+		const containerRect = scrollContainer.getBoundingClientRect();
+		const targetRect = targetNode.getBoundingClientRect();
+		const isFullyVisible =
+			targetRect.top >= containerRect.top &&
+			targetRect.bottom <= containerRect.bottom;
+
+		if (!isFullyVisible) {
+			targetNode.scrollIntoView({
+				block: "nearest",
+				behavior: "auto",
+			});
+		}
+	}, [expandedMainCategory, mainCategoryOptions]);
 
 	const toggleArrayFilter = (key, value) => {
-		setPage(1);
-		setFilters((prev) => ({
+		setPendingFilters((prev) => ({
 			...prev,
 			[key]: prev[key].includes(value)
 				? prev[key].filter((item) => item !== value)
 				: [...prev[key], value],
 		}));
+	};
+
+	const applyPendingFilters = () => {
+		setPage(1);
+		setAppliedFilters((prev) => {
+			if (
+				prev.sort === pendingFilters.sort &&
+				prev.listingType === pendingFilters.listingType &&
+				prev.minPrice === pendingFilters.minPrice &&
+				prev.maxPrice === pendingFilters.maxPrice &&
+				prev.condition === pendingFilters.condition &&
+				prev.radius === pendingFilters.radius &&
+				areSameArrays(prev.category, pendingFilters.category)
+			) {
+				return prev;
+			}
+
+			return {
+				...pendingFilters,
+				category: [...pendingFilters.category],
+			};
+		});
 	};
 
 	const toggleSubCategoryGroupExpanded = (groupValue) => {
@@ -451,13 +509,13 @@ export default function Explore() {
 	};
 
 	useEffect(() => {
-		if (!filters.category.length) return;
+		if (!pendingFilters.category.length) return;
 
 		setExpandedSubCategoryGroups((prev) => {
 			const next = { ...prev };
 			let changed = false;
 
-			for (const selectedValue of filters.category) {
+			for (const selectedValue of pendingFilters.category) {
 				const parts = String(selectedValue)
 					.split(">")
 					.map((part) => part.trim())
@@ -474,7 +532,7 @@ export default function Explore() {
 
 			return changed ? next : prev;
 		});
-	}, [filters.category]);
+	}, [pendingFilters.category]);
 
 	return (
 		<>
@@ -515,12 +573,11 @@ export default function Explore() {
 								<p className="text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
 									Main Category
 								</p>
-								{filters.category.length > 0 && (
+								{pendingFilters.category.length > 0 && (
 									<button
 										type="button"
 										onClick={() => {
-											setPage(1);
-											setFilters((prev) => ({ ...prev, category: [] }));
+											setPendingFilters((prev) => ({ ...prev, category: [] }));
 										}}
 										className="text-[11px] font-semibold text-[#8b7008] hover:text-[#6f5805]"
 									>
@@ -531,7 +588,7 @@ export default function Explore() {
 							<div className="rounded-2xl border border-brand-border bg-[#FAFAFA] p-2.5">
 								<div className="max-h-80 space-y-2 overflow-y-auto pr-1">
 									{mainCategoryOptions.map((label) => {
-										const selected = filters.category.includes(label);
+										const selected = pendingFilters.category.includes(label);
 										const groups = subCategoryGroupsByMain.get(label) || [];
 										const showSubItems = expandedMainCategory === label;
 										const childCount = groups.reduce(
@@ -596,7 +653,7 @@ export default function Explore() {
 														<div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
 															{groups.map((group) => {
 																const isGroupSelected =
-																	filters.category.includes(group.value);
+																	pendingFilters.category.includes(group.value);
 																const hasLeafItems = group.items.length > 0;
 																const isGroupExpanded = Boolean(
 																	expandedSubCategoryGroups[group.value],
@@ -654,7 +711,7 @@ export default function Explore() {
 																			<div className="mt-1 space-y-1 pl-1">
 																				{group.items.map((option) => {
 																					const isSubSelected =
-																						filters.category.includes(
+																						pendingFilters.category.includes(
 																							option.value,
 																						);
 																					return (
@@ -708,9 +765,9 @@ export default function Explore() {
 								</p>
 								<select
 									className="input-shell"
-									value={filters.listingType}
+									value={pendingFilters.listingType}
 									onChange={(event) =>
-										setFilters((prev) => ({
+										setPendingFilters((prev) => ({
 											...prev,
 											listingType: event.target.value,
 										}))
@@ -730,9 +787,9 @@ export default function Explore() {
 									<input
 										className="input-shell"
 										placeholder="Min"
-										value={filters.minPrice}
+										value={pendingFilters.minPrice}
 										onChange={(event) =>
-											setFilters((prev) => ({
+											setPendingFilters((prev) => ({
 												...prev,
 												minPrice: event.target.value,
 											}))
@@ -741,9 +798,9 @@ export default function Explore() {
 									<input
 										className="input-shell"
 										placeholder="Max"
-										value={filters.maxPrice}
+										value={pendingFilters.maxPrice}
 										onChange={(event) =>
-											setFilters((prev) => ({
+											setPendingFilters((prev) => ({
 												...prev,
 												maxPrice: event.target.value,
 											}))
@@ -764,9 +821,9 @@ export default function Explore() {
 										<input
 											type="radio"
 											name="condition-mobile"
-											checked={filters.condition === value}
+											checked={pendingFilters.condition === value}
 											onChange={() =>
-												setFilters((prev) => ({ ...prev, condition: value }))
+												setPendingFilters((prev) => ({ ...prev, condition: value }))
 											}
 										/>
 										{value}
@@ -783,9 +840,9 @@ export default function Explore() {
 									min="5"
 									max="100"
 									step="5"
-									value={Number(filters.radius) || 25}
+									value={Number(pendingFilters.radius) || 25}
 									onChange={(event) =>
-										setFilters((prev) => ({
+										setPendingFilters((prev) => ({
 											...prev,
 											radius: event.target.value,
 										}))
@@ -795,7 +852,7 @@ export default function Explore() {
 								<div className="mt-2 flex items-center justify-between text-[11px] text-brand-muted">
 									<span>5 km</span>
 									<span className="font-semibold text-brand-dark">
-										{Number(filters.radius) || 25} km
+										{Number(pendingFilters.radius) || 25} km
 									</span>
 									<span>100 km</span>
 								</div>
@@ -805,13 +862,19 @@ export default function Explore() {
 								<Button
 									variant="outline"
 									onClick={() => {
-										setFilters(defaultFilters);
-										setPage(1);
+										setPendingFilters(defaultFilters);
 									}}
 								>
 									Clear All
 								</Button>
-								<Button onClick={() => setShowFilters(false)}>Apply</Button>
+								<Button
+									onClick={() => {
+										applyPendingFilters();
+										setShowFilters(false);
+									}}
+								>
+									Apply
+								</Button>
 							</div>
 						</div>
 					</Modal>
@@ -823,8 +886,7 @@ export default function Explore() {
 								<button
 									type="button"
 									onClick={() => {
-										setFilters(defaultFilters);
-										setPage(1);
+										setPendingFilters(defaultFilters);
 									}}
 									className="text-xs font-semibold text-[#8b7008]"
 								>
@@ -838,12 +900,14 @@ export default function Explore() {
 										<p className="text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
 											Main Category
 										</p>
-										{filters.category.length > 0 && (
+										{pendingFilters.category.length > 0 && (
 											<button
 												type="button"
 												onClick={() => {
-													setPage(1);
-													setFilters((prev) => ({ ...prev, category: [] }));
+													setPendingFilters((prev) => ({
+														...prev,
+														category: [],
+													}));
 												}}
 												className="text-[11px] font-semibold text-[#8b7008] hover:text-[#6f5805]"
 											>
@@ -854,7 +918,7 @@ export default function Explore() {
 									<div className="rounded-2xl border border-brand-border bg-[#FAFAFA] p-2.5">
 										<div className="max-h-80 space-y-2 overflow-y-auto pr-1">
 											{mainCategoryOptions.map((label) => {
-												const selected = filters.category.includes(label);
+												const selected = pendingFilters.category.includes(label);
 												const groups = subCategoryGroupsByMain.get(label) || [];
 												const showSubItems = expandedMainCategory === label;
 												const childCount = groups.reduce(
@@ -937,7 +1001,7 @@ export default function Explore() {
 																	<div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
 																		{groups.map((group) => {
 																			const isGroupSelected =
-																				filters.category.includes(group.value);
+																				pendingFilters.category.includes(group.value);
 																			const hasLeafItems =
 																				group.items.length > 0;
 																			const isGroupExpanded = Boolean(
@@ -996,7 +1060,7 @@ export default function Explore() {
 																						<div className="mt-1 space-y-1 pl-1">
 																							{group.items.map((option) => {
 																								const isSubSelected =
-																									filters.category.includes(
+																									pendingFilters.category.includes(
 																										option.value,
 																									);
 																								return (
@@ -1059,9 +1123,9 @@ export default function Explore() {
 									</p>
 									<select
 										className="input-shell"
-										value={filters.listingType}
+										value={pendingFilters.listingType}
 										onChange={(event) =>
-											setFilters((prev) => ({
+											setPendingFilters((prev) => ({
 												...prev,
 												listingType: event.target.value,
 											}))
@@ -1081,9 +1145,9 @@ export default function Explore() {
 										<input
 											className="input-shell"
 											placeholder="Min"
-											value={filters.minPrice}
+											value={pendingFilters.minPrice}
 											onChange={(event) =>
-												setFilters((prev) => ({
+												setPendingFilters((prev) => ({
 													...prev,
 													minPrice: event.target.value,
 												}))
@@ -1092,9 +1156,9 @@ export default function Explore() {
 										<input
 											className="input-shell"
 											placeholder="Max"
-											value={filters.maxPrice}
+											value={pendingFilters.maxPrice}
 											onChange={(event) =>
-												setFilters((prev) => ({
+												setPendingFilters((prev) => ({
 													...prev,
 													maxPrice: event.target.value,
 												}))
@@ -1115,9 +1179,12 @@ export default function Explore() {
 											<input
 												type="radio"
 												name="condition"
-												checked={filters.condition === value}
+												checked={pendingFilters.condition === value}
 												onChange={() =>
-													setFilters((prev) => ({ ...prev, condition: value }))
+													setPendingFilters((prev) => ({
+														...prev,
+														condition: value,
+													}))
 												}
 											/>
 											{value}
@@ -1134,9 +1201,9 @@ export default function Explore() {
 										min="5"
 										max="100"
 										step="5"
-										value={Number(filters.radius) || 25}
+										value={Number(pendingFilters.radius) || 25}
 										onChange={(event) =>
-											setFilters((prev) => ({
+											setPendingFilters((prev) => ({
 												...prev,
 												radius: event.target.value,
 											}))
@@ -1146,7 +1213,7 @@ export default function Explore() {
 									<div className="mt-2 flex items-center justify-between text-[11px] text-brand-muted">
 										<span>5 km</span>
 										<span className="font-semibold text-brand-dark">
-											{Number(filters.radius) || 25} km
+											{Number(pendingFilters.radius) || 25} km
 										</span>
 										<span>100 km</span>
 									</div>
@@ -1155,7 +1222,7 @@ export default function Explore() {
 								<button
 									className="btn-primary h-12 w-full rounded-xl"
 									type="button"
-									onClick={() => setPage(1)}
+									onClick={applyPendingFilters}
 								>
 									Apply Filters
 								</button>
@@ -1176,13 +1243,18 @@ export default function Explore() {
 
 								<select
 									className="h-12 rounded-xl border border-brand-border bg-white px-3 text-sm sm:w-[170px]"
-									value={filters.sort}
-									onChange={(event) =>
-										setFilters((prev) => ({
+									value={appliedFilters.sort}
+									onChange={(event) => {
+										setPage(1);
+										setPendingFilters((prev) => ({
 											...prev,
 											sort: event.target.value,
-										}))
-									}
+										}));
+										setAppliedFilters((prev) => ({
+											...prev,
+											sort: event.target.value,
+										}));
+									}}
 								>
 									<option>Newest</option>
 									<option>Auction Ending Soon</option>
