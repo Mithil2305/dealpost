@@ -823,7 +823,10 @@ export default function Explore() {
 											name="condition-mobile"
 											checked={pendingFilters.condition === value}
 											onChange={() =>
-												setPendingFilters((prev) => ({ ...prev, condition: value }))
+												setPendingFilters((prev) => ({
+													...prev,
+													condition: value,
+												}))
 											}
 										/>
 										{value}
@@ -918,7 +921,8 @@ export default function Explore() {
 									<div className="rounded-2xl border border-brand-border bg-[#FAFAFA] p-2.5">
 										<div className="max-h-80 space-y-2 overflow-y-auto pr-1">
 											{mainCategoryOptions.map((label) => {
-												const selected = pendingFilters.category.includes(label);
+												const selected =
+													pendingFilters.category.includes(label);
 												const groups = subCategoryGroupsByMain.get(label) || [];
 												const showSubItems = expandedMainCategory === label;
 												const childCount = groups.reduce(
@@ -1001,7 +1005,9 @@ export default function Explore() {
 																	<div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
 																		{groups.map((group) => {
 																			const isGroupSelected =
-																				pendingFilters.category.includes(group.value);
+																				pendingFilters.category.includes(
+																					group.value,
+																				);
 																			const hasLeafItems =
 																				group.items.length > 0;
 																			const isGroupExpanded = Boolean(
