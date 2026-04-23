@@ -875,7 +875,7 @@ export default function Navbar({
 			label: "Auctions",
 			to: "/explore?listingType=auction&sort=Auction%20Ending%20Soon",
 		},
-		{ label: "Marketplace", to: "/explore" },
+		// { label: "Marketplace", to: "/explore" },
 		{ label: "Categories", to: "/categories" },
 		{ label: "Services", to: "/explore?category=Services" },
 		{ label: "Top Deals", to: "/explore?sort=Most%20Popular" },
@@ -1409,9 +1409,9 @@ export default function Navbar({
 					style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
 				>
 					<div className="inline-flex items-center gap-2 shrink-0">
-						<a href="/explore" className="transition hover:text-black shrink-0">
+						{/* <a href="/explore" className="transition hover:text-black shrink-0">
 							Marketplace
-						</a>
+						</a> */}
 						<div
 							ref={categoryNavRef}
 							className="relative shrink-0"
