@@ -449,27 +449,39 @@ export default function Explore() {
 	}, [mainCategoryOptions, pendingFilters.category]);
 
 	useEffect(() => {
-		if (!mainCategoryOptions.length || !expandedMainCategory) return;
+		if (!mainCategoryOptions.length) return;
 
-		const targetNode = mainCategoryRefs.current[expandedMainCategory];
-		if (!targetNode) return;
+		const selectedMainCategory = pendingFilters.category
+			.map((value) => getMainCategory(value))
+			.find((value) => mainCategoryOptions.includes(value));
+		const targetMainCategory = selectedMainCategory || expandedMainCategory;
+		if (!targetMainCategory) return;
 
-		const scrollContainer = targetNode.parentElement;
-		if (!scrollContainer) return;
+		const rafId = window.requestAnimationFrame(() => {
+			const targetNode = mainCategoryRefs.current[targetMainCategory];
+			if (!targetNode) return;
 
-		const containerRect = scrollContainer.getBoundingClientRect();
-		const targetRect = targetNode.getBoundingClientRect();
-		const isFullyVisible =
-			targetRect.top >= containerRect.top &&
-			targetRect.bottom <= containerRect.bottom;
+			const scrollContainer = targetNode.parentElement;
+			if (!scrollContainer) return;
 
-		if (!isFullyVisible) {
-			targetNode.scrollIntoView({
-				block: "nearest",
-				behavior: "auto",
-			});
-		}
-	}, [expandedMainCategory, mainCategoryOptions]);
+			const containerRect = scrollContainer.getBoundingClientRect();
+			const targetRect = targetNode.getBoundingClientRect();
+			const isFullyVisible =
+				targetRect.top >= containerRect.top &&
+				targetRect.bottom <= containerRect.bottom;
+
+			if (!isFullyVisible) {
+				targetNode.scrollIntoView({
+					block: "nearest",
+					behavior: "auto",
+				});
+			}
+		});
+
+		return () => {
+			window.cancelAnimationFrame(rafId);
+		};
+	}, [pendingFilters.category, expandedMainCategory, mainCategoryOptions]);
 
 	const toggleArrayFilter = (key, value) => {
 		setPendingFilters((prev) => ({
