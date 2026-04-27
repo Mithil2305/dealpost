@@ -1,4 +1,5 @@
 const AD_STORAGE_KEY = "dealpost:ad-slots";
+const LOCAL_FALLBACK_AD_IMAGE = "/images/optimized/ad-fallback-600.webp";
 
 const FALLBACK_ADS = [
 	{
@@ -6,8 +7,7 @@ const FALLBACK_ADS = [
 		title: "Promote Your Listing",
 		description:
 			"Boost visibility and close deals faster with a featured placement.",
-		imageUrl:
-			"https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80",
+		imageUrl: LOCAL_FALLBACK_AD_IMAGE,
 		targetUrl: "/post-ad",
 		isActive: true,
 		updatedAt: new Date().toISOString(),
@@ -16,8 +16,7 @@ const FALLBACK_ADS = [
 		id: "ad-2",
 		title: "Business Verified",
 		description: "Get trust badges and better ranking for your store profile.",
-		imageUrl:
-			"https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=600&q=80",
+		imageUrl: LOCAL_FALLBACK_AD_IMAGE,
 		targetUrl: "/business-listings",
 		isActive: true,
 		updatedAt: new Date().toISOString(),

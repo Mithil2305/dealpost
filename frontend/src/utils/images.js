@@ -19,24 +19,60 @@ function buildUnsplashSrc(url, width, quality = 75) {
 	return next;
 }
 
+function buildLocalVariantSrc(src, width, extension) {
+	return String(src || "").replace(
+		/-\d+\.(webp|avif)$/i,
+		`-${width}.${extension}`,
+	);
+}
+
+function isLocalOptimizedImage(src) {
+	return /\/images\/optimized\/.+-\d+\.webp$/i.test(String(src || ""));
+}
+
 export function getResponsiveImageSources(
 	src,
 	{ widths = DEFAULT_WIDTHS, quality = 75 } = {},
 ) {
 	const resolvedSrc = String(src || "").trim();
 	if (!resolvedSrc) {
-		return { src: "", srcSet: undefined };
-	}
-
-	if (!isTransformableRemoteImage(resolvedSrc)) {
-		return { src: resolvedSrc, srcSet: undefined };
+		return { src: "", srcSet: undefined, avifSrcSet: undefined };
 	}
 
 	const uniqueWidths = Array.from(
 		new Set(widths.map((value) => Number(value)).filter((value) => value > 0)),
 	).sort((a, b) => a - b);
+
+	if (isLocalOptimizedImage(resolvedSrc)) {
+		const lastWidth = uniqueWidths[uniqueWidths.length - 1] || 960;
+		const srcSet = uniqueWidths
+			.map(
+				(width) =>
+					`${buildLocalVariantSrc(resolvedSrc, width, "webp")} ${width}w`,
+			)
+			.join(", ");
+		const avifSrcSet = uniqueWidths
+			.map(
+				(width) =>
+					`${buildLocalVariantSrc(resolvedSrc, width, "avif")} ${width}w`,
+			)
+			.join(", ");
+
+		return {
+			src: buildLocalVariantSrc(resolvedSrc, lastWidth, "webp"),
+			srcSet,
+			avifSrcSet,
+		};
+	}
+
+	if (!isTransformableRemoteImage(resolvedSrc)) {
+		return { src: resolvedSrc, srcSet: undefined, avifSrcSet: undefined };
+	}
+
 	const srcSet = uniqueWidths
-		.map((width) => `${buildUnsplashSrc(resolvedSrc, width, quality)} ${width}w`)
+		.map(
+			(width) => `${buildUnsplashSrc(resolvedSrc, width, quality)} ${width}w`,
+		)
 		.join(", ");
 
 	return {
@@ -46,6 +82,6 @@ export function getResponsiveImageSources(
 			quality,
 		),
 		srcSet,
+		avifSrcSet: undefined,
 	};
 }
-

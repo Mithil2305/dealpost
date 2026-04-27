@@ -6,7 +6,7 @@ export default function Footer({ variant = "default", className = "" }) {
 	if (variant === "auth") {
 		return (
 			<footer className="w-full px-4 pb-2 pt-8 sm:px-6 lg:px-8 font-sans">
-				<div className="mx-auto flex w-full max-w-[1100px] flex-col items-center justify-between gap-4 text-[0.85rem] text-[#888888] md:flex-row">
+				<div className="mx-auto flex w-full max-w-[1100px] flex-col items-center justify-between gap-4 text-[0.85rem] text-[#555555] md:flex-row">
 					<div className="text-black text-lg">
 						<span className="font-bold">Deal</span>
 						<span>Post</span>
@@ -56,7 +56,7 @@ export default function Footer({ variant = "default", className = "" }) {
 							<span>Post</span>
 						</div>
 					</Link>
-					<p className="text-[#888888] text-[0.8rem]">
+					<p className="text-[#555555] text-[0.8rem]">
 						© {year} Deal Post. The Curated Exchange.
 					</p>
 				</div>

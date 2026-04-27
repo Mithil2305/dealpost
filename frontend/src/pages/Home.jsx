@@ -27,21 +27,22 @@ import {
 	useCallback,
 	useDeferredValue,
 	useEffect,
+	lazy,
 	useMemo,
 	useRef,
+	Suspense,
 	useState,
 } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
-import AdSidebar from "../components/ad-sidebar";
-import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import FeedSkeleton from "../components/ui/FeedSkeleton.jsx";
 import ResponsiveImage from "../components/ui/ResponsiveImage.jsx";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
 import { scheduleIdleTask } from "../utils/idle.js";
+import { FALLBACK_IMAGES, HERO_IMAGES } from "../utils/staticImages.js";
 import {
 	fetchOpenStreetSuggestions,
 	getStoredLocationCoords,
@@ -57,6 +58,9 @@ import {
 	isListingLiked,
 	updateListingLikeStatus,
 } from "../utils/likes";
+
+const AdSidebar = lazy(() => import("../components/ad-sidebar"));
+const Footer = lazy(() => import("../components/Footer"));
 
 const CATEGORY_ICON_MAP = {
 	Cars: Car,
@@ -145,8 +149,8 @@ const HERO_SLIDES = [
 		id: 1,
 		title: "Revamp Your Living Space",
 		subtitle: "Discover premium furniture collections at unbeatable prices.",
-		image:
-			"https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=2000",
+		image: HERO_IMAGES.living.src,
+		webpSrcSet: HERO_IMAGES.living.webpSrcSet,
 		ctaText: "Explore Furniture",
 		ctaLink: buildExploreCategoryHref("Furniture"),
 	},
@@ -154,8 +158,8 @@ const HERO_SLIDES = [
 		id: 2,
 		title: "Find Your Dream Ride",
 		subtitle: "Certified pre-owned vehicles with extended warranties.",
-		image:
-			"https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&q=80&w=2000",
+		image: HERO_IMAGES.ride.src,
+		webpSrcSet: HERO_IMAGES.ride.webpSrcSet,
 		ctaText: "View Vehicles",
 		ctaLink: buildExploreCategoryHref("Cars"),
 	},
@@ -267,10 +271,7 @@ const normalizeListing = (item) => {
 		price: formatPrice(numericPrice),
 		likedByCount: getListingLikedCount(item),
 		isLiked: Boolean(item?.isLiked),
-		image:
-			item?.images?.[0]?.url ||
-			item?.image ||
-			"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800", // Fallback to a shoe matching the vibe
+		image: item?.images?.[0]?.url || item?.image || FALLBACK_IMAGES.listingCard,
 		seller: {
 			name: item?.seller?.name || "Banana Mania",
 			avatar:
@@ -293,6 +294,7 @@ export default function Home() {
 	const [slideDirection, setSlideDirection] = useState("next");
 	const [isMegaMenuOpen, setIsMegaMenuOpen] = useState(false);
 	const [allCategories, setAllCategories] = useState([]);
+	const [showAllCategories, setShowAllCategories] = useState(false);
 	const [userLocation, setUserLocation] = useState(readStoredUserLocation);
 	const [locationRadiusKm] = useState(getStoredLocationRadius);
 	const [loadMoreRadiusKm, setLoadMoreRadiusKm] = useState(
@@ -610,7 +612,9 @@ export default function Home() {
 
 		return next;
 	}, [displayListings]);
-	const sidebarCategories = DISPLAY_CATEGORIES;
+	const sidebarCategories = showAllCategories
+		? DISPLAY_CATEGORIES
+		: DISPLAY_CATEGORIES.slice(0, 6);
 	const megaMenuSections = useMemo(() => {
 		const grouped = new Map();
 
@@ -965,6 +969,18 @@ export default function Home() {
 										</Link>
 									);
 								})}
+								<button
+									type="button"
+									onClick={() => setShowAllCategories((prev) => !prev)}
+									className="flex items-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-bold bg-[#F8F8F8] text-[#555555] hover:bg-[#F0F0F0]"
+									aria-label={
+										showAllCategories
+											? "Collapse category chips"
+											: "Expand category chips"
+									}
+								>
+									{showAllCategories ? "Show less" : "Show more"}
+								</button>
 							</section>
 
 							{isMegaMenuOpen && (
@@ -1071,7 +1087,7 @@ export default function Home() {
 
 						{/* Hero Section */}
 						<section
-							className="mt-4 relative w-full h-[220px] md:h-[260px] lg:h-[300px] rounded-[24px] md:rounded-[28px] overflow-hidden group shadow-lg"
+							className="hero-lcp-shell mt-4 relative w-full h-[220px] md:h-[260px] lg:h-[300px] rounded-[24px] md:rounded-[28px] overflow-hidden group shadow-lg"
 							aria-label="Featured promotions"
 							onKeyDown={onHeroSliderKeyDown}
 							tabIndex={0}
@@ -1092,6 +1108,7 @@ export default function Home() {
 									>
 										<ResponsiveImage
 											src={slide.image}
+											webpSrcSet={slide.webpSrcSet}
 											alt={slide.title}
 											width={1600}
 											height={900}
@@ -1220,7 +1237,7 @@ export default function Home() {
 									>
 										Fresh recommendations
 									</h2>
-									<p className="flex items-center gap-1.5 text-sm font-semibold text-[#888888]">
+									<p className="flex items-center gap-1.5 text-sm font-semibold text-[#555555]">
 										<MapPin size={14} /> Current location:{" "}
 										{currentLocationLabel}
 									</p>
@@ -1241,124 +1258,133 @@ export default function Home() {
 									aria-label="Fresh recommendation listings"
 								>
 									{dealFeedItems.map((feedItem) => {
-									if (feedItem.type === "promo") {
-										return (
-											<div
-												key={feedItem.key}
-												className="col-span-2 self-start rounded-[18px] bg-[#3D73E9] p-4 text-white shadow-[0_16px_35px_rgba(61,115,233,0.35)] sm:col-span-1 sm:p-6"
-											>
-												<h3 className="text-[1.5rem] font-bold leading-[1.08] sm:text-[1.9rem] sm:leading-tight">
-													Want to see your stuff here?
-												</h3>
-												<p className="mt-3 text-[0.92rem] text-white/90 sm:mt-4 sm:text-[1rem]">
-													Make some extra cash by selling things in your
-													community. Go on, it is quick and easy.
-												</p>
-												<Link
-													to="/post-ad"
-													className="mt-5 inline-flex w-full justify-center rounded-xl border border-white/70 px-5 py-3 text-base font-bold text-white transition hover:bg-white/15 sm:mt-8 sm:text-lg"
+										if (feedItem.type === "promo") {
+											return (
+												<div
+													key={feedItem.key}
+													className="col-span-2 self-start rounded-[18px] bg-[#3D73E9] p-4 text-white shadow-[0_16px_35px_rgba(61,115,233,0.35)] sm:col-span-1 sm:p-6"
 												>
-													Start selling
-												</Link>
-											</div>
-										);
-									}
-
-									if (feedItem.type === "security") {
-										return (
-											<div
-												key={feedItem.key}
-												className="col-span-2 self-start rounded-2xl border border-[#D9E7FF] bg-[#F5F9FF] p-4 sm:col-span-1"
-											>
-												<p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#2a57b6]">
-													Security Note
-												</p>
-												<p className="mt-2 text-sm font-semibold text-[#1E2D52]">
-													Your data is encrypted and safe with us.
-												</p>
-												<p className="mt-1 text-xs text-[#4c5f87]">
-													We use secure storage and controlled access for
-													account information.
-												</p>
-											</div>
-										);
-									}
-
-									const item = feedItem.item;
-									const listingId = getListingNumericId(item);
-									const liked = isListingLiked(item, likedListingIds);
-									const isAuction =
-										String(item?.listingType || "").toLowerCase() === "auction";
-									const displayPrice = isAuction
-										? formatPrice(
-												item?.auction?.currentBid ||
-													item?.currentBid ||
-													item?.startingBid ||
-													item?.price,
-											)
-										: item.price;
-									const isLiking = Boolean(
-										listingId && likingByListingId[listingId],
-									);
-
-									return (
-										<Link
-											key={feedItem.key}
-											to={`/listing/${item.productId || item.id}`}
-											className="group flex flex-col overflow-hidden rounded-2xl border border-[#D9D9D9] bg-white transition hover:shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
-										>
-											<div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F4F5F7]">
-												<ResponsiveImage
-													src={item.image}
-													alt={item.title}
-													width={640}
-													height={480}
-													sizes="(min-width: 768px) 250px, 50vw"
-													className="h-full w-full object-cover"
-												/>
-												<button
-													type="button"
-													onClick={(event) => onToggleLike(event, item)}
-													disabled={isLiking}
-													className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full bg-white text-[#111827] shadow-sm transition hover:bg-[#F7F7F7]"
-													aria-label={
-														liked ? "Remove from favorites" : "Add to favorites"
-													}
-												>
-													<Heart
-														size={24}
-														className={
-															liked
-																? "fill-[#111827] text-[#111827]"
-																: "text-[#111827]"
-														}
-													/>
-												</button>
-												{isAuction && (
-													<div className="absolute left-3 top-3 rounded-full bg-black/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
-														Auction
-													</div>
-												)}
-											</div>
-											<div className="flex flex-1 flex-col p-4">
-												<p className="text-[1.15rem] font-black tracking-tight text-[#08102A] leading-none sm:text-[1.5rem]">
-													{displayPrice}
-												</p>
-												{isAuction && (
-													<p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.08em] text-[#8b7008]">
-														Current bid
+													<h3 className="text-[1.5rem] font-bold leading-[1.08] sm:text-[1.9rem] sm:leading-tight">
+														Want to see your stuff here?
+													</h3>
+													<p className="mt-3 text-[0.92rem] text-white/90 sm:mt-4 sm:text-[1rem]">
+														Make some extra cash by selling things in your
+														community. Go on, it is quick and easy.
 													</p>
-												)}
-												<p className="mt-2 line-clamp-1 text-[1rem] font-medium text-[#5C6678]">
-													{item.title}
-												</p>
-												<div className="mt-2 flex items-center justify-between gap-3 text-[0.72rem] font-medium uppercase tracking-[0.03em] text-[#778195]">
-													<span className="line-clamp-1">{item.location}</span>
-													<span className="shrink-0">{item.time}</span>
+													<Link
+														to="/post-ad"
+														className="mt-5 inline-flex w-full justify-center rounded-xl border border-white/70 px-5 py-3 text-base font-bold text-white transition hover:bg-white/15 sm:mt-8 sm:text-lg"
+													>
+														Start selling
+													</Link>
 												</div>
-											</div>
-										</Link>
-									);
+											);
+										}
+
+										if (feedItem.type === "security") {
+											return (
+												<div
+													key={feedItem.key}
+													className="col-span-2 self-start rounded-2xl border border-[#D9E7FF] bg-[#F5F9FF] p-4 sm:col-span-1"
+												>
+													<p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#2a57b6]">
+														Security Note
+													</p>
+													<p className="mt-2 text-sm font-semibold text-[#1E2D52]">
+														Your data is encrypted and safe with us.
+													</p>
+													<p className="mt-1 text-xs text-[#4c5f87]">
+														We use secure storage and controlled access for
+														account information.
+													</p>
+												</div>
+											);
+										}
+
+										const item = feedItem.item;
+										const listingId = getListingNumericId(item);
+										const liked = isListingLiked(item, likedListingIds);
+										const isAuction =
+											String(item?.listingType || "").toLowerCase() ===
+											"auction";
+										const displayPrice = isAuction
+											? formatPrice(
+													item?.auction?.currentBid ||
+														item?.currentBid ||
+														item?.startingBid ||
+														item?.price,
+												)
+											: item.price;
+										const isLiking = Boolean(
+											listingId && likingByListingId[listingId],
+										);
+
+										return (
+											<Link
+												key={feedItem.key}
+												to={`/listing/${item.productId || item.id}`}
+												className="group flex flex-col overflow-hidden rounded-2xl border border-[#D9D9D9] bg-white transition hover:shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
+											>
+												<div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F4F5F7]">
+													<ResponsiveImage
+														src={item.image}
+														alt={item.title}
+														width={640}
+														height={480}
+														sizes="(min-width: 768px) 250px, 50vw"
+														className="h-full w-full object-cover"
+														onError={(event) => {
+															event.currentTarget.src =
+																FALLBACK_IMAGES.listingCard;
+														}}
+													/>
+													<button
+														type="button"
+														onClick={(event) => onToggleLike(event, item)}
+														disabled={isLiking}
+														className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full bg-white text-[#111827] shadow-sm transition hover:bg-[#F7F7F7]"
+														aria-label={
+															liked
+																? "Remove from favorites"
+																: "Add to favorites"
+														}
+													>
+														<Heart
+															size={24}
+															className={
+																liked
+																	? "fill-[#111827] text-[#111827]"
+																	: "text-[#111827]"
+															}
+														/>
+													</button>
+													{isAuction && (
+														<div className="absolute left-3 top-3 rounded-full bg-black/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
+															Auction
+														</div>
+													)}
+												</div>
+												<div className="flex flex-1 flex-col p-4">
+													<p className="text-[1.15rem] font-black tracking-tight text-[#08102A] leading-none sm:text-[1.5rem]">
+														{displayPrice}
+													</p>
+													{isAuction && (
+														<p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.08em] text-[#8b7008]">
+															Current bid
+														</p>
+													)}
+													<p className="mt-2 line-clamp-1 text-[1rem] font-medium text-[#5C6678]">
+														{item.title}
+													</p>
+													<div className="mt-2 flex items-center justify-between gap-3 text-[0.72rem] font-medium uppercase tracking-[0.03em] text-[#778195]">
+														<span className="line-clamp-1">
+															{item.location}
+														</span>
+														<span className="shrink-0">{item.time}</span>
+													</div>
+												</div>
+											</Link>
+										);
 									})}
 								</div>
 							)}
@@ -1389,7 +1415,11 @@ export default function Home() {
 								className="mt-16 space-y-5"
 								aria-label="Loading category deals"
 							>
-								<FeedSkeleton count={4} minCardWidth={220} className="md:grid-cols-4" />
+								<FeedSkeleton
+									count={4}
+									minCardWidth={220}
+									className="md:grid-cols-4"
+								/>
 							</section>
 						) : categoryDeals.length ? (
 							<section
@@ -1507,10 +1537,7 @@ export default function Home() {
 									className="hidden lg:block w-[170px] h-[170px] rounded-[20px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer"
 								>
 									<ResponsiveImage
-										src={
-											leftDeal?.image ||
-											"https://placehold.co/600x600?text=Deal Post"
-										}
+										src={leftDeal?.image || FALLBACK_IMAGES.listingCard}
 										alt="Deal"
 										width={340}
 										height={340}
@@ -1525,10 +1552,7 @@ export default function Home() {
 									className={`w-full max-w-[440px] h-[240px] rounded-[20px] bg-[#111111] overflow-hidden relative shadow-2xl group cursor-pointer ${slideDirection === "next" ? "deal-slide-next" : "deal-slide-prev"}`}
 								>
 									<ResponsiveImage
-										src={
-											featuredDeal?.image ||
-											"https://placehold.co/800x600?text=Deal Post"
-										}
+										src={featuredDeal?.image || FALLBACK_IMAGES.listingCard}
 										alt="Main Deal"
 										width={880}
 										height={600}
@@ -1579,10 +1603,7 @@ export default function Home() {
 									className="hidden md:block w-[170px] h-[170px] rounded-[20px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer"
 								>
 									<ResponsiveImage
-										src={
-											rightDeal?.image ||
-											"https://placehold.co/600x600?text=Deal Post"
-										}
+										src={rightDeal?.image || FALLBACK_IMAGES.listingCard}
 										alt="Deal"
 										width={340}
 										height={340}
@@ -1603,11 +1624,15 @@ export default function Home() {
 						</section>
 					</div>
 
-					<AdSidebar side="right" />
+					<Suspense fallback={null}>
+						<AdSidebar side="right" />
+					</Suspense>
 				</div>
 			</main>
 
-			<Footer />
+			<Suspense fallback={null}>
+				<Footer />
+			</Suspense>
 		</div>
 	);
 }

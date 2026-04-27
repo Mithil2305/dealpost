@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
+		"optimize:images": "node scripts/generate-optimized-images.mjs",
 		"lint": "eslint .",
 		"preview": "vite preview",
 		"test": "vitest run",
@@ -34,6 +35,7 @@
 		"globals": "^17.4.0",
 		"jsdom": "^26.1.0",
 		"postcss": "^8.5.8",
+		"sharp": "^0.34.5",
 		"tailwindcss": "^3.4.17",
 		"vite": "^8.0.1",
 		"vitest": "^3.2.4"

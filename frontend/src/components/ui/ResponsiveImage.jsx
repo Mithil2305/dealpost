@@ -12,18 +12,62 @@ export default function ResponsiveImage({
 	fetchPriority,
 	quality = 75,
 	widths,
+	avifSrcSet,
+	webpSrcSet,
 	onError,
 }) {
-	const { src: resolvedSrc, srcSet } = getResponsiveImageSources(src, {
-		widths,
-		quality,
-	});
+	// If webpSrcSet is provided, use src directly; otherwise generate responsive sources
+	let resolvedSrc = String(src || "").trim();
+	let srcSet;
+	let generatedAvifSrcSet;
+
+	if (webpSrcSet) {
+		// When webpSrcSet is provided, just use the src as-is (usually the largest variant)
+		srcSet = webpSrcSet;
+		generatedAvifSrcSet = avifSrcSet;
+	} else {
+		// Generate responsive sources for remote images
+		const result = getResponsiveImageSources(src, {
+			widths,
+			quality,
+		});
+		resolvedSrc = result.src;
+		srcSet = result.srcSet;
+		generatedAvifSrcSet = result.avifSrcSet;
+	}
+
+	const finalWebpSrcSet = webpSrcSet || srcSet;
+	const finalAvifSrcSet = avifSrcSet || generatedAvifSrcSet;
+
+	if (finalAvifSrcSet || finalWebpSrcSet) {
+		return (
+			<picture>
+				{finalAvifSrcSet ? (
+					<source type="image/avif" srcSet={finalAvifSrcSet} sizes={sizes} />
+				) : null}
+				{finalWebpSrcSet ? (
+					<source type="image/webp" srcSet={finalWebpSrcSet} sizes={sizes} />
+				) : null}
+				<img
+					src={resolvedSrc}
+					alt={alt}
+					width={width}
+					height={height}
+					loading={loading}
+					decoding={decoding}
+					fetchPriority={fetchPriority}
+					className={className}
+					onError={onError}
+				/>
+			</picture>
+		);
+	}
 
 	return (
 		<img
 			src={resolvedSrc}
-			srcSet={srcSet}
-			sizes={srcSet ? sizes : undefined}
+			srcSet={finalWebpSrcSet}
+			sizes={finalWebpSrcSet ? sizes : undefined}
 			alt={alt}
 			width={width}
 			height={height}
@@ -35,4 +79,3 @@ export default function ResponsiveImage({
 		/>
 	);
 }
-

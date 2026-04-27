@@ -2,6 +2,7 @@ import { ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getPublicSponsoredAds } from "../utils/sponsoredAds";
+import { FALLBACK_IMAGES } from "../utils/staticImages.js";
 
 const ADSENSE_SCRIPT_ID = "dealpost-adsbygoogle-loader";
 
@@ -63,6 +64,7 @@ function ensureAdSenseScript(src) {
 	const script = document.createElement("script");
 	script.id = ADSENSE_SCRIPT_ID;
 	script.async = true;
+	script.defer = true;
 	script.src = src;
 	script.setAttribute("crossorigin", "anonymous");
 
@@ -74,6 +76,43 @@ function ensureAdSenseScript(src) {
 		script.onerror = () => reject(new Error("Failed to load AdSense script"));
 		document.head.appendChild(script);
 	});
+}
+
+function runAfterIdleOrInteraction(callback) {
+	if (typeof window === "undefined") return () => {};
+
+	let done = false;
+	const resolveOnce = () => {
+		if (done) return;
+		done = true;
+		cleanup();
+		callback();
+	};
+
+	const events = ["pointerdown", "keydown", "touchstart", "scroll"];
+	const cleanupFns = [];
+
+	for (const eventName of events) {
+		const handler = () => resolveOnce();
+		window.addEventListener(eventName, handler, { once: true, passive: true });
+		cleanupFns.push(() => window.removeEventListener(eventName, handler));
+	}
+
+	const idleId =
+		typeof window.requestIdleCallback === "function"
+			? window.requestIdleCallback(resolveOnce, { timeout: 3500 })
+			: window.setTimeout(resolveOnce, 1800);
+
+	const cleanup = () => {
+		cleanupFns.forEach((fn) => fn());
+		if (typeof window.cancelIdleCallback === "function") {
+			window.cancelIdleCallback(idleId);
+		} else {
+			window.clearTimeout(idleId);
+		}
+	};
+
+	return cleanup;
 }
 
 const SIDEBAR_LAYOUTS = {
@@ -89,9 +128,7 @@ const SIDEBAR_LAYOUTS = {
 
 function AdCard({ ad, fallbackTitle, heightClass }) {
 	const isInternal = String(ad?.targetUrl || "").startsWith("/");
-	const imageUrl =
-		ad?.imageUrl ||
-		"https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=600&q=80";
+	const imageUrl = ad?.imageUrl || FALLBACK_IMAGES.adCard;
 	const title = ad?.title || fallbackTitle;
 	const description = ad?.description || "Sponsored placement";
 
@@ -142,6 +179,7 @@ export default function AdSidebar({ side = "left" }) {
 	const layouts = SIDEBAR_LAYOUTS[side] || SIDEBAR_LAYOUTS.left;
 	const [ads, setAds] = useState([]);
 	const [googleAdsSnippet, setGoogleAdsSnippet] = useState("");
+	const [canLoadGoogleAd, setCanLoadGoogleAd] = useState(false);
 	const googleSlotRef = useRef(null);
 
 	useEffect(() => {
@@ -167,13 +205,18 @@ export default function AdSidebar({ side = "left" }) {
 		};
 	}, [side]);
 
+	useEffect(
+		() => runAfterIdleOrInteraction(() => setCanLoadGoogleAd(true)),
+		[],
+	);
+
 	useEffect(() => {
 		const slot = googleSlotRef.current;
 		if (!slot) return;
 
 		slot.innerHTML = "";
 		const markup = String(googleAdsSnippet || "").trim();
-		if (!markup) return;
+		if (!markup || !canLoadGoogleAd) return;
 
 		const ins = createAdSenseContainer(markup);
 		slot.appendChild(ins);
@@ -197,7 +240,7 @@ export default function AdSidebar({ side = "left" }) {
 		return () => {
 			cancelled = true;
 		};
-	}, [googleAdsSnippet]);
+	}, [canLoadGoogleAd, googleAdsSnippet]);
 
 	return (
 		<aside className="hidden xl:block">
