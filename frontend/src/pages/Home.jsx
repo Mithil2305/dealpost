@@ -1087,7 +1087,7 @@ export default function Home() {
 
 						{/* Hero Section */}
 						<section
-							className="hero-lcp-shell mt-4 relative w-full h-[220px] md:h-[260px] lg:h-[300px] rounded-[24px] md:rounded-[28px] overflow-hidden group shadow-lg"
+							className="hero-lcp-shell mt-4 relative w-full h-[190px] sm:h-[220px] md:h-[260px] lg:h-[300px] rounded-[20px] sm:rounded-[24px] md:rounded-[28px] overflow-hidden group shadow-lg"
 							aria-label="Featured promotions"
 							onKeyDown={onHeroSliderKeyDown}
 							tabIndex={0}
@@ -1117,30 +1117,45 @@ export default function Home() {
 											fetchPriority={index === 0 ? "high" : undefined}
 											className="h-full w-full object-cover"
 										/>
-										{/* Gradient Overlay for better text readability */}
-										<div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-transparent flex flex-col justify-center px-6 md:px-10 lg:px-14">
-											<div className="max-w-xl">
-												<span className="inline-block py-1 px-3 rounded-full bg-[#FFD600] text-black text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
-													Featured Event
-												</span>
-												<h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-3 leading-tight">
-													{slide.title}
-												</h2>
-												<p className="text-xs md:text-sm text-white/90 mb-5 font-medium max-w-md">
-													{slide.subtitle}
-												</p>
-												<Link
-													to={slide.ctaLink}
-													className="inline-flex items-center gap-2 bg-white text-black px-6 py-2.5 rounded-full font-bold text-xs md:text-sm hover:bg-[#FFD600] transition-colors shadow-md group/btn"
-												>
-													{slide.ctaText}
-													<ArrowRight
-														size={18}
-														className="group-hover/btn:translate-x-1 transition-transform"
-													/>
-												</Link>
-											</div>
-										</div>
+										{currentHeroSlide === index ? (
+											<>
+												{/* Gradient Overlay for better text readability */}
+												<div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/82 via-black/30 to-transparent px-4 pb-4 sm:justify-center sm:bg-gradient-to-r sm:from-black/80 sm:via-black/55 sm:to-transparent sm:px-6 sm:pb-0 md:px-10 lg:px-14">
+													<div className="max-w-[16rem] sm:max-w-xl">
+														<span className="mb-2 inline-block rounded-full bg-[#FFD600] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-black shadow-sm sm:mb-4 sm:px-3 sm:text-xs">
+															Featured Event
+														</span>
+														<h2 className="mb-2 text-xl font-bold leading-tight text-white sm:mb-3 sm:text-2xl md:text-3xl lg:text-4xl">
+															{slide.title}
+														</h2>
+														<p className="mb-3 max-w-md text-[11px] font-medium leading-snug text-white/90 sm:mb-5 sm:text-xs md:text-sm">
+															{slide.subtitle}
+														</p>
+														<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+															<Link
+																to={slide.ctaLink}
+																className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-bold text-black shadow-md transition-colors hover:bg-[#FFD600] sm:w-auto sm:px-6 sm:text-sm"
+															>
+																{slide.ctaText}
+																<ArrowRight
+																	size={18}
+																	className="transition-transform group-hover/btn:translate-x-1"
+																/>
+															</Link>
+															<button
+																type="button"
+																onClick={() =>
+																	launchCompareForTopDeal(featuredDeal)
+																}
+																className="hidden rounded-full border border-[#FFD600]/80 bg-[#FFD600] px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-black transition hover:bg-[#f2c700] sm:inline-flex"
+															>
+																Compare Now
+															</button>
+														</div>
+													</div>
+												</div>
+											</>
+										) : null}
 									</div>
 								))}
 							</div>
@@ -1150,7 +1165,7 @@ export default function Home() {
 								type="button"
 								onClick={prevHeroSlide}
 								aria-label="Previous featured slide"
-								className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
+								className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-md opacity-0 transition-all duration-300 hover:bg-white hover:text-black group-hover:opacity-100 sm:flex"
 							>
 								<ChevronLeft size={20} />
 							</button>
@@ -1158,22 +1173,22 @@ export default function Home() {
 								type="button"
 								onClick={nextHeroSlide}
 								aria-label="Next featured slide"
-								className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white text-white hover:text-black backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
+								className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-md opacity-0 transition-all duration-300 hover:bg-white hover:text-black group-hover:opacity-100 sm:flex"
 							>
 								<ChevronRight size={20} />
 							</button>
 
 							{/* Pagination Dots */}
-							<div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+							<div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-4 sm:gap-2">
 								{HERO_SLIDES.map((_, index) => (
 									<button
 										key={index}
 										type="button"
 										onClick={() => setCurrentHeroSlide(index)}
-										className={`transition-all duration-300 rounded-full ${
+										className={`rounded-full transition-all duration-300 ${
 											currentHeroSlide === index
-												? "w-8 h-2.5 bg-[#FFD600]"
-												: "w-2.5 h-2.5 bg-white/50 hover:bg-white/80"
+												? "h-2 w-7 bg-[#FFD600] sm:h-2.5 sm:w-8"
+												: "h-2 w-2 bg-white/50 hover:bg-white/80 sm:h-2.5 sm:w-2.5"
 										}`}
 										aria-label={`Go to slide ${index + 1}`}
 									/>

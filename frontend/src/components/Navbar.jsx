@@ -1153,10 +1153,12 @@ export default function Navbar({
 										setShowSearchDropdown(true);
 									}
 								}}
-								role="searchbox"
+								role="combobox"
 								aria-label="Search listings"
 								aria-expanded={shouldShowDropdown}
 								aria-controls="navbar-search-suggestions"
+								aria-haspopup="listbox"
+								aria-autocomplete="list"
 								aria-activedescendant={
 									activeSuggestionIndex >= 0
 										? `navbar-search-option-${searchSuggestions[activeSuggestionIndex]?.id || searchSuggestions[activeSuggestionIndex]?.productId}`
@@ -1423,10 +1425,12 @@ export default function Navbar({
 									}
 								}}
 								autoFocus
-								role="searchbox"
+								role="combobox"
 								aria-label="Search listings"
 								aria-expanded={shouldShowDropdown}
 								aria-controls="navbar-search-suggestions"
+								aria-haspopup="listbox"
+								aria-autocomplete="list"
 								aria-activedescendant={
 									activeSuggestionIndex >= 0
 										? `navbar-search-option-${searchSuggestions[activeSuggestionIndex]?.id || searchSuggestions[activeSuggestionIndex]?.productId}`

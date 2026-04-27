@@ -20,7 +20,6 @@ export default function SearchBar({
 		>
 			<Search size={16} className="text-brand-muted" aria-hidden="true" />
 			<input
-				role="searchbox"
 				aria-label="Search listings"
 				className={`ml-2 w-full border-none bg-transparent text-sm outline-none ${inputClassName}`}
 				value={value}
