@@ -1,9 +1,16 @@
-import { loadGoogleMapsPlaces } from "./googleMaps";
-
 const STORAGE_LOCATION_LABEL_KEY = "selectedLocation";
 const STORAGE_LOCATION_COORDS_KEY = "selectedLocationCoords";
 const STORAGE_LOCATION_PLACE_ID_KEY = "selectedLocationPlaceId";
 export const LOCATION_UPDATED_EVENT = "dealpost:location-changed";
+let googleMapsModulePromise = null;
+
+async function loadGoogleMapsModule() {
+	if (!googleMapsModulePromise) {
+		googleMapsModulePromise = import("./googleMaps.js");
+	}
+
+	return googleMapsModulePromise;
+}
 
 const isCoordinateLikeValue = (value) => {
 	if (value == null) return false;
@@ -31,8 +38,14 @@ export const mapAutocompletePlaceToLocation = (
 export async function loadGoogleMapsFromPublicConfig(apiClient) {
 	const { data } = await apiClient.get("/config/public");
 	const key = data?.googleMapsBrowserApiKey;
+	const { loadGoogleMapsPlaces } = await loadGoogleMapsModule();
 	await loadGoogleMapsPlaces(key);
 	return true;
+}
+
+export async function mountDeferredPlaceAutocompleteElement(options) {
+	const { mountPlaceAutocompleteElement } = await loadGoogleMapsModule();
+	return mountPlaceAutocompleteElement(options);
 }
 
 export async function fetchOpenStreetSuggestions(query, options = {}) {

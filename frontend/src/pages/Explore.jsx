@@ -1,5 +1,14 @@
 ﻿import { Check, ChevronDown, ChevronRight, Filter, Heart } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+	Suspense,
+	lazy,
+	useDeferredValue,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import toast from "react-hot-toast";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
@@ -7,11 +16,13 @@ import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import Button from "../components/ui/Button";
 import DealGrid from "../components/ui/DealGrid";
-import DealCardSkeleton from "../components/ui/DealCardSkeleton";
-import Modal from "../components/ui/Modal";
+import FeedSkeleton from "../components/ui/FeedSkeleton.jsx";
+import ResponsiveImage from "../components/ui/ResponsiveImage.jsx";
 import SearchBar from "../components/ui/SearchBar";
 import { pickArray } from "../utils/api";
 import { getStoredLocationCoords } from "../utils/locationHelpers";
+
+const Modal = lazy(() => import("../components/ui/Modal.jsx"));
 
 const CATEGORIES_CACHE_KEY = "dealpost:explore:categories:v1";
 const LISTING_CACHE_TTL_MS = 12000;
@@ -142,6 +153,7 @@ export default function Explore() {
 		sort: searchParams.get("sort") || defaultFilters.sort,
 	}));
 	const [search, setSearch] = useState(searchParams.get("search") || "");
+	const deferredSearch = useDeferredValue(search);
 	const [results, setResults] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [page, setPage] = useState(1);
@@ -243,8 +255,8 @@ export default function Explore() {
 
 	const urlStateQuery = useMemo(() => {
 		const nextParams = new URLSearchParams();
-		if (search.trim()) {
-			nextParams.set("search", search.trim());
+		if (deferredSearch.trim()) {
+			nextParams.set("search", deferredSearch.trim());
 		}
 		if (appliedFilters.sort && appliedFilters.sort !== defaultFilters.sort) {
 			nextParams.set("sort", appliedFilters.sort);
@@ -257,7 +269,7 @@ export default function Explore() {
 		}
 		return nextParams.toString();
 	}, [
-		search,
+		deferredSearch,
 		appliedFilters.sort,
 		appliedFilters.listingType,
 		appliedFilters.category,
@@ -316,7 +328,7 @@ export default function Explore() {
 						? selectedCoords.lng
 						: undefined,
 					sort: appliedFilters.sort || undefined,
-					search: search || undefined,
+					search: deferredSearch || undefined,
 					page,
 				};
 
@@ -349,7 +361,13 @@ export default function Explore() {
 		return () => {
 			active = false;
 		};
-	}, [appliedFilters, search, page, selectedCoords.lat, selectedCoords.lng]);
+	}, [
+		appliedFilters,
+		deferredSearch,
+		page,
+		selectedCoords.lat,
+		selectedCoords.lng,
+	]);
 
 	const hasFilters = useMemo(
 		() =>
@@ -575,13 +593,14 @@ export default function Explore() {
 						</Button>
 					</div>
 
-					<Modal
-						isOpen={showFilters}
-						onClose={() => setShowFilters(false)}
-						title="Filters"
-						size="lg"
-					>
-						<div className="space-y-4 lg:hidden">
+					<Suspense fallback={null}>
+						<Modal
+							isOpen={showFilters}
+							onClose={() => setShowFilters(false)}
+							title="Filters"
+							size="lg"
+						>
+							<div className="space-y-4 lg:hidden">
 							<div className="mb-2 flex items-center justify-between">
 								<p className="text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
 									Main Category
@@ -892,8 +911,9 @@ export default function Explore() {
 									Apply
 								</Button>
 							</div>
-						</div>
-					</Modal>
+							</div>
+						</Modal>
+					</Suspense>
 
 					<div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
 						<aside className="hidden rounded-3xl border border-brand-border bg-white p-5 lg:block">
@@ -1283,18 +1303,17 @@ export default function Explore() {
 								</select>
 							</div>
 
-							<p className="mb-4 text-sm text-brand-muted" aria-live="polite">
+							<p
+								className="mb-4 min-h-[20px] text-sm text-brand-muted"
+								aria-live="polite"
+							>
 								Showing {results.length} results
-								{search ? ` for "${search}"` : ""}
+								{deferredSearch ? ` for "${deferredSearch}"` : ""}
 								{hasFilters ? " with active filters" : ""}
 							</p>
 
 							{loading && page === 1 ? (
-								<DealGrid minCardWidth={240} ariaLabel="Loading listings">
-									{Array.from({ length: 6 }).map((_, index) => (
-										<DealCardSkeleton key={index} />
-									))}
-								</DealGrid>
+								<FeedSkeleton count={6} minCardWidth={240} />
 							) : results.length ? (
 								<>
 									<DealGrid minCardWidth={250}>
@@ -1332,9 +1351,12 @@ export default function Explore() {
 														className="group flex flex-col overflow-hidden rounded-2xl border border-[#D9D9D9] bg-white transition hover:shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
 													>
 														<div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F4F5F7]">
-															<img
+															<ResponsiveImage
 																src={image}
 																alt={listing?.title || "Listing image"}
+																width={600}
+																height={450}
+																sizes="(min-width: 768px) 250px, 50vw"
 																className="h-full w-full object-cover"
 																onError={(event) => {
 																	event.currentTarget.src =

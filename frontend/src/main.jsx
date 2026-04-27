@@ -6,8 +6,19 @@ import "./index.css";
 import App from "./App.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { initGoogleAnalytics } from "./utils/analytics.js";
+import { scheduleIdleTask } from "./utils/idle.js";
 
-initGoogleAnalytics();
+if (typeof window !== "undefined") {
+	window.addEventListener(
+		"load",
+		() => {
+			scheduleIdleTask(() => {
+				initGoogleAnalytics();
+			});
+		},
+		{ once: true },
+	);
+}
 
 createRoot(document.getElementById("root")).render(
 	<StrictMode>

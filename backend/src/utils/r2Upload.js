@@ -11,6 +11,7 @@ function resolveExtensionFromMime(mimeType) {
 	if (mimeType === "image/gif") return "gif";
 	if (mimeType === "image/svg+xml") return "svg";
 	if (mimeType === "image/webp") return "webp";
+	if (mimeType === "image/avif") return "avif";
 	return "bin";
 }
 
@@ -20,7 +21,14 @@ function sanitizeFolder(folder) {
 		.replace(/\/+$/, "");
 }
 
-const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif"]);
+const ALLOWED_EXTENSIONS = new Set([
+	"jpg",
+	"jpeg",
+	"png",
+	"webp",
+	"avif",
+	"gif",
+]);
 
 export async function createR2PresignedUpload({
 	folder = "dealpost/listings",

@@ -1,11 +1,12 @@
 import { Eye, EyeOff, MapPin } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
-import FirebasePhoneAuthPanel from "../components/FirebasePhoneAuthPanel";
+import ResponsiveImage from "../components/ui/ResponsiveImage.jsx";
 import Button from "../components/ui/Button";
 import FormField from "../components/ui/FormField";
+import Skeleton from "../components/ui/Skeleton.jsx";
 import { useAuth } from "../context/useAuth";
 import {
 	getGoogleRedirectResultFirebase,
@@ -13,12 +14,19 @@ import {
 	signInWithGoogleFirebase,
 } from "../utils/firebaseAuth";
 
+const FirebasePhoneAuthPanel = lazy(
+	() => import("../components/FirebasePhoneAuthPanel.jsx"),
+);
+
 export default function Login() {
 	const navigate = useNavigate();
 	const { login, loginWithFirebase } = useAuth();
 	const showPhoneLogin = false;
 	const [showPassword, setShowPassword] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
+	const [isRedirectResolving, setIsRedirectResolving] = useState(
+		isFirebaseConfigured(),
+	);
 	const [showValidation, setShowValidation] = useState(false);
 	const [form, setForm] = useState({
 		email: "",
@@ -99,7 +107,10 @@ export default function Login() {
 					error?.response?.data?.message || "Unable to continue with Google",
 				);
 			} finally {
-				if (active) setSubmitting(false);
+				if (active) {
+					setSubmitting(false);
+					setIsRedirectResolving(false);
+				}
 			}
 		};
 
@@ -140,7 +151,15 @@ export default function Login() {
 						<div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-[#FFD600] opacity-10 blur-[100px] rounded-full pointer-events-none" />
 
 						<div className="relative z-10 flex items-center gap-2">
-							<img src="/logo.png" alt="DealPost Logo" className="h-8 w-8" />
+							<ResponsiveImage
+								src="/logo.png"
+								alt="DealPost Logo"
+								width={32}
+								height={32}
+								loading="eager"
+								fetchPriority="high"
+								className="h-8 w-8"
+							/>
 							<div className="text-white text-xl">
 								<span className="font-bold">Deal</span>
 								<span>Post</span>
@@ -166,16 +185,22 @@ export default function Login() {
 								<img
 									src="https://randomuser.me/api/portraits/men/32.jpg"
 									alt="user"
+									width="40"
+									height="40"
 									className="w-10 h-10 rounded-full border-2 border-[#111111] object-cover bg-[#f4dbc0]"
 								/>
 								<img
 									src="https://randomuser.me/api/portraits/women/44.jpg"
 									alt="user"
+									width="40"
+									height="40"
 									className="w-10 h-10 rounded-full border-2 border-[#111111] object-cover bg-[#f4dbc0]"
 								/>
 								<img
 									src="https://randomuser.me/api/portraits/women/68.jpg"
 									alt="user"
+									width="40"
+									height="40"
 									className="w-10 h-10 rounded-full border-2 border-[#111111] object-cover bg-[#f4dbc0]"
 								/>
 							</div>
@@ -202,54 +227,66 @@ export default function Login() {
 								</div>
 							</div>
 
-							<h2
-								id="login-heading"
-								className="text-[2rem] font-bold text-black mb-2"
-							>
-								Log in
-							</h2>
-							<p className="text-[#666666] mb-8 text-[0.95rem]">
-								New here?{" "}
-								<Link
-									to="/signup"
-									className="text-[#8B7322] font-semibold hover:underline"
-								>
-									Create an account
-								</Link>
-							</p>
-
-							<div className="mb-8">
-								<button
-									type="button"
-									onClick={onGoogleAuth}
-									disabled={submitting}
-									className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-[#E5E5E5] bg-white text-sm font-semibold text-[#333333] transition hover:bg-[#f8f8f8] disabled:opacity-60"
-								>
-									<svg
-										viewBox="0 0 48 48"
-										className="h-5 w-5"
-										aria-hidden="true"
+							{isRedirectResolving ? (
+								<div className="space-y-6" aria-busy="true">
+									<Skeleton className="h-10 w-1/2 rounded-full" />
+									<Skeleton className="h-4 w-2/3 rounded-full" />
+									<Skeleton className="h-12 w-full rounded-full" />
+									<Skeleton className="h-px w-full rounded-none" />
+									<Skeleton className="h-16 w-full rounded-2xl" />
+									<Skeleton className="h-16 w-full rounded-2xl" />
+									<Skeleton className="h-12 w-full rounded-full" />
+								</div>
+							) : (
+								<>
+									<h2
+										id="login-heading"
+										className="text-[2rem] font-bold text-black mb-2"
 									>
-										<path
-											fill="#EA4335"
-											d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-										/>
-										<path
-											fill="#4285F4"
-											d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-										/>
-										<path
-											fill="#FBBC05"
-											d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-										/>
-										<path
-											fill="#34A853"
-											d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-										/>
-									</svg>
-									Continue with Google
-								</button>
-							</div>
+										Log in
+									</h2>
+									<p className="text-[#666666] mb-8 text-[0.95rem]">
+										New here?{" "}
+										<Link
+											to="/signup"
+											className="text-[#8B7322] font-semibold hover:underline"
+										>
+											Create an account
+										</Link>
+									</p>
+
+									<div className="mb-8">
+										<button
+											type="button"
+											onClick={onGoogleAuth}
+											disabled={submitting}
+											className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-[#E5E5E5] bg-white text-sm font-semibold text-[#333333] transition hover:bg-[#f8f8f8] disabled:opacity-60"
+										>
+											<svg
+												viewBox="0 0 48 48"
+												className="h-5 w-5"
+												aria-hidden="true"
+											>
+												<path
+													fill="#EA4335"
+													d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+												/>
+												<path
+													fill="#4285F4"
+													d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+												/>
+												<path
+													fill="#FBBC05"
+													d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+												/>
+												<path
+													fill="#34A853"
+													d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+												/>
+											</svg>
+											Continue with Google
+										</button>
+									</div>
 
 							{showPhoneLogin ? (
 								<>
@@ -262,11 +299,15 @@ export default function Login() {
 									</div>
 
 									<div className="mb-8">
-										<FirebasePhoneAuthPanel
-											onVerified={onPhoneVerified}
-											disabled={submitting}
-											buttonLabel="Send OTP"
-										/>
+										<Suspense
+											fallback={<Skeleton className="h-[122px] w-full rounded-2xl" />}
+										>
+											<FirebasePhoneAuthPanel
+												onVerified={onPhoneVerified}
+												disabled={submitting}
+												buttonLabel="Send OTP"
+											/>
+										</Suspense>
 									</div>
 
 									<div className="flex items-center gap-4 mb-8">
@@ -346,6 +387,8 @@ export default function Login() {
 									{submitting ? "Signing In..." : "START LISTING"}
 								</Button>
 							</form>
+								</>
+							)}
 						</div>
 					</section>
 				</div>

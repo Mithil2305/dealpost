@@ -1,5 +1,6 @@
 import { Heart, Scale } from "lucide-react";
 import { Link } from "react-router-dom";
+import ResponsiveImage from "./ui/ResponsiveImage.jsx";
 
 const currency = new Intl.NumberFormat("en-IN", {
 	style: "currency",
@@ -44,15 +45,14 @@ export default function ProductCard({ listing }) {
 	return (
 		<article className="group flex h-full flex-col rounded-[18px] border border-[#F0F2F5] bg-white p-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(40,40,90,0.1)] sm:rounded-[24px] sm:p-3">
 			<div className="relative aspect-square w-full overflow-hidden rounded-[14px] bg-[#F4F5F7] sm:aspect-[4/5] sm:rounded-[16px]">
-				<img
+				<ResponsiveImage
 					src={image}
 					alt={
 						listing?.title ? `${listing.title} listing image` : "Listing image"
 					}
-					loading="lazy"
-					decoding="async"
-					width="600"
-					height="600"
+					width={600}
+					height={750}
+					sizes="(min-width: 1024px) 280px, (min-width: 640px) 50vw, 50vw"
 					className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
 					onError={(event) => {
 						event.currentTarget.src =

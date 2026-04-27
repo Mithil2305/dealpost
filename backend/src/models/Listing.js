@@ -99,6 +99,14 @@ export function defineListing(sequelize) {
 		},
 		{
 			tableName: "listings",
+			indexes: [
+				{ fields: ["product_id"], unique: true },
+				{ fields: ["status", "created_at"] },
+				{ fields: ["seller_id", "status"] },
+				{ fields: ["listing_type", "auction_ends_at"] },
+				{ fields: ["parent_category", "sub_category"] },
+				{ fields: ["views"] },
+			],
 		},
 	);
 }

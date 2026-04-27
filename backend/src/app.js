@@ -19,7 +19,13 @@ import userRoutes from "./routes/user.routes.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 
 const app = express();
-app.use(compression());
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+app.use(
+	compression({
+		threshold: 1024,
+	}),
+);
 
 const allowedOrigins = String(env.CLIENT_URL || "")
 	.split(",")
@@ -49,11 +55,24 @@ app.use(
 	helmet({
 		crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
 		crossOriginEmbedderPolicy: false,
+		frameguard: { action: "deny" },
+		hsts:
+			env.NODE_ENV === "production"
+				? {
+						maxAge: env.SECURITY_HSTS_MAX_AGE,
+						includeSubDomains: true,
+						preload: true,
+					}
+				: false,
+		noSniff: true,
+		referrerPolicy: { policy: "strict-origin-when-cross-origin" },
 		contentSecurityPolicy: {
 			directives: {
-				defaultSrc: ["'self'"],
+				defaultSrc: ["'none'"],
 				frameAncestors: ["'none'"],
 				objectSrc: ["'none'"],
+				baseUri: ["'none'"],
+				formAction: ["'self'"],
 			},
 		},
 	}),
@@ -72,8 +91,30 @@ app.use(
 	}),
 );
 app.use((req, res, next) => {
+	const forwardedProto = String(req.headers["x-forwarded-proto"] || "")
+		.split(",")[0]
+		.trim();
+	const isSecureRequest = req.secure || forwardedProto === "https";
+
+	if (
+		env.NODE_ENV === "production" &&
+		env.FORCE_HTTPS &&
+		!isSecureRequest &&
+		req.method === "GET"
+	) {
+		const host = req.headers.host;
+		if (host) {
+			res.redirect(301, `https://${host}${req.originalUrl}`);
+			return;
+		}
+	}
+
+	next();
+});
+app.use((req, res, next) => {
 	req.id = randomUUID();
 	res.setHeader("X-Request-Id", req.id);
+	res.setHeader("X-Frame-Options", "DENY");
 	next();
 });
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
@@ -84,6 +125,7 @@ app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true, limit: "5mb" }));
 
 app.get("/api/health", (req, res) => {
+	res.setHeader("Cache-Control", "no-store");
 	res.json({ ok: true });
 });
 

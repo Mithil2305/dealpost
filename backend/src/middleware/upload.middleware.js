@@ -12,12 +12,13 @@ export const upload = multer({
 			"image/jpeg",
 			"image/png",
 			"image/webp",
+			"image/avif",
 			"image/gif",
 		]);
 		if (allowed.has(file.mimetype)) {
 			cb(null, true);
 			return;
 		}
-		cb(new Error("Only JPEG, PNG, WebP, and GIF uploads are allowed"));
+		cb(new Error("Only JPEG, PNG, WebP, AVIF, and GIF uploads are allowed"));
 	},
 });

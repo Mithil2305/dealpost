@@ -1,4 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Poppins:wght@600;700;800&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,6 +9,11 @@
 
 	body {
 		@apply m-0 bg-brand-bg font-body text-brand-dark antialiased;
+	}
+
+	img {
+		display: block;
+		max-width: 100%;
 	}
 
 	h1,
@@ -54,6 +58,19 @@
 
 .skip-to-main:focus-visible {
 	transform: translateY(0);
+}
+
+@keyframes skeletonWave {
+	0% {
+		background-position: 100% 50%;
+	}
+	100% {
+		background-position: -100% 50%;
+	}
+}
+
+.skeleton-wave {
+	animation: skeletonWave 1.35s ease-in-out infinite;
 }
 
 @layer components {

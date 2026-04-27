@@ -32,6 +32,11 @@ export const env = {
 	NODE_ENV: process.env.NODE_ENV || "development",
 	PORT: getNumber(process.env.PORT, 5000),
 	CLIENT_URL: process.env.CLIENT_URL || "http://localhost:5173",
+	FORCE_HTTPS: getBoolean(process.env.FORCE_HTTPS, false),
+	SECURITY_HSTS_MAX_AGE: getNumber(
+		process.env.SECURITY_HSTS_MAX_AGE,
+		15552000,
+	),
 
 	// Database — these MUST be set in .env
 	DB_HOST: process.env.DB_HOST || "127.0.0.1",

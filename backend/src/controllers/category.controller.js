@@ -7,6 +7,11 @@ import { slugify } from "../utils/slugify.js";
 // GET /api/categories  — returns all categories, auto-seeds if empty
 // ---------------------------------------------------------------------------
 export const getCategories = asyncHandler(async (req, res) => {
+	res.setHeader(
+		"Cache-Control",
+		"public, max-age=300, stale-while-revalidate=600",
+	);
+
 	const rows = DEFAULT_CATEGORIES.map((name) => ({
 		name,
 		slug: slugify(name),

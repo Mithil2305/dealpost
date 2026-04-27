@@ -23,15 +23,25 @@ import {
 	Zap,
 	ChevronLeft,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useDeferredValue,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import AdSidebar from "../components/ad-sidebar";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import FeedSkeleton from "../components/ui/FeedSkeleton.jsx";
+import ResponsiveImage from "../components/ui/ResponsiveImage.jsx";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
+import { scheduleIdleTask } from "../utils/idle.js";
 import {
 	fetchOpenStreetSuggestions,
 	getStoredLocationCoords,
@@ -296,6 +306,7 @@ export default function Home() {
 
 	// Hero Slider State
 	const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
+	const deferredSearch = useDeferredValue(search);
 
 	// Fetch Data Effect
 	useEffect(() => {
@@ -383,7 +394,7 @@ export default function Home() {
 					limit: HOME_LISTINGS_PAGE_SIZE,
 					page,
 					sort: "Newest",
-					search: search || undefined,
+					search: deferredSearch || undefined,
 					radius: hasLocationFilter ? `${radiusKm}km` : undefined,
 					originLat: hasLocationFilter ? locationCoords.lat : undefined,
 					originLng: hasLocationFilter ? locationCoords.lng : undefined,
@@ -403,7 +414,7 @@ export default function Home() {
 				hasLocationFilter,
 			};
 		},
-		[resolveLocationCoordinates, search],
+		[deferredSearch, resolveLocationCoordinates],
 	);
 
 	useEffect(() => {
@@ -443,7 +454,7 @@ export default function Home() {
 			active = false;
 		};
 	}, [
-		search,
+		deferredSearch,
 		fetchHomeListingsPage,
 		locationRadiusKm,
 		userLocation.label,
@@ -455,7 +466,7 @@ export default function Home() {
 	useEffect(() => {
 		let active = true;
 
-		const hydrateLikedIds = async () => {
+		const cancelIdle = scheduleIdleTask(async () => {
 			if (!isAuthenticated) {
 				setLikedListingIds([]);
 				return;
@@ -471,12 +482,11 @@ export default function Home() {
 					setLikedListingIds([]);
 				}
 			}
-		};
-
-		hydrateLikedIds();
+		});
 
 		return () => {
 			active = false;
+			cancelIdle();
 		};
 	}, [isAuthenticated]);
 
@@ -491,7 +501,7 @@ export default function Home() {
 	useEffect(() => {
 		let active = true;
 
-		const fetchCategories = async () => {
+		const cancelIdle = scheduleIdleTask(async () => {
 			try {
 				const { data } = await api.get("/categories");
 				const rows = pickArray(data, ["categories", "data", "items"]);
@@ -502,14 +512,25 @@ export default function Home() {
 					setAllCategories([]);
 				}
 			}
-		};
-
-		fetchCategories();
+		});
 
 		return () => {
 			active = false;
+			cancelIdle();
 		};
 	}, []);
+
+	useEffect(() => {
+		const cancelIdle = scheduleIdleTask(() => {
+			import("./Explore.jsx");
+			if (isAuthenticated) {
+				import("./Messages.jsx");
+				import("./UserDashboard.jsx");
+			}
+		});
+
+		return cancelIdle;
+	}, [isAuthenticated]);
 
 	useEffect(() => {
 		if (!isMegaMenuOpen) return undefined;
@@ -1069,10 +1090,15 @@ export default function Home() {
 										className="w-full h-full flex-shrink-0 relative"
 										aria-hidden={currentHeroSlide !== index}
 									>
-										<img
+										<ResponsiveImage
 											src={slide.image}
 											alt={slide.title}
-											className="w-full h-full object-cover"
+											width={1600}
+											height={900}
+											sizes="100vw"
+											loading={index === 0 ? "eager" : "lazy"}
+											fetchPriority={index === 0 ? "high" : undefined}
+											className="h-full w-full object-cover"
 										/>
 										{/* Gradient Overlay for better text readability */}
 										<div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/55 to-transparent flex flex-col justify-center px-6 md:px-10 lg:px-14">
@@ -1207,11 +1233,14 @@ export default function Home() {
 								</Link>
 							</div>
 
-							<div
-								className="grid grid-cols-2 items-start gap-3 sm:gap-6 md:[grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr))]"
-								aria-label="Fresh recommendation listings"
-							>
-								{dealFeedItems.map((feedItem) => {
+							{loading ? (
+								<FeedSkeleton count={8} minCardWidth={250} />
+							) : (
+								<div
+									className="grid grid-cols-2 items-start gap-3 sm:gap-6 md:[grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr))]"
+									aria-label="Fresh recommendation listings"
+								>
+									{dealFeedItems.map((feedItem) => {
 									if (feedItem.type === "promo") {
 										return (
 											<div
@@ -1279,9 +1308,12 @@ export default function Home() {
 											className="group flex flex-col overflow-hidden rounded-2xl border border-[#D9D9D9] bg-white transition hover:shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
 										>
 											<div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F4F5F7]">
-												<img
+												<ResponsiveImage
 													src={item.image}
 													alt={item.title}
+													width={640}
+													height={480}
+													sizes="(min-width: 768px) 250px, 50vw"
 													className="h-full w-full object-cover"
 												/>
 												<button
@@ -1327,8 +1359,9 @@ export default function Home() {
 											</div>
 										</Link>
 									);
-								})}
-							</div>
+									})}
+								</div>
+							)}
 
 							{!loading && !displayListings.length && (
 								<div className="mt-6 rounded-2xl border border-[#EAEAEA] bg-white p-6 text-center text-sm text-[#777777]">
@@ -1351,7 +1384,14 @@ export default function Home() {
 						</section>
 
 						{/* Category Deal Carousels */}
-						{categoryDeals.length ? (
+						{loading ? (
+							<section
+								className="mt-16 space-y-5"
+								aria-label="Loading category deals"
+							>
+								<FeedSkeleton count={4} minCardWidth={220} className="md:grid-cols-4" />
+							</section>
+						) : categoryDeals.length ? (
 							<section
 								className="mt-16 space-y-8"
 								aria-labelledby="home-category-deals-heading"
@@ -1392,9 +1432,12 @@ export default function Home() {
 													className="min-w-[220px] max-w-[220px] rounded-2xl border border-[#EAEAEA] bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5"
 												>
 													<div className="aspect-[4/3] overflow-hidden rounded-xl bg-[#F3F3F3]">
-														<img
+														<ResponsiveImage
 															src={item.image}
 															alt={item.title}
+															width={440}
+															height={330}
+															sizes="220px"
 															className="h-full w-full object-cover"
 														/>
 													</div>
@@ -1463,13 +1506,16 @@ export default function Home() {
 									onClick={() => moveTopDeals("prev")}
 									className="hidden lg:block w-[170px] h-[170px] rounded-[20px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer"
 								>
-									<img
+									<ResponsiveImage
 										src={
 											leftDeal?.image ||
 											"https://placehold.co/600x600?text=Deal Post"
 										}
-										className="w-full h-full object-cover"
 										alt="Deal"
+										width={340}
+										height={340}
+										sizes="170px"
+										className="h-full w-full object-cover"
 									/>
 								</button>
 
@@ -1478,13 +1524,16 @@ export default function Home() {
 									key={`carousel-main-${topDealsIndex}-${slideDirection}`}
 									className={`w-full max-w-[440px] h-[240px] rounded-[20px] bg-[#111111] overflow-hidden relative shadow-2xl group cursor-pointer ${slideDirection === "next" ? "deal-slide-next" : "deal-slide-prev"}`}
 								>
-									<img
+									<ResponsiveImage
 										src={
 											featuredDeal?.image ||
 											"https://placehold.co/800x600?text=Deal Post"
 										}
-										className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition duration-700"
 										alt="Main Deal"
+										width={880}
+										height={600}
+										sizes="(min-width: 1024px) 440px, 100vw"
+										className="h-full w-full object-cover opacity-60 transition duration-700 group-hover:scale-105"
 									/>
 
 									<div className="absolute inset-0 p-4 flex flex-col justify-between">
@@ -1529,13 +1578,16 @@ export default function Home() {
 									onClick={() => moveTopDeals("next")}
 									className="hidden md:block w-[170px] h-[170px] rounded-[20px] overflow-hidden opacity-60 scale-90 transition transform hover:opacity-100 hover:scale-95 cursor-pointer"
 								>
-									<img
+									<ResponsiveImage
 										src={
 											rightDeal?.image ||
 											"https://placehold.co/600x600?text=Deal Post"
 										}
-										className="w-full h-full object-cover"
 										alt="Deal"
+										width={340}
+										height={340}
+										sizes="170px"
+										className="h-full w-full object-cover"
 									/>
 								</button>
 							</div>

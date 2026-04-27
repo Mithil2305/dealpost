@@ -15,6 +15,8 @@ async function startServer() {
 		await connectDB();
 
 		const httpServer = http.createServer(app);
+		httpServer.keepAliveTimeout = 65_000;
+		httpServer.headersTimeout = 66_000;
 		const io = new Server(httpServer, {
 			cors: {
 				origin: allowedOrigins,

@@ -16,6 +16,34 @@ const VALID_SORTS = [
 	"Most Popular",
 	"Auction Ending Soon",
 ];
+const LIKE_COUNTS_TTL_MS = 30_000;
+const listingSummaryAttributes = [
+	"id",
+	"productId",
+	"title",
+	"parentCategory",
+	"subCategory",
+	"price",
+	"listingType",
+	"startingBid",
+	"currentBid",
+	"auctionEndsAt",
+	"images",
+	"location",
+	"condition",
+	"status",
+	"views",
+	"isFeatured",
+	"premiumBoost",
+	"createdAt",
+	"updatedAt",
+	"sellerId",
+	"categoryId",
+];
+let likeCountsCache = {
+	ts: 0,
+	map: new Map(),
+};
 
 // ---------------------------------------------------------------------------
 // Sort map matching the frontend Explore page sort options
@@ -182,15 +210,17 @@ function normalizeListingPayload(item) {
 async function findListingByIdentifier(
 	identifier,
 	include = listingIncludes(),
+	attributes,
 ) {
 	const numericId = Number(identifier);
 	if (Number.isFinite(numericId) && numericId > 0) {
-		return models.Listing.findByPk(numericId, { include });
+		return models.Listing.findByPk(numericId, { include, attributes });
 	}
 
 	return models.Listing.findOne({
 		where: { productId: String(identifier).trim() },
 		include,
+		attributes,
 	});
 }
 
@@ -210,6 +240,36 @@ function normalizeLikedListingIds(rawIds) {
 	);
 }
 
+function invalidateLikeCountsCache() {
+	likeCountsCache = {
+		ts: 0,
+		map: new Map(),
+	};
+}
+
+async function getCachedGlobalLikeCounts() {
+	if (Date.now() - likeCountsCache.ts < LIKE_COUNTS_TTL_MS) {
+		return likeCountsCache.map;
+	}
+
+	const users = await models.User.findAll({ attributes: ["likedListingIds"] });
+	const nextMap = new Map();
+
+	for (const user of users) {
+		const likedIds = normalizeLikedListingIds(user?.likedListingIds);
+		for (const likedId of likedIds) {
+			nextMap.set(likedId, (nextMap.get(likedId) || 0) + 1);
+		}
+	}
+
+	likeCountsCache = {
+		ts: Date.now(),
+		map: nextMap,
+	};
+
+	return likeCountsCache.map;
+}
+
 async function buildListingLikeCountMap(listingIds = []) {
 	const uniqueIds = Array.from(
 		new Set(
@@ -222,13 +282,9 @@ async function buildListingLikeCountMap(listingIds = []) {
 	const countMap = new Map(uniqueIds.map((id) => [id, 0]));
 	if (!uniqueIds.length) return countMap;
 
-	const users = await models.User.findAll({ attributes: ["likedListingIds"] });
-	for (const user of users) {
-		const likedIds = normalizeLikedListingIds(user?.likedListingIds);
-		for (const likedId of likedIds) {
-			if (!countMap.has(likedId)) continue;
-			countMap.set(likedId, (countMap.get(likedId) || 0) + 1);
-		}
+	const globalCounts = await getCachedGlobalLikeCounts();
+	for (const likedId of uniqueIds) {
+		countMap.set(likedId, globalCounts.get(likedId) || 0);
 	}
 
 	return countMap;
@@ -420,6 +476,7 @@ const sellerAttributes = [
 	"createdAt",
 ];
 const categoryAttributes = ["id", "name", "slug"];
+const lightweightSellerAttributes = ["id", "name", "businessName", "avatar"];
 
 function listingIncludes(sellerAttrs = sellerAttributes) {
 	return [
@@ -437,6 +494,7 @@ export const presignListingImageUpload = asyncHandler(async (req, res) => {
 		"image/jpeg",
 		"image/png",
 		"image/webp",
+		"image/avif",
 		"image/gif",
 	]);
 
@@ -495,6 +553,13 @@ export const getListings = asyncHandler(async (req, res) => {
 
 	const where = {};
 	const safeSort = VALID_SORTS.includes(String(sort)) ? String(sort) : "Newest";
+	const isPrivateFeed = Boolean(req.user) || userId === "me";
+	res.setHeader(
+		"Cache-Control",
+		isPrivateFeed
+			? "private, no-store"
+			: "public, max-age=60, stale-while-revalidate=300",
+	);
 
 	// My Ads: when userId=me, show owner's listings regardless of status
 	if (userId === "me") {
@@ -600,7 +665,8 @@ export const getListings = asyncHandler(async (req, res) => {
 	if (canApplyDistanceFilter) {
 		const rows = await models.Listing.findAll({
 			where,
-			include: listingIncludes(),
+			attributes: listingSummaryAttributes,
+			include: listingIncludes(lightweightSellerAttributes),
 			order: sortMap[safeSort],
 		});
 		const currentUserLikedIds = normalizeLikedListingIds(
@@ -648,7 +714,8 @@ export const getListings = asyncHandler(async (req, res) => {
 
 	const { rows, count } = await models.Listing.findAndCountAll({
 		where,
-		include: listingIncludes(),
+		attributes: listingSummaryAttributes,
+		include: listingIncludes(lightweightSellerAttributes),
 		order: sortMap[safeSort],
 		offset,
 		limit: numericLimit,
@@ -696,6 +763,7 @@ export const getMyListings = asyncHandler(async (req, res) => {
 // GET /api/listings/:id  — single listing, increments view count
 // ---------------------------------------------------------------------------
 export const getListingById = asyncHandler(async (req, res) => {
+	res.setHeader("Cache-Control", "private, no-store");
 	const listing = await findListingByIdentifier(
 		req.params.id,
 		listingIncludes(),
@@ -1334,6 +1402,7 @@ export const likeListing = asyncHandler(async (req, res) => {
 		likedIds.push(Number(listing.id));
 		req.user.likedListingIds = likedIds;
 		await req.user.save();
+		invalidateLikeCountsCache();
 	}
 	const countMap = await buildListingLikeCountMap([listing.id]);
 	const likedByCount = countMap.get(Number(listing.id)) || 0;
@@ -1355,6 +1424,7 @@ export const unlikeListing = asyncHandler(async (req, res) => {
 	);
 	req.user.likedListingIds = likedIds;
 	await req.user.save();
+	invalidateLikeCountsCache();
 	const countMap = await buildListingLikeCountMap([listing.id]);
 	const likedByCount = countMap.get(Number(listing.id)) || 0;
 

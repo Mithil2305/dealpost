@@ -1,16 +1,24 @@
 import {
 	ChevronLeft,
 	EllipsisVertical,
-	LoaderCircle,
 	Phone,
 	Plus,
 	Search,
 	Send,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useDeferredValue,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import toast from "react-hot-toast";
 import { useLocation } from "react-router-dom";
 import api from "../api/axios";
+import ChatSkeleton from "../components/ui/ChatSkeleton.jsx";
+import ResponsiveImage from "../components/ui/ResponsiveImage.jsx";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/useAuth";
 import { markConversationSeen } from "../utils/messageNotifications";
@@ -69,6 +77,7 @@ export default function Messages() {
 	const [sending, setSending] = useState(false);
 	const [activeConversationId, setActiveConversationId] = useState(null);
 	const [search, setSearch] = useState("");
+	const deferredSearch = useDeferredValue(search);
 	const [text, setText] = useState("");
 	const [animatedMessageIds, setAnimatedMessageIds] = useState([]);
 	const [initiatedListing, setInitiatedListing] = useState(null);
@@ -220,7 +229,7 @@ export default function Messages() {
 					: conversation?.buyer?.name;
 			return String(participantName || "")
 				.toLowerCase()
-				.includes(search.toLowerCase());
+				.includes(deferredSearch.toLowerCase());
 		});
 
 		return filtered.map((conversation) => {
@@ -240,7 +249,7 @@ export default function Messages() {
 				lastMessageTime: formatTime(conversation?.lastMessage?.createdAt),
 			};
 		});
-	}, [conversations, search, user?.id]);
+	}, [conversations, deferredSearch, user?.id]);
 
 	const activeConversation = normalizedConversations.find(
 		(conversation) => conversation.id === activeConversationId,
@@ -325,6 +334,9 @@ export default function Messages() {
 				id="main-content"
 				className="flex-1 w-full max-w-[1400px] mx-auto p-0 md:p-6 lg:p-8 flex items-center justify-center"
 			>
+				{loadingConversations && !conversations.length ? (
+					<ChatSkeleton />
+				) : (
 				<div className="flex w-full h-[calc(100vh-64px)] md:h-[calc(100vh-140px)] bg-white md:rounded-[32px] overflow-hidden shadow-sm border border-gray-100">
 					{/* Left Sidebar - Conversation List */}
 					<aside
@@ -368,10 +380,13 @@ export default function Messages() {
 											)}
 
 											<div className="relative">
-												<img
+												<ResponsiveImage
 													src={conv.participant.avatar}
 													alt={conv.participant.name}
-													className="w-14 h-14 rounded-full object-cover bg-gray-200"
+													width={56}
+													height={56}
+													sizes="56px"
+													className="h-14 w-14 rounded-full object-cover bg-gray-200"
 												/>
 											</div>
 
@@ -417,13 +432,16 @@ export default function Messages() {
 									<ChevronLeft size={24} />
 								</button>
 
-								<img
+								<ResponsiveImage
 									src={
 										activeConversation?.participant?.avatar ||
 										"https://placehold.co/80x80?text=U"
 									}
 									alt="Active User"
-									className="w-12 h-12 rounded-full object-cover bg-gray-200"
+									width={48}
+									height={48}
+									sizes="48px"
+									className="h-12 w-12 rounded-full object-cover bg-gray-200"
 								/>
 								<div>
 									<h2 className="text-lg font-bold text-black leading-tight">
@@ -451,12 +469,15 @@ export default function Messages() {
 							{activeListing && (
 								<div className="mx-auto w-full max-w-[520px] rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
 									<div className="flex items-center gap-3">
-										<img
+										<ResponsiveImage
 											src={
 												getListingImage(activeListing) ||
 												"https://placehold.co/120x90?text=Deal Post"
 											}
 											alt={activeListing?.title || "Listing"}
+											width={120}
+											height={90}
+											sizes="80px"
 											className="h-16 w-20 rounded-lg object-cover bg-gray-100"
 										/>
 										<div className="min-w-0">
@@ -569,7 +590,9 @@ export default function Messages() {
 									className="grid h-12 w-12 md:h-14 md:w-14 flex-shrink-0 place-items-center rounded-full bg-[#FFD600] text-black hover:bg-[#E6C100] transition active:scale-95 shadow-sm"
 								>
 									{sending ? (
-										<LoaderCircle size={20} className="animate-spin" />
+										<span className="text-xs font-bold uppercase tracking-[0.14em]">
+											...
+										</span>
 									) : (
 										<Send size={20} className="ml-1" />
 									)}
@@ -578,6 +601,7 @@ export default function Messages() {
 						</div>
 					</section>
 				</div>
+				)}
 			</main>
 			<Footer />
 		</div>

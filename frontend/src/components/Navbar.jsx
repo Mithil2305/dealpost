@@ -16,9 +16,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
+import ResponsiveImage from "./ui/ResponsiveImage.jsx";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
-import { mountPlaceAutocompleteElement } from "../utils/googleMaps";
 import { getUnreadConversationCount } from "../utils/messageNotifications";
 import {
 	clearStoredLocationCoords,
@@ -27,6 +27,7 @@ import {
 	getStoredLocationLabel,
 	hasValidCoordinates,
 	loadGoogleMapsFromPublicConfig,
+	mountDeferredPlaceAutocompleteElement,
 	mapAutocompletePlaceToLocation,
 	persistStoredLocation,
 } from "../utils/locationHelpers";
@@ -68,7 +69,15 @@ function getReadableLocationLabel(placeLike) {
 function BrandLogo() {
 	return (
 		<a href="/" className="flex items-center gap-2 text-xl shrink-0">
-			<img src="/logo.png" alt="DealPost Logo" className="h-7 w-7" />
+			<ResponsiveImage
+				src="/logo.png"
+				alt="DealPost Logo"
+				width={28}
+				height={28}
+				loading="eager"
+				fetchPriority="high"
+				className="h-7 w-7"
+			/>
 			<div className="text-black">
 				<span className="font-bold">Deal</span>
 				<span>Post</span>
@@ -334,30 +343,47 @@ export default function Navbar({
 			return;
 		}
 
-		return mountPlaceAutocompleteElement({
-			container: autocompleteContainerRef.current,
-			placeholder: "Search for area, city, or address",
-			onInputChange: (nextValue) => {
-				setLocationInput(nextValue);
-				setSelectedCoordinates({ lat: null, lng: null });
-				setSelectedPlaceId("");
-				setConfirmedLocationInput("");
-			},
-			onPlaceSelected: (place) => {
-				const mapped = mapAutocompletePlaceToLocation(place, locationInput);
-				setLocationInput(mapped.address);
-				setSelectedCoordinates({
-					lat: hasValidCoordinates(mapped.latitude, mapped.longitude)
-						? Number(mapped.latitude)
-						: null,
-					lng: hasValidCoordinates(mapped.latitude, mapped.longitude)
-						? Number(mapped.longitude)
-						: null,
-				});
-				setSelectedPlaceId(mapped.placeId);
-				setConfirmedLocationInput(String(mapped.address || "").trim());
-			},
-		});
+		let isMounted = true;
+		let cleanup = () => {};
+
+		(async () => {
+			const release = await mountDeferredPlaceAutocompleteElement({
+				container: autocompleteContainerRef.current,
+				placeholder: "Search for area, city, or address",
+				onInputChange: (nextValue) => {
+					setLocationInput(nextValue);
+					setSelectedCoordinates({ lat: null, lng: null });
+					setSelectedPlaceId("");
+					setConfirmedLocationInput("");
+				},
+				onPlaceSelected: (place) => {
+					const mapped = mapAutocompletePlaceToLocation(place, locationInput);
+					setLocationInput(mapped.address);
+					setSelectedCoordinates({
+						lat: hasValidCoordinates(mapped.latitude, mapped.longitude)
+							? Number(mapped.latitude)
+							: null,
+						lng: hasValidCoordinates(mapped.latitude, mapped.longitude)
+							? Number(mapped.longitude)
+							: null,
+					});
+					setSelectedPlaceId(mapped.placeId);
+					setConfirmedLocationInput(String(mapped.address || "").trim());
+				},
+			});
+
+			if (!isMounted) {
+				release?.();
+				return;
+			}
+
+			cleanup = typeof release === "function" ? release : () => {};
+		})();
+
+		return () => {
+			isMounted = false;
+			cleanup();
+		};
 	}, [isLocationOpen, mapsReady, locationInput]);
 
 	/* ── Mobile drawer autocomplete ── */
@@ -370,30 +396,47 @@ export default function Navbar({
 			return;
 		}
 
-		return mountPlaceAutocompleteElement({
-			container: mobileAutocompleteContainerRef.current,
-			placeholder: "Search for area, city, or address",
-			onInputChange: (nextValue) => {
-				setLocationInput(nextValue);
-				setSelectedCoordinates({ lat: null, lng: null });
-				setSelectedPlaceId("");
-				setConfirmedLocationInput("");
-			},
-			onPlaceSelected: (place) => {
-				const mapped = mapAutocompletePlaceToLocation(place, locationInput);
-				setLocationInput(mapped.address);
-				setSelectedCoordinates({
-					lat: hasValidCoordinates(mapped.latitude, mapped.longitude)
-						? Number(mapped.latitude)
-						: null,
-					lng: hasValidCoordinates(mapped.latitude, mapped.longitude)
-						? Number(mapped.longitude)
-						: null,
-				});
-				setSelectedPlaceId(mapped.placeId);
-				setConfirmedLocationInput(String(mapped.address || "").trim());
-			},
-		});
+		let isMounted = true;
+		let cleanup = () => {};
+
+		(async () => {
+			const release = await mountDeferredPlaceAutocompleteElement({
+				container: mobileAutocompleteContainerRef.current,
+				placeholder: "Search for area, city, or address",
+				onInputChange: (nextValue) => {
+					setLocationInput(nextValue);
+					setSelectedCoordinates({ lat: null, lng: null });
+					setSelectedPlaceId("");
+					setConfirmedLocationInput("");
+				},
+				onPlaceSelected: (place) => {
+					const mapped = mapAutocompletePlaceToLocation(place, locationInput);
+					setLocationInput(mapped.address);
+					setSelectedCoordinates({
+						lat: hasValidCoordinates(mapped.latitude, mapped.longitude)
+							? Number(mapped.latitude)
+							: null,
+						lng: hasValidCoordinates(mapped.latitude, mapped.longitude)
+							? Number(mapped.longitude)
+							: null,
+					});
+					setSelectedPlaceId(mapped.placeId);
+					setConfirmedLocationInput(String(mapped.address || "").trim());
+				},
+			});
+
+			if (!isMounted) {
+				release?.();
+				return;
+			}
+
+			cleanup = typeof release === "function" ? release : () => {};
+		})();
+
+		return () => {
+			isMounted = false;
+			cleanup();
+		};
 	}, [isMobileNavOpen, mapsReady, locationInput]);
 
 	useEffect(() => {

@@ -1,0 +1,246 @@
+version: "3.8"
+
+services:
+  # Redis - Used for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: appwrite-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - appwrite_redis:/data
+    networks:
+      - appwrite
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # MariaDB - Database for Appwrite
+  mariadb:
+    image: mariadb:11
+    container_name: appwrite-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-appwrite123}
+      MYSQL_DATABASE: appwrite
+      MYSQL_USER: appwrite
+      MYSQL_PASSWORD: ${DB_PASSWORD:-appwrite123}
+    ports:
+      - "3306:3306"
+    volumes:
+      - appwrite_mariadb:/var/lib/mysql
+    networks:
+      - appwrite
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # InfluxDB - Metrics and stats storage
+  influxdb:
+    image: influxdb:2.7
+    container_name: appwrite-influxdb
+    environment:
+      INFLUXDB_HTTP_AUTH_ENABLED: "true"
+      INFLUXDB_ADMIN_USER: appwrite
+      INFLUXDB_ADMIN_PASSWORD: ${INFLUX_PASSWORD:-appwrite123}
+      INFLUXDB_HTTP_FLUX_ENABLED: "true"
+      INFLUXDB_DB: appwrite
+    ports:
+      - "8086:8086"
+    volumes:
+      - appwrite_influxdb:/var/lib/influxdb2
+    networks:
+      - appwrite
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Appwrite Core Service
+  appwrite:
+    image: appwrite/appwrite:1.5.0
+    container_name: appwrite
+    environment:
+      # General Settings
+      _APP_ENV: production
+      _APP_LOCALE: en
+      _APP_CONSOLE_WHITELIST_IPS: "*"
+
+      # API & Security
+      _APP_DOMAIN: api.dealpost.in
+      _APP_DOMAIN_TARGET: api.dealpost.in
+      _APP_OPENSSL_KEY_V1: ${OPENSSL_KEY_V1}
+      _APP_OPENSSL_KEY_V2: ${OPENSSL_KEY_V2}
+
+      # Database Configuration
+      _APP_DB_HOST: mariadb
+      _APP_DB_PORT: 3306
+      _APP_DB_USER: appwrite
+      _APP_DB_PASS: ${DB_PASSWORD:-appwrite123}
+      _APP_DB_SCHEMA: appwrite
+
+      # Redis Configuration
+      _APP_REDIS_HOST: redis
+      _APP_REDIS_PORT: 6379
+
+      # Storage Configuration
+      _APP_STORAGE_DEVICE: local
+      _APP_STORAGE_S3_ACCESS_KEY: ""
+      _APP_STORAGE_S3_SECRET: ""
+      _APP_STORAGE_S3_REGION: ""
+      _APP_STORAGE_S3_BUCKET: ""
+
+      # Telemetry (Metrics)
+      _APP_INFLUXDB_HOST: influxdb
+      _APP_INFLUXDB_PORT: 8086
+      _APP_INFLUXDB_USERNAME: appwrite
+      _APP_INFLUXDB_PASSWORD: ${INFLUX_PASSWORD:-appwrite123}
+
+      # SMTP (Email notifications)
+      _APP_SMTP_HOST: ${SMTP_HOST:-}
+      _APP_SMTP_PORT: ${SMTP_PORT:-587}
+      _APP_SMTP_SECURE: ${SMTP_SECURE:-false}
+      _APP_SMTP_USERNAME: ${SMTP_USERNAME:-}
+      _APP_SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+
+      # Optional: Google OAuth
+      _APP_OAUTH_GOOGLE_SECRET: ${OAUTH_GOOGLE_SECRET:-}
+      _APP_OAUTH_GOOGLE_APP_ID: ${OAUTH_GOOGLE_APP_ID:-}
+
+      # Optional: GitHub OAuth
+      _APP_OAUTH_GITHUB_SECRET: ${OAUTH_GITHUB_SECRET:-}
+      _APP_OAUTH_GITHUB_APP_ID: ${OAUTH_GITHUB_APP_ID:-}
+
+      # Logging
+      _APP_LOGGING_CONFIG: ""
+      _APP_LOGGING_LEVEL: error
+
+      # Security
+      _APP_SECURITY_EMAIL_IDENTITY_REVIEW: false
+      _APP_SECURITY_PHONE_IDENTITY_REVIEW: false
+      _APP_SECURITY_COOKIE_SECURE: true
+      _APP_SECURITY_COOKIE_HTTPONLY: true
+      _APP_SECURITY_COOKIE_SAMESITE: Strict
+
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - appwrite_uploads:/storage/uploads
+      - appwrite_config:/storage/config
+      - appwrite_certificates:/storage/certificates
+    networks:
+      - appwrite
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.example.description: "Appwrite Backend Service"
+
+  # Appwrite Scheduler (background jobs)
+  appwrite-scheduler:
+    image: appwrite/appwrite:1.5.0
+    container_name: appwrite-scheduler
+    entrypoint: scheduler
+    environment:
+      # Same environment variables as appwrite
+      _APP_ENV: production
+      _APP_LOCALE: en
+      _APP_DB_HOST: mariadb
+      _APP_DB_PORT: 3306
+      _APP_DB_USER: appwrite
+      _APP_DB_PASS: ${DB_PASSWORD:-appwrite123}
+      _APP_DB_SCHEMA: appwrite
+      _APP_REDIS_HOST: redis
+      _APP_REDIS_PORT: 6379
+      _APP_INFLUXDB_HOST: influxdb
+      _APP_INFLUXDB_PORT: 8086
+      _APP_INFLUXDB_USERNAME: appwrite
+      _APP_INFLUXDB_PASSWORD: ${INFLUX_PASSWORD:-appwrite123}
+      _APP_OPENSSL_KEY_V1: ${OPENSSL_KEY_V1}
+      _APP_OPENSSL_KEY_V2: ${OPENSSL_KEY_V2}
+    networks:
+      - appwrite
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      appwrite:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Appwrite Worker - Webhooks & Messaging
+  appwrite-worker-webhooks:
+    image: appwrite/appwrite:1.5.0
+    container_name: appwrite-worker-webhooks
+    entrypoint: worker-webhooks
+    environment:
+      _APP_ENV: production
+      _APP_REDIS_HOST: redis
+      _APP_REDIS_PORT: 6379
+    networks:
+      - appwrite
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Appwrite Worker - Database
+  appwrite-worker-database:
+    image: appwrite/appwrite:1.5.0
+    container_name: appwrite-worker-database
+    entrypoint: worker-database
+    environment:
+      _APP_ENV: production
+      _APP_REDIS_HOST: redis
+      _APP_REDIS_PORT: 6379
+      _APP_DB_HOST: mariadb
+      _APP_DB_PORT: 3306
+      _APP_DB_USER: appwrite
+      _APP_DB_PASS: ${DB_PASSWORD:-appwrite123}
+      _APP_DB_SCHEMA: appwrite
+    networks:
+      - appwrite
+    depends_on:
+      redis:
+        condition: service_healthy
+      mariadb:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  appwrite_mariadb:
+    driver: local
+  appwrite_redis:
+    driver: local
+  appwrite_influxdb:
+    driver: local
+  appwrite_uploads:
+    driver: local
+  appwrite_config:
+    driver: local
+  appwrite_certificates:
+    driver: local
+
+networks:
+  appwrite:
+    driver: bridge

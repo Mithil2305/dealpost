@@ -10,17 +10,21 @@ import {
 	Star,
 	TriangleAlert,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
-import ProductCard from "../components/ProductCard";
 import Button from "../components/ui/Button";
+import FeedSkeleton from "../components/ui/FeedSkeleton.jsx";
+import ProfileSkeleton from "../components/ui/ProfileSkeleton.jsx";
+import ResponsiveImage from "../components/ui/ResponsiveImage.jsx";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
 import { getListingLikedCount, updateListingLikeStatus } from "../utils/likes";
+
+const ProductCard = lazy(() => import("../components/ProductCard.jsx"));
 
 const formatPrice = (price) =>
 	new Intl.NumberFormat("en-IN", {
@@ -44,6 +48,7 @@ export default function ProductDetail() {
 	const [bidAmount, setBidAmount] = useState("");
 	const [placingBid, setPlacingBid] = useState(false);
 	const [relatedListings, setRelatedListings] = useState([]);
+	const [loadingRelated, setLoadingRelated] = useState(true);
 
 	useEffect(() => {
 		let active = true;
@@ -65,6 +70,7 @@ export default function ProductDetail() {
 				);
 
 				try {
+					setLoadingRelated(true);
 					const relatedCategory =
 						entry?.category ||
 						[entry?.parentCategory, entry?.subCategory]
@@ -72,13 +78,14 @@ export default function ProductDetail() {
 							.join(" > ");
 					if (!String(relatedCategory || "").trim()) {
 						setRelatedListings([]);
+						setLoadingRelated(false);
 						return;
 					}
 
 					const { data: relatedData } = await api.get("/listings", {
 						params: {
 							category: relatedCategory,
-							limit: 12,
+							limit: 8,
 						},
 					});
 
@@ -108,6 +115,10 @@ export default function ProductDetail() {
 				} catch {
 					if (active) {
 						setRelatedListings([]);
+					}
+				} finally {
+					if (active) {
+						setLoadingRelated(false);
 					}
 				}
 			} catch {
@@ -370,13 +381,7 @@ export default function ProductDetail() {
 				className="container-shell py-8 flex-1 pb-28 lg:py-10 lg:pb-10"
 			>
 				{loading ? (
-					<div
-						className="grid gap-6 lg:grid-cols-[1.35fr_1fr]"
-						aria-busy="true"
-					>
-						<div className="h-[560px] animate-pulse rounded-[30px] bg-white" />
-						<div className="h-[560px] animate-pulse rounded-[30px] bg-white" />
-					</div>
+					<ProfileSkeleton />
 				) : listing ? (
 					<>
 						<div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-brand-muted">
@@ -429,12 +434,17 @@ export default function ProductDetail() {
 						>
 							<div>
 								<div className="relative overflow-hidden rounded-[30px] border border-brand-border bg-white shadow-sm">
-									<img
+									<ResponsiveImage
 										src={
 											activeImage ||
 											"https://placehold.co/1200x820?text=Deal Post"
 										}
 										alt={listing?.title || "Listing image"}
+										width={1200}
+										height={820}
+										sizes="(min-width: 1024px) 58vw, 100vw"
+										loading="eager"
+										fetchPriority="high"
 										className="h-[360px] w-full object-cover sm:h-[460px] lg:h-[560px]"
 									/>
 									<div className="absolute left-4 top-4 flex flex-wrap gap-2">
@@ -461,9 +471,12 @@ export default function ProductDetail() {
 											aria-label={`View image ${index + 1}`}
 											className={`overflow-hidden rounded-2xl border transition ${activeImage === image ? "border-brand-yellow ring-1 ring-brand-yellow" : "border-brand-border hover:border-brand-muted"}`}
 										>
-											<img
+											<ResponsiveImage
 												src={image}
 												alt={`Thumbnail ${index + 1}`}
+												width={240}
+												height={180}
+												sizes="(min-width: 1024px) 7rem, 25vw"
 												className="h-20 w-full object-cover sm:h-24 lg:h-28"
 											/>
 										</button>
@@ -561,12 +574,15 @@ export default function ProductDetail() {
 												Seller
 											</p>
 											<div className="mt-1.5 flex items-center gap-2 text-sm">
-												<img
+												<ResponsiveImage
 													src={
 														listing?.seller?.avatar ||
 														"https://placehold.co/80x80?text=S"
 													}
 													alt={listing?.seller?.name || "Seller"}
+													width={40}
+													height={40}
+													sizes="40px"
 													className="h-10 w-10 rounded-full object-cover"
 												/>
 												<span>{listing?.seller?.name || "Unknown seller"}</span>
@@ -766,15 +782,19 @@ export default function ProductDetail() {
 								</Link>
 							</div>
 
-							{relatedListings.length ? (
-								<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-									{relatedListings.map((item) => (
-										<ProductCard
-											key={item?._id || item?.id || item?.productId}
-											listing={item}
-										/>
-									))}
-								</div>
+							{loadingRelated ? (
+								<FeedSkeleton count={4} minCardWidth={250} />
+							) : relatedListings.length ? (
+								<Suspense fallback={<FeedSkeleton count={4} minCardWidth={250} />}>
+									<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+										{relatedListings.map((item) => (
+											<ProductCard
+												key={item?._id || item?.id || item?.productId}
+												listing={item}
+											/>
+										))}
+									</div>
+								</Suspense>
 							) : (
 								<div className="rounded-2xl border border-brand-border bg-white p-6 text-sm text-brand-muted">
 									No related products available right now.

@@ -200,6 +200,42 @@ async function ensureUserBusinessColumns() {
 	}
 }
 
+async function ensureListingIndexes() {
+	const queryInterface = sequelize.getQueryInterface();
+	const existingIndexes = await queryInterface.showIndex("listings");
+	const existingNames = new Set(existingIndexes.map((entry) => entry.name));
+	const indexes = [
+		{
+			name: "idx_listings_status_created_at",
+			fields: ["status", "created_at"],
+		},
+		{
+			name: "idx_listings_seller_status",
+			fields: ["seller_id", "status"],
+		},
+		{
+			name: "idx_listings_listing_type_auction_ends_at",
+			fields: ["listing_type", "auction_ends_at"],
+		},
+		{
+			name: "idx_listings_parent_sub_category",
+			fields: ["parent_category", "sub_category"],
+		},
+		{
+			name: "idx_listings_views",
+			fields: ["views"],
+		},
+	];
+
+	for (const index of indexes) {
+		if (existingNames.has(index.name)) continue;
+		await queryInterface.addIndex("listings", {
+			name: index.name,
+			fields: index.fields,
+		});
+	}
+}
+
 export async function connectDB() {
 	await sequelize.authenticate();
 	await sequelize.sync();
@@ -210,5 +246,6 @@ export async function connectDB() {
 	await ensureListingIdentityColumns();
 	await ensureListingAuctionColumns();
 	await ensureUserBusinessColumns();
+	await ensureListingIndexes();
 	console.log("MySQL connected and models synced");
 }
