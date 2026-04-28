@@ -13,8 +13,8 @@ const ProductDetail = lazyPage(() => import("./pages/ProductDetail.jsx"));
 const Explore = lazyPage(() => import("./pages/Explore.jsx"));
 const Categories = lazyPage(() => import("./pages/Categories.jsx"));
 const BusinessListings = lazyPage(() => import("./pages/BusinessListings.jsx"));
-const BusinessRegistration = lazyPage(() =>
-	import("./pages/BusinessRegistration.jsx"),
+const BusinessRegistration = lazyPage(
+	() => import("./pages/BusinessRegistration.jsx"),
 );
 const PostAd = lazyPage(() => import("./pages/PostAd.jsx"));
 const EditListing = lazyPage(() => import("./pages/EditListing.jsx"));
@@ -28,16 +28,20 @@ const Contact = lazyPage(() => import("./pages/Contact.jsx"));
 const Disclaimer = lazyPage(() => import("./pages/Disclaimer.jsx"));
 const HelpCenter = lazyPage(() => import("./pages/HelpCenter.jsx"));
 const PrivacyPolicy = lazyPage(() => import("./pages/PrivacyPolicy.jsx"));
-const TermsAndConditions = lazyPage(() =>
-	import("./pages/TermsAndConditions.jsx"),
+const TermsAndConditions = lazyPage(
+	() => import("./pages/TermsAndConditions.jsx"),
 );
 const CompareListings = lazyPage(() => import("./pages/CompareListings.jsx"));
 const Likedproducts = lazyPage(() => import("./pages/Likedproducts.jsx"));
 
 function ProtectedRoute({ children, requireAdmin = false }) {
-	const { token, user } = useAuth();
+	const { token, user, loading } = useAuth();
 	const role = String(user?.role || "").toLowerCase();
 	const hasElevatedAccess = role === "admin" || role === "developer";
+
+	if (loading) {
+		return <RouteFallback />;
+	}
 
 	if (!token) {
 		return <Navigate to="/login" replace />;
@@ -51,7 +55,11 @@ function ProtectedRoute({ children, requireAdmin = false }) {
 }
 
 function GuestOnlyRoute({ children }) {
-	const { token } = useAuth();
+	const { token, loading } = useAuth();
+
+	if (loading) {
+		return <RouteFallback />;
+	}
 
 	if (token) {
 		return <Navigate to="/" replace />;

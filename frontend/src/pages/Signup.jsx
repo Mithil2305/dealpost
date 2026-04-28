@@ -198,6 +198,7 @@ export default function Signup() {
 			toast.success("Welcome to Deal Post");
 			navigate("/");
 		} catch (error) {
+			console.error("Signup error:", error);
 			toast.error(error?.response?.data?.message || "Unable to create account");
 		} finally {
 			setSubmitting(false);
@@ -242,6 +243,7 @@ export default function Signup() {
 			toast.success("Welcome to Deal Post");
 			navigate("/");
 		} catch (error) {
+			console.error("Google signup error:", error);
 			toast.error(
 				error?.response?.data?.message || "Unable to continue with Google",
 			);

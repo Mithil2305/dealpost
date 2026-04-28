@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../api/axios";
 import { AuthContext } from "./auth-context";
 
@@ -16,6 +16,7 @@ export function AuthProvider({ children }) {
 		() => localStorage.getItem("token") || null,
 	);
 	const [user, setUser] = useState(parseStoredUser);
+	const [loading, setLoading] = useState(true);
 
 	const extractTokenFromResponse = useCallback((data) => {
 		return (
@@ -66,18 +67,19 @@ export function AuthProvider({ children }) {
 		setUser(null);
 	}, []);
 
-	const signup = useCallback(
-		async (payload) => {
-			const { data } = await api.post("/auth/register", payload);
+	const establishSession = useCallback(
+		async (data, fallbackMessage = "Missing auth token in response") => {
 			const nextToken = extractTokenFromResponse(data);
-			if (!nextToken) throw new Error("Missing auth token in response");
+			if (!nextToken) throw new Error(fallbackMessage);
+
 			const nextUser = extractUserFromResponse(data);
 			if (nextUser) {
 				persistSession(nextToken, nextUser);
-			} else {
-				await hydrateSessionFromToken(nextToken);
+				return nextUser;
 			}
-			return data;
+
+			const hydratedUser = await hydrateSessionFromToken(nextToken);
+			return hydratedUser;
 		},
 		[
 			extractTokenFromResponse,
@@ -85,69 +87,92 @@ export function AuthProvider({ children }) {
 			hydrateSessionFromToken,
 			persistSession,
 		],
+	);
+
+	useEffect(() => {
+		let isActive = true;
+
+		const bootstrapAuth = async () => {
+			const storedToken = localStorage.getItem("token");
+			if (!storedToken) {
+				if (isActive) setLoading(false);
+				return;
+			}
+
+			setToken(storedToken);
+
+			try {
+				const { data } = await api.get("/auth/me", {
+					headers: { Authorization: `Bearer ${storedToken}` },
+				});
+				if (!isActive) return;
+
+				const hydratedUser = data?.user || parseStoredUser();
+				setUser(hydratedUser || null);
+				localStorage.setItem("user", JSON.stringify(hydratedUser || null));
+			} catch {
+				if (!isActive) return;
+				clearSession();
+			} finally {
+				if (isActive) {
+					setLoading(false);
+				}
+			}
+		};
+
+		bootstrapAuth();
+
+		return () => {
+			isActive = false;
+		};
+	}, [clearSession]);
+
+	const signup = useCallback(
+		async (payload) => {
+			const { data } = await api.post("/auth/register", payload);
+			const establishedUser = await establishSession(
+				data,
+				"Invalid response from server",
+			);
+			return { ...data, user: establishedUser };
+		},
+		[establishSession],
 	);
 
 	const login = useCallback(
 		async (payload) => {
 			const { data } = await api.post("/auth/login", payload);
-			const nextToken = extractTokenFromResponse(data);
-			if (!nextToken) throw new Error("Missing auth token in response");
-			const nextUser = extractUserFromResponse(data);
-			if (nextUser) {
-				persistSession(nextToken, nextUser);
-			} else {
-				await hydrateSessionFromToken(nextToken);
-			}
-			return data;
+			const establishedUser = await establishSession(
+				data,
+				"Invalid response from server",
+			);
+			return establishedUser;
 		},
-		[
-			extractTokenFromResponse,
-			extractUserFromResponse,
-			hydrateSessionFromToken,
-			persistSession,
-		],
+		[establishSession],
 	);
 
 	const loginWithGoogle = useCallback(
 		async (payload) => {
 			const { data } = await api.post("/auth/firebase", payload);
-			const nextToken = extractTokenFromResponse(data);
-			if (!nextToken) throw new Error("Missing auth token in response");
-			const nextUser = extractUserFromResponse(data);
-			if (nextUser) {
-				persistSession(nextToken, nextUser);
-			} else {
-				await hydrateSessionFromToken(nextToken);
-			}
-			return data;
+			const establishedUser = await establishSession(
+				data,
+				"Firebase login failed",
+			);
+			return establishedUser;
 		},
-		[
-			extractTokenFromResponse,
-			extractUserFromResponse,
-			hydrateSessionFromToken,
-			persistSession,
-		],
+		[establishSession],
 	);
 
 	const loginWithFirebase = useCallback(
 		async (payload) => {
 			const { data } = await api.post("/auth/firebase", payload);
-			const nextToken = extractTokenFromResponse(data);
-			if (!nextToken) throw new Error("Missing auth token in response");
-			const nextUser = extractUserFromResponse(data);
-			if (nextUser) {
-				persistSession(nextToken, nextUser);
-			} else {
-				await hydrateSessionFromToken(nextToken);
-			}
-			return data;
+			const establishedUser = await establishSession(
+				data,
+				"Firebase login failed",
+			);
+			return establishedUser;
 		},
-		[
-			extractTokenFromResponse,
-			extractUserFromResponse,
-			hydrateSessionFromToken,
-			persistSession,
-		],
+		[establishSession],
 	);
 
 	const logout = useCallback(() => {
@@ -163,6 +188,7 @@ export function AuthProvider({ children }) {
 		() => ({
 			token,
 			user,
+			loading,
 			signup,
 			login,
 			loginWithGoogle,
@@ -178,6 +204,7 @@ export function AuthProvider({ children }) {
 			logout,
 			setCurrentUser,
 			signup,
+			loading,
 			token,
 			user,
 		],
