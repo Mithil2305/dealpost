@@ -210,10 +210,6 @@ export default function Signup() {
 			return;
 		}
 
-		if (errors.name) return toast.error(errors.name);
-		if (errors.email) return toast.error(errors.email);
-		if (errors.password) return toast.error(errors.password);
-		if (showPhoneInput && errors.phone) return toast.error(errors.phone);
 		if (form.accountType === "business") {
 			if (errors.businessName) return toast.error(errors.businessName);
 			if (errors.gstOrMsme) return toast.error(errors.gstOrMsme);
@@ -224,15 +220,9 @@ export default function Signup() {
 			setSubmitting(true);
 			const result = await signInWithGoogleFirebase();
 			const idToken = await result.user.getIdToken();
-			const payload = {
-				idToken,
-				flow: "signup",
-				name: form.name,
-				email: form.email,
-				accountType: form.accountType,
-			};
+			const payload = { idToken };
 
-			if (showPhoneInput) {
+			if (showPhoneInput && form.phoneNumber.trim() && !errors.phone) {
 				payload.phone = normalizePhoneToE164(
 					form.phoneNumber,
 					form.countryCode,
@@ -240,6 +230,7 @@ export default function Signup() {
 			}
 
 			if (form.accountType === "business") {
+				payload.accountType = "business";
 				payload.business = {
 					name: form.businessName,
 					gstOrMsme: normalizeGstin(form.gstOrMsme),
@@ -259,19 +250,14 @@ export default function Signup() {
 		}
 	}, [
 		errors.businessName,
-		errors.email,
 		errors.gstOrMsme,
 		errors.location,
-		errors.name,
-		errors.password,
 		errors.phone,
 		form.accountType,
 		form.businessName,
 		form.countryCode,
-		form.email,
 		form.gstOrMsme,
 		form.location,
-		form.name,
 		form.phoneNumber,
 		loginWithFirebase,
 		navigate,
