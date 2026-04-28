@@ -442,12 +442,18 @@ export const googleAuth = asyncHandler(async (req, res) => {
 // ---------------------------------------------------------------------------
 export const firebaseAuth = asyncHandler(async (req, res) => {
 	const { idToken, flow, phone: requestedPhone, email, name } = req.body || {};
+
+	console.log("👉 [Firebase Auth] Received request");
+
 	if (!idToken) {
+		console.warn("❌ [Firebase Auth] Missing idToken in request");
 		return res.status(400).json({ message: "Firebase idToken is required" });
 	}
 
+	console.log("✅ [Firebase Auth] idToken received");
+
 	if (!isFirebaseAdminConfigured()) {
-		console.error("Firebase admin not configured. Env check:", {
+		console.error("🔥 [Firebase Auth] Admin SDK not configured. Env check:", {
 			FIREBASE_PROJECT_ID: env.FIREBASE_PROJECT_ID ? "SET" : "MISSING",
 			FIREBASE_CLIENT_EMAIL: env.FIREBASE_CLIENT_EMAIL ? "SET" : "MISSING",
 			FIREBASE_PRIVATE_KEY: env.FIREBASE_PRIVATE_KEY
@@ -459,34 +465,58 @@ export const firebaseAuth = asyncHandler(async (req, res) => {
 		});
 	}
 
+	console.log("✅ [Firebase Auth] Environment variables configured");
+
 	let firebaseAuthClient;
 	try {
 		firebaseAuthClient = getFirebaseAuthClient();
 		if (!firebaseAuthClient) {
-			console.error("getFirebaseAuthClient returned null");
+			console.error("🔥 [Firebase Auth] getFirebaseAuthClient returned null");
 			return res.status(500).json({
 				message: "Firebase auth is not configured on server",
 			});
 		}
 	} catch (initErr) {
-		console.error("Firebase initialization error:", initErr);
+		console.error("🔥 [Firebase Auth] Firebase initialization error:", {
+			message: initErr.message,
+			code: initErr.code,
+			stack: initErr.stack,
+		});
 		return res.status(500).json({
 			message: "Firebase initialization failed",
 		});
 	}
 
+	console.log("✅ [Firebase Auth] Firebase client initialized");
+
 	let decodedToken;
 	try {
+		console.log("🔍 [Firebase Auth] Verifying ID token...");
 		decodedToken = await firebaseAuthClient.verifyIdToken(
 			String(idToken),
 			true,
 		);
+		console.log("✅ [Firebase Auth] Token verified. Decoded user:", {
+			uid: decodedToken.uid,
+			email: decodedToken.email,
+			name: decodedToken.name,
+			phone_number: decodedToken.phone_number,
+			provider: decodedToken.firebase?.sign_in_provider,
+		});
 	} catch (verifyErr) {
-		console.error("Firebase token verification error:", {
-			error: verifyErr.message,
+		console.error("🔥 [Firebase Auth] Token verification failed:", {
+			message: verifyErr.message,
 			code: verifyErr.code,
+			stack: verifyErr.stack,
 		});
 		return res.status(401).json({ message: "Invalid Firebase token" });
+	}
+
+	if (!decodedToken.email && !decodedToken.phone_number) {
+		console.error("🔥 [Firebase Auth] Decoded token has no email or phone");
+		return res.status(400).json({
+			message: "Firebase user must have email or phone number",
+		});
 	}
 
 	const provider =
@@ -498,6 +528,10 @@ export const firebaseAuth = asyncHandler(async (req, res) => {
 	const isSignupFlow = String(flow || "").toLowerCase() === "signup";
 
 	if (isSignupFlow && (!finalPhone || !E164_PHONE_REGEX.test(finalPhone))) {
+		console.warn("❌ [Firebase Auth] Signup flow requires valid phone", {
+			provided: requestedPhone,
+			normalized: finalPhone,
+		});
 		return res.status(400).json({
 			message:
 				"Phone number is required for signup and must be in E.164 format",
@@ -511,6 +545,7 @@ export const firebaseAuth = asyncHandler(async (req, res) => {
 
 	let user;
 	try {
+		console.log("🔍 [Firebase Auth] Creating/updating user in database...");
 		user = await upsertUserFromFederatedIdentity({
 			email: decodedToken.email || email,
 			phone: finalPhone,
@@ -520,16 +555,39 @@ export const firebaseAuth = asyncHandler(async (req, res) => {
 			provider,
 			uid: decodedToken.uid,
 		});
+		console.log("✅ [Firebase Auth] User created/updated:", {
+			id: user?.id,
+			email: user?.email,
+			name: user?.name,
+			accountType: user?.accountType,
+		});
 	} catch (upsertErr) {
-		console.error("User upsert error:", upsertErr.message);
+		console.error("🔥 [Firebase Auth] User creation/update failed:", {
+			message: upsertErr.message,
+			stack: upsertErr.stack,
+		});
 		return res.status(500).json({ message: "Failed to create or update user" });
 	}
 
-	if (!user?.isActive) {
+	if (!user) {
+		console.error(
+			"🔥 [Firebase Auth] upsertUserFromFederatedIdentity returned null",
+		);
+		return res.status(500).json({ message: "Failed to create user" });
+	}
+
+	if (!user.isActive) {
+		console.warn("⚠️ [Firebase Auth] User account is inactive", {
+			userId: user.id,
+		});
 		return res.status(403).json({ message: "Your account has been suspended" });
 	}
 
 	const token = signToken(user.id);
+	console.log("✅ [Firebase Auth] JWT token generated. Login successful!", {
+		userId: user.id,
+		email: user.email,
+	});
 	res.json({ token, user: user.toSafeObject() });
 });
 
