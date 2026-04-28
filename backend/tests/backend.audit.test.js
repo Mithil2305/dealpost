@@ -68,6 +68,7 @@ vi.mock("../src/controllers/category.controller.js", () => ({
 
 vi.mock("../src/controllers/config.controller.js", () => ({
 	getPublicConfig: namedHandler("getPublicConfig"),
+	getFirebaseDiagnostics: namedHandler("getFirebaseDiagnostics"),
 }));
 
 vi.mock("../src/controllers/conversation.controller.js", () => ({

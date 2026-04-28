@@ -447,15 +447,31 @@ export const firebaseAuth = asyncHandler(async (req, res) => {
 	}
 
 	if (!isFirebaseAdminConfigured()) {
+		console.error("Firebase admin not configured. Env check:", {
+			FIREBASE_PROJECT_ID: env.FIREBASE_PROJECT_ID ? "SET" : "MISSING",
+			FIREBASE_CLIENT_EMAIL: env.FIREBASE_CLIENT_EMAIL ? "SET" : "MISSING",
+			FIREBASE_PRIVATE_KEY: env.FIREBASE_PRIVATE_KEY
+				? `SET (${env.FIREBASE_PRIVATE_KEY.length} chars)`
+				: "MISSING",
+		});
 		return res.status(500).json({
 			message: "Firebase auth is not configured on server",
 		});
 	}
 
-	const firebaseAuthClient = getFirebaseAuthClient();
-	if (!firebaseAuthClient) {
+	let firebaseAuthClient;
+	try {
+		firebaseAuthClient = getFirebaseAuthClient();
+		if (!firebaseAuthClient) {
+			console.error("getFirebaseAuthClient returned null");
+			return res.status(500).json({
+				message: "Firebase auth is not configured on server",
+			});
+		}
+	} catch (initErr) {
+		console.error("Firebase initialization error:", initErr);
 		return res.status(500).json({
-			message: "Firebase auth is not configured on server",
+			message: "Firebase initialization failed",
 		});
 	}
 
@@ -465,7 +481,11 @@ export const firebaseAuth = asyncHandler(async (req, res) => {
 			String(idToken),
 			true,
 		);
-	} catch {
+	} catch (verifyErr) {
+		console.error("Firebase token verification error:", {
+			error: verifyErr.message,
+			code: verifyErr.code,
+		});
 		return res.status(401).json({ message: "Invalid Firebase token" });
 	}
 
@@ -489,15 +509,21 @@ export const firebaseAuth = asyncHandler(async (req, res) => {
 		return;
 	}
 
-	const user = await upsertUserFromFederatedIdentity({
-		email: decodedToken.email || email,
-		phone: finalPhone,
-		name: decodedToken.name || name,
-		avatar: decodedToken.picture,
-		businessProfile,
-		provider,
-		uid: decodedToken.uid,
-	});
+	let user;
+	try {
+		user = await upsertUserFromFederatedIdentity({
+			email: decodedToken.email || email,
+			phone: finalPhone,
+			name: decodedToken.name || name,
+			avatar: decodedToken.picture,
+			businessProfile,
+			provider,
+			uid: decodedToken.uid,
+		});
+	} catch (upsertErr) {
+		console.error("User upsert error:", upsertErr.message);
+		return res.status(500).json({ message: "Failed to create or update user" });
+	}
 
 	if (!user?.isActive) {
 		return res.status(403).json({ message: "Your account has been suspended" });
