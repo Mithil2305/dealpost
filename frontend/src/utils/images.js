@@ -1,4 +1,6 @@
-const DEFAULT_WIDTHS = [320, 480, 640, 960, 1280];
+// Match the actual generated image widths in `public/images/optimized`.
+// This prevents the app from requesting non-existent variants (eg. 320.avif).
+const DEFAULT_WIDTHS = [300, 600, 1200];
 
 function isTransformableRemoteImage(url) {
 	return /^https:\/\/images\.unsplash\.com\//i.test(String(url || ""));
