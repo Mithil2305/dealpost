@@ -17,12 +17,47 @@ export function AuthProvider({ children }) {
 	);
 	const [user, setUser] = useState(parseStoredUser);
 
+	const extractTokenFromResponse = useCallback((data) => {
+		return (
+			data?.token ||
+			data?.accessToken ||
+			data?.jwt ||
+			data?.data?.token ||
+			data?.data?.accessToken ||
+			null
+		);
+	}, []);
+
+	const extractUserFromResponse = useCallback((data) => {
+		return data?.user || data?.data?.user || null;
+	}, []);
+
 	const persistSession = useCallback((nextToken, nextUser) => {
 		localStorage.setItem("token", nextToken);
 		localStorage.setItem("user", JSON.stringify(nextUser || null));
 		setToken(nextToken);
 		setUser(nextUser || null);
 	}, []);
+
+	const hydrateSessionFromToken = useCallback(
+		async (nextToken, fallbackUser = null) => {
+			try {
+				const { data } = await api.get("/auth/me", {
+					headers: { Authorization: `Bearer ${nextToken}` },
+				});
+				const hydratedUser = data?.user || fallbackUser || null;
+				persistSession(nextToken, hydratedUser);
+				return hydratedUser;
+			} catch {
+				if (fallbackUser) {
+					persistSession(nextToken, fallbackUser);
+					return fallbackUser;
+				}
+				throw new Error("Unable to establish authenticated session");
+			}
+		},
+		[persistSession],
+	);
 
 	const clearSession = useCallback(() => {
 		localStorage.removeItem("token");
@@ -34,45 +69,85 @@ export function AuthProvider({ children }) {
 	const signup = useCallback(
 		async (payload) => {
 			const { data } = await api.post("/auth/register", payload);
-			const nextToken = data?.token;
+			const nextToken = extractTokenFromResponse(data);
 			if (!nextToken) throw new Error("Missing auth token in response");
-			persistSession(nextToken, data?.user);
+			const nextUser = extractUserFromResponse(data);
+			if (nextUser) {
+				persistSession(nextToken, nextUser);
+			} else {
+				await hydrateSessionFromToken(nextToken);
+			}
 			return data;
 		},
-		[persistSession],
+		[
+			extractTokenFromResponse,
+			extractUserFromResponse,
+			hydrateSessionFromToken,
+			persistSession,
+		],
 	);
 
 	const login = useCallback(
 		async (payload) => {
 			const { data } = await api.post("/auth/login", payload);
-			const nextToken = data?.token;
+			const nextToken = extractTokenFromResponse(data);
 			if (!nextToken) throw new Error("Missing auth token in response");
-			persistSession(nextToken, data?.user);
+			const nextUser = extractUserFromResponse(data);
+			if (nextUser) {
+				persistSession(nextToken, nextUser);
+			} else {
+				await hydrateSessionFromToken(nextToken);
+			}
 			return data;
 		},
-		[persistSession],
+		[
+			extractTokenFromResponse,
+			extractUserFromResponse,
+			hydrateSessionFromToken,
+			persistSession,
+		],
 	);
 
 	const loginWithGoogle = useCallback(
 		async (payload) => {
 			const { data } = await api.post("/auth/firebase", payload);
-			const nextToken = data?.token;
+			const nextToken = extractTokenFromResponse(data);
 			if (!nextToken) throw new Error("Missing auth token in response");
-			persistSession(nextToken, data?.user);
+			const nextUser = extractUserFromResponse(data);
+			if (nextUser) {
+				persistSession(nextToken, nextUser);
+			} else {
+				await hydrateSessionFromToken(nextToken);
+			}
 			return data;
 		},
-		[persistSession],
+		[
+			extractTokenFromResponse,
+			extractUserFromResponse,
+			hydrateSessionFromToken,
+			persistSession,
+		],
 	);
 
 	const loginWithFirebase = useCallback(
 		async (payload) => {
 			const { data } = await api.post("/auth/firebase", payload);
-			const nextToken = data?.token;
+			const nextToken = extractTokenFromResponse(data);
 			if (!nextToken) throw new Error("Missing auth token in response");
-			persistSession(nextToken, data?.user);
+			const nextUser = extractUserFromResponse(data);
+			if (nextUser) {
+				persistSession(nextToken, nextUser);
+			} else {
+				await hydrateSessionFromToken(nextToken);
+			}
 			return data;
 		},
-		[persistSession],
+		[
+			extractTokenFromResponse,
+			extractUserFromResponse,
+			hydrateSessionFromToken,
+			persistSession,
+		],
 	);
 
 	const logout = useCallback(() => {

@@ -196,7 +196,7 @@ export default function Signup() {
 			}
 
 			toast.success("Welcome to Deal Post");
-			navigate(form.accountType === "business" ? "/business-listings" : "/");
+			navigate("/");
 		} catch (error) {
 			toast.error(error?.response?.data?.message || "Unable to create account");
 		} finally {
@@ -240,7 +240,7 @@ export default function Signup() {
 
 			await loginWithFirebase(payload);
 			toast.success("Welcome to Deal Post");
-			navigate(form.accountType === "business" ? "/business-listings" : "/");
+			navigate("/");
 		} catch (error) {
 			toast.error(
 				error?.response?.data?.message || "Unable to continue with Google",
