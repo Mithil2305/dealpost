@@ -142,7 +142,13 @@ export function mountPlaceAutocompleteElement({
 		if (!place) return;
 
 		await place.fetchFields({
-			fields: ["id", "displayName", "formattedAddress", "location"],
+				fields: [
+					"id",
+					"displayName",
+					"formattedAddress",
+					"location",
+					"addressComponents",
+				],
 		});
 
 		const lat = place?.location?.lat?.();
@@ -154,6 +160,9 @@ export function mountPlaceAutocompleteElement({
 			formattedAddress: readStringValue(place?.formattedAddress),
 			lat: Number.isFinite(lat) ? lat : null,
 			lng: Number.isFinite(lng) ? lng : null,
+				addressComponents: Array.isArray(place?.addressComponents)
+					? place.addressComponents
+					: [],
 		});
 	};
 

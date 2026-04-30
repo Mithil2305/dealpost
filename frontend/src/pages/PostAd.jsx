@@ -16,6 +16,8 @@ import {
 	hasValidCoordinates,
 	loadGoogleMapsFromPublicConfig,
 	mapAutocompletePlaceToLocation,
+	reverseGeocodeLocation,
+	shouldReverseGeocodeLocation,
 } from "../utils/locationHelpers";
 
 const SPEC_TEMPLATES = [
@@ -262,13 +264,14 @@ export default function PostAd({ variant = "personal" }) {
 	const [fallbackSuggestions, setFallbackSuggestions] = useState([]);
 	const [fallbackSearching, setFallbackSearching] = useState(false);
 	const [previews, setPreviews] = useState([null, null, null]);
+	const [locationConfirmed, setLocationConfirmed] = useState(false);
 	const [acceptTerms, setAcceptTerms] = useState(false);
 	const autocompleteContainerRef = useRef(null);
 	const mapPreviewRef = useRef(null);
 	const mapInstanceRef = useRef(null);
 	const mapMarkerRef = useRef(null);
-	const mapGeocoderRef = useRef(null);
 	const mapListenersBoundRef = useRef(false);
+	const lastResolvedLocationRef = useRef(null);
 	const [curatedSpecs, setCuratedSpecs] = useState({});
 	const [form, setForm] = useState({
 		title: "",
@@ -285,6 +288,14 @@ export default function PostAd({ variant = "personal" }) {
 		latitude: "",
 		longitude: "",
 		placeId: "",
+		area: "",
+		city: "",
+		state: "",
+		pincode: "",
+		street: "",
+		displayAddress: "",
+		formattedAddress: "",
+		addressComponents: [],
 		premiumBoost: false,
 	});
 
@@ -346,12 +357,38 @@ export default function PostAd({ variant = "personal" }) {
 			placeholder: "Search and pick a real address...",
 			onPlaceSelected: (place) => {
 				const mapped = mapAutocompletePlaceToLocation(place, form.address);
+				setLocationConfirmed(false);
+				lastResolvedLocationRef.current = {
+					lat: hasValidCoordinates(mapped.latitude, mapped.longitude)
+						? Number(mapped.latitude)
+						: null,
+					lng: hasValidCoordinates(mapped.latitude, mapped.longitude)
+						? Number(mapped.longitude)
+						: null,
+					displayAddress: mapped.displayAddress || mapped.address,
+					formattedAddress: mapped.formattedAddress || mapped.address,
+					area: mapped.area || "",
+					city: mapped.city || "",
+					state: mapped.state || "",
+					pincode: mapped.pincode || "",
+					street: mapped.street || "",
+					placeId: mapped.placeId || "",
+					addressComponents: mapped.addressComponents || [],
+				};
 				setForm((prev) => ({
 					...prev,
 					address: mapped.address,
 					latitude: mapped.latitude,
 					longitude: mapped.longitude,
 					placeId: mapped.placeId,
+					area: mapped.area,
+					city: mapped.city,
+					state: mapped.state,
+					pincode: mapped.pincode,
+					street: mapped.street,
+					displayAddress: mapped.displayAddress,
+					formattedAddress: mapped.formattedAddress,
+					addressComponents: mapped.addressComponents || [],
 				}));
 			},
 		});
@@ -380,44 +417,81 @@ export default function PostAd({ variant = "personal" }) {
 					fullscreenControl: false,
 				},
 			);
-			mapGeocoderRef.current = new window.google.maps.Geocoder();
 		}
 
-		const applyPinnedLocation = (lat, lng) => {
-			const geocoder = mapGeocoderRef.current;
-			if (!geocoder) {
+		const applyPinnedLocation = async (lat, lng) => {
+			const nextPoint = { lat, lng };
+			const previousLocation = lastResolvedLocationRef.current;
+			setLocationConfirmed(false);
+			if (
+				previousLocation &&
+				!shouldReverseGeocodeLocation({
+					previousLocation,
+					nextLocation: nextPoint,
+					thresholdMeters: 75,
+				})
+			) {
 				setForm((prev) => ({
 					...prev,
-					address: prev.address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
 					latitude: String(lat),
 					longitude: String(lng),
-					placeId: prev.placeId || "",
+					address:
+						previousLocation.displayAddress ||
+						previousLocation.formattedAddress ||
+						prev.address,
+					placeId: previousLocation.placeId || prev.placeId || "",
+					area: previousLocation.area || prev.area || "",
+					city: previousLocation.city || prev.city || "",
+					state: previousLocation.state || prev.state || "",
+					pincode: previousLocation.pincode || prev.pincode || "",
+					street: previousLocation.street || prev.street || "",
+					displayAddress:
+						previousLocation.displayAddress || prev.displayAddress || "",
+					formattedAddress:
+						previousLocation.formattedAddress || prev.formattedAddress || "",
+					addressComponents:
+						previousLocation.addressComponents || prev.addressComponents || [],
 				}));
 				return;
 			}
 
-			geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-				if (status === "OK" && results?.length) {
-					const best = results[0];
-					setForm((prev) => ({
-						...prev,
-						address:
-							best.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-						latitude: String(lat),
-						longitude: String(lng),
-						placeId: best.place_id || "",
-					}));
-					return;
-				}
-
+			try {
+				const resolved = await reverseGeocodeLocation({ lat, lng });
+				lastResolvedLocationRef.current = resolved;
+				setForm((prev) => ({
+					...prev,
+					address:
+						resolved.displayAddress ||
+						resolved.formattedAddress ||
+						prev.address,
+					latitude: String(lat),
+					longitude: String(lng),
+					placeId: resolved.placeId || prev.placeId || "",
+					area: resolved.area || "",
+					city: resolved.city || "",
+					state: resolved.state || "",
+					pincode: resolved.pincode || "",
+					street: resolved.street || "",
+					displayAddress: resolved.displayAddress || "",
+					formattedAddress: resolved.formattedAddress || "",
+					addressComponents: resolved.addressComponents || [],
+				}));
+			} catch {
 				setForm((prev) => ({
 					...prev,
 					address: prev.address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
 					latitude: String(lat),
 					longitude: String(lng),
 					placeId: prev.placeId || "",
+					area: prev.area || "",
+					city: prev.city || "",
+					state: prev.state || "",
+					pincode: prev.pincode || "",
+					street: prev.street || "",
+					displayAddress: prev.displayAddress || "",
+					formattedAddress: prev.formattedAddress || "",
 				}));
-			});
+			}
 		};
 
 		if (!mapListenersBoundRef.current) {
@@ -578,15 +652,34 @@ export default function PostAd({ variant = "personal" }) {
 	};
 
 	const selectFallbackSuggestion = (suggestion) => {
+		setLocationConfirmed(false);
 		setForm((prev) => ({
 			...prev,
 			address: suggestion.label,
 			latitude: String(suggestion.lat),
 			longitude: String(suggestion.lng),
 			placeId: `osm:${suggestion.id}`,
+			area: "",
+			city: "",
+			state: "",
+			pincode: "",
+			street: "",
+			displayAddress: suggestion.label,
+			formattedAddress: suggestion.label,
+			addressComponents: [],
 		}));
 		setFallbackQuery(suggestion.label);
 		setFallbackSuggestions([]);
+	};
+
+	const confirmCurrentLocation = () => {
+		if (!hasValidCoordinates(form.latitude, form.longitude)) {
+			toast.error("Select a valid pickup location first");
+			return;
+		}
+
+		setLocationConfirmed(true);
+		toast.success("Pickup location confirmed");
 	};
 
 	const uploadCompressedImageToR2 = async (file) => {
@@ -668,6 +761,9 @@ export default function PostAd({ variant = "personal" }) {
 				"Please choose a valid location from suggestions or pin it on map",
 			);
 		}
+		if (!locationConfirmed) {
+			return toast.error("Please confirm the pinned pickup location");
+		}
 		if (!files[0]) return toast.error("Please add a hero image");
 		if (!acceptTerms) {
 			return toast.error("Please accept terms and conditions");
@@ -724,6 +820,14 @@ export default function PostAd({ variant = "personal" }) {
 				latitude: form.latitude,
 				longitude: form.longitude,
 				...(form.placeId ? { placeId: form.placeId } : {}),
+				area: form.area,
+				city: form.city,
+				state: form.state,
+				pincode: form.pincode,
+				street: form.street,
+				displayAddress: form.displayAddress || form.address,
+				formattedAddress: form.formattedAddress || form.address,
+				addressComponents: form.addressComponents || [],
 				premiumBoost: form.premiumBoost,
 				images: uploadedImages,
 			};
@@ -1100,6 +1204,7 @@ export default function PostAd({ variant = "personal" }) {
 										<input
 											value={fallbackQuery}
 											onChange={(event) => {
+												setLocationConfirmed(false);
 												setFallbackQuery(event.target.value);
 												setForm((prev) => ({
 													...prev,
@@ -1161,6 +1266,26 @@ export default function PostAd({ variant = "personal" }) {
 										Pick a valid address to preview map
 									</div>
 								)}
+							</div>
+							<div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-brand-border bg-brand-bg px-4 py-3">
+								<div>
+									<p className="text-xs font-bold uppercase tracking-[0.12em] text-brand-muted">
+										Location status
+									</p>
+									<p className="mt-1 text-sm text-brand-dark">
+										{locationConfirmed
+											? "Confirmed for posting"
+											: "Drag the pin, then confirm the final pickup location"}
+									</p>
+								</div>
+								<button
+									type="button"
+									onClick={confirmCurrentLocation}
+									disabled={!hasValidCoordinates(form.latitude, form.longitude)}
+									className="inline-flex items-center rounded-full bg-brand-dark px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									Confirm Location
+								</button>
 							</div>
 							<p className="mt-2 text-xs text-brand-muted">
 								Click anywhere on map to pin pickup location. You can drag the

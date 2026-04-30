@@ -40,6 +40,8 @@ import {
 	hasValidCoordinates,
 	loadGoogleMapsFromPublicConfig,
 	mapAutocompletePlaceToLocation,
+	reverseGeocodeLocation,
+	shouldReverseGeocodeLocation,
 } from "../utils/locationHelpers";
 import {
 	createSponsoredAd,
@@ -108,8 +110,8 @@ export default function UserDashboard() {
 	const mapPreviewRef = useRef(null);
 	const mapInstanceRef = useRef(null);
 	const mapMarkerRef = useRef(null);
-	const mapGeocoderRef = useRef(null);
 	const mapListenersBoundRef = useRef(false);
+	const lastResolvedBusinessLocationRef = useRef(null);
 	const [dashboardLoading, setDashboardLoading] = useState(true);
 	const [myListings, setMyListings] = useState([]);
 	const [likedListings, setLikedListings] = useState([]);
@@ -239,6 +241,18 @@ export default function UserDashboard() {
 			latitude,
 			longitude,
 			placeId,
+			area: String(user?.businessArea || "").trim(),
+			city: String(user?.businessCity || "").trim(),
+			state: String(user?.businessState || "").trim(),
+			pincode: String(user?.businessPincode || "").trim(),
+			street: String(user?.businessStreet || "").trim(),
+			displayAddress: String(
+				user?.businessDisplayAddress || locationLabel || "",
+			).trim(),
+			formattedAddress: String(
+				user?.businessFormattedAddress || locationLabel || "",
+			).trim(),
+			addressComponents: [],
 		});
 		setFallbackQuery(locationLabel);
 		setAcceptBusinessTerms(false);
@@ -335,12 +349,35 @@ export default function UserDashboard() {
 					place,
 					businessLocation.label,
 				);
+				lastResolvedBusinessLocationRef.current = {
+					lat: hasValidCoordinates(mapped.latitude, mapped.longitude)
+						? Number(mapped.latitude)
+						: null,
+					lng: hasValidCoordinates(mapped.latitude, mapped.longitude)
+						? Number(mapped.longitude)
+						: null,
+					displayAddress: mapped.displayAddress || mapped.address,
+					formattedAddress: mapped.formattedAddress || mapped.address,
+					area: mapped.area || "",
+					city: mapped.city || "",
+					state: mapped.state || "",
+					pincode: mapped.pincode || "",
+					street: mapped.street || "",
+					placeId: mapped.placeId || "",
+				};
 				setBusinessLocation((prev) => ({
 					...prev,
 					label: mapped.address,
 					latitude: mapped.latitude,
 					longitude: mapped.longitude,
 					placeId: mapped.placeId,
+					area: mapped.area,
+					city: mapped.city,
+					state: mapped.state,
+					pincode: mapped.pincode,
+					street: mapped.street,
+					displayAddress: mapped.displayAddress,
+					formattedAddress: mapped.formattedAddress,
 				}));
 			},
 		});
@@ -369,44 +406,68 @@ export default function UserDashboard() {
 					fullscreenControl: false,
 				},
 			);
-			mapGeocoderRef.current = new window.google.maps.Geocoder();
 		}
 
-		const applyPinnedLocation = (lat, lng) => {
-			const geocoder = mapGeocoderRef.current;
-			if (!geocoder) {
+		const applyPinnedLocation = async (lat, lng) => {
+			const nextPoint = { lat, lng };
+			const previousLocation = lastResolvedBusinessLocationRef.current;
+			if (
+				previousLocation &&
+				!shouldReverseGeocodeLocation({
+					previousLocation,
+					nextLocation: nextPoint,
+					thresholdMeters: 75,
+				})
+			) {
 				setBusinessLocation((prev) => ({
 					...prev,
-					label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+					label:
+						previousLocation.displayAddress ||
+						previousLocation.formattedAddress ||
+						prev.label,
 					latitude: String(lat),
 					longitude: String(lng),
-					placeId: "",
+					placeId: previousLocation.placeId || prev.placeId || "",
+					area: previousLocation.area || prev.area || "",
+					city: previousLocation.city || prev.city || "",
+					state: previousLocation.state || prev.state || "",
+					pincode: previousLocation.pincode || prev.pincode || "",
+					street: previousLocation.street || prev.street || "",
+					displayAddress:
+						previousLocation.displayAddress || prev.displayAddress || "",
+					formattedAddress:
+						previousLocation.formattedAddress || prev.formattedAddress || "",
 				}));
 				return;
 			}
 
-			geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-				if (status === "OK" && results?.length) {
-					const best = results[0];
-					setBusinessLocation((prev) => ({
-						...prev,
-						label:
-							best.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-						latitude: String(lat),
-						longitude: String(lng),
-						placeId: best.place_id || prev.placeId || "",
-					}));
-					return;
-				}
-
+			try {
+				const resolved = await reverseGeocodeLocation({ lat, lng });
+				lastResolvedBusinessLocationRef.current = resolved;
+				setBusinessLocation((prev) => ({
+					...prev,
+					label:
+						resolved.displayAddress || resolved.formattedAddress || prev.label,
+					latitude: String(lat),
+					longitude: String(lng),
+					placeId: resolved.placeId || prev.placeId || "",
+					area: resolved.area || "",
+					city: resolved.city || "",
+					state: resolved.state || "",
+					pincode: resolved.pincode || "",
+					street: resolved.street || "",
+					displayAddress: resolved.displayAddress || "",
+					formattedAddress: resolved.formattedAddress || "",
+				}));
+			} catch {
 				setBusinessLocation((prev) => ({
 					...prev,
 					label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
 					latitude: String(lat),
 					longitude: String(lng),
-					placeId: "",
+					placeId: prev.placeId || "",
 				}));
-			});
+			}
 		};
 
 		if (!mapListenersBoundRef.current) {
@@ -833,6 +894,19 @@ export default function UserDashboard() {
 			payload.append("businessLatitude", String(businessLocation.latitude));
 			payload.append("businessLongitude", String(businessLocation.longitude));
 			payload.append("businessPlaceId", String(businessLocation.placeId || ""));
+			payload.append("businessArea", String(businessLocation.area || ""));
+			payload.append("businessCity", String(businessLocation.city || ""));
+			payload.append("businessState", String(businessLocation.state || ""));
+			payload.append("businessPincode", String(businessLocation.pincode || ""));
+			payload.append("businessStreet", String(businessLocation.street || ""));
+			payload.append(
+				"businessDisplayAddress",
+				String(businessLocation.displayAddress || selectedLocation || ""),
+			);
+			payload.append(
+				"businessFormattedAddress",
+				String(businessLocation.formattedAddress || selectedLocation || ""),
+			);
 			payload.append("businessLocationUrl", businessLocationUrl);
 
 			if (logoFile) {

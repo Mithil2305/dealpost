@@ -49,6 +49,34 @@ export function defineBusiness(sequelize) {
 				type: DataTypes.DECIMAL(10, 7),
 				allowNull: true,
 			},
+			businessArea: {
+				type: DataTypes.STRING,
+				allowNull: true,
+			},
+			businessCity: {
+				type: DataTypes.STRING,
+				allowNull: true,
+			},
+			businessState: {
+				type: DataTypes.STRING,
+				allowNull: true,
+			},
+			businessPincode: {
+				type: DataTypes.STRING,
+				allowNull: true,
+			},
+			businessStreet: {
+				type: DataTypes.STRING,
+				allowNull: true,
+			},
+			businessDisplayAddress: {
+				type: DataTypes.STRING,
+				allowNull: true,
+			},
+			businessFormattedAddress: {
+				type: DataTypes.STRING,
+				allowNull: true,
+			},
 			businessPlaceId: {
 				type: DataTypes.STRING,
 				allowNull: true,

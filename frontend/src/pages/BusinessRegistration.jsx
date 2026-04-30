@@ -27,6 +27,8 @@ import {
 	hasValidCoordinates,
 	loadGoogleMapsFromPublicConfig,
 	mapAutocompletePlaceToLocation,
+	reverseGeocodeLocation,
+	shouldReverseGeocodeLocation,
 } from "../utils/locationHelpers";
 
 const DEFAULT_PREVIEW_COORDS = { lat: 13.0827, lng: 80.2707 };
@@ -65,19 +67,28 @@ export default function BusinessRegistration() {
 	const [fallbackQuery, setFallbackQuery] = useState("");
 	const [fallbackSuggestions, setFallbackSuggestions] = useState([]);
 	const [fallbackSearching, setFallbackSearching] = useState(false);
+	const [locationConfirmed, setLocationConfirmed] = useState(false);
 	const [businessLocation, setBusinessLocation] = useState({
 		label: "",
 		latitude: "",
 		longitude: "",
 		placeId: "",
+		area: "",
+		city: "",
+		state: "",
+		pincode: "",
+		street: "",
+		displayAddress: "",
+		formattedAddress: "",
+		addressComponents: [],
 	});
 	const categoryPickerRef = useRef(null);
 	const autocompleteContainerRef = useRef(null);
 	const mapPreviewRef = useRef(null);
 	const mapInstanceRef = useRef(null);
 	const mapMarkerRef = useRef(null);
-	const mapGeocoderRef = useRef(null);
 	const mapListenersBoundRef = useRef(false);
+	const lastResolvedBusinessLocationRef = useRef(null);
 	const [formData, setFormData] = useState({
 		businessName: "",
 		description: "",
@@ -225,12 +236,38 @@ export default function BusinessRegistration() {
 					place,
 					businessLocation.label,
 				);
+				setLocationConfirmed(false);
+				lastResolvedBusinessLocationRef.current = {
+					lat: hasValidCoordinates(mapped.latitude, mapped.longitude)
+						? Number(mapped.latitude)
+						: null,
+					lng: hasValidCoordinates(mapped.latitude, mapped.longitude)
+						? Number(mapped.longitude)
+						: null,
+					displayAddress: mapped.displayAddress || mapped.address,
+					formattedAddress: mapped.formattedAddress || mapped.address,
+					area: mapped.area || "",
+					city: mapped.city || "",
+					state: mapped.state || "",
+					pincode: mapped.pincode || "",
+					street: mapped.street || "",
+					placeId: mapped.placeId || "",
+					addressComponents: mapped.addressComponents || [],
+				};
 				setBusinessLocation((prev) => ({
 					...prev,
 					label: mapped.address,
 					latitude: mapped.latitude,
 					longitude: mapped.longitude,
 					placeId: mapped.placeId,
+					area: mapped.area,
+					city: mapped.city,
+					state: mapped.state,
+					pincode: mapped.pincode,
+					street: mapped.street,
+					displayAddress: mapped.displayAddress,
+					formattedAddress: mapped.formattedAddress,
+					addressComponents: mapped.addressComponents || [],
 				}));
 			},
 		});
@@ -259,44 +296,79 @@ export default function BusinessRegistration() {
 					fullscreenControl: false,
 				},
 			);
-			mapGeocoderRef.current = new window.google.maps.Geocoder();
 		}
 
-		const applyPinnedLocation = (lat, lng) => {
-			const geocoder = mapGeocoderRef.current;
-			if (!geocoder) {
+		const applyPinnedLocation = async (lat, lng) => {
+			const nextPoint = { lat, lng };
+			const previousLocation = lastResolvedBusinessLocationRef.current;
+			setLocationConfirmed(false);
+			if (
+				previousLocation &&
+				!shouldReverseGeocodeLocation({
+					previousLocation,
+					nextLocation: nextPoint,
+					thresholdMeters: 75,
+				})
+			) {
 				setBusinessLocation((prev) => ({
 					...prev,
-					label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
 					latitude: String(lat),
 					longitude: String(lng),
-					placeId: "",
+					label:
+						previousLocation.displayAddress ||
+						previousLocation.formattedAddress ||
+						prev.label,
+					placeId: previousLocation.placeId || prev.placeId || "",
+					area: previousLocation.area || prev.area || "",
+					city: previousLocation.city || prev.city || "",
+					state: previousLocation.state || prev.state || "",
+					pincode: previousLocation.pincode || prev.pincode || "",
+					street: previousLocation.street || prev.street || "",
+					displayAddress:
+						previousLocation.displayAddress || prev.displayAddress || "",
+					formattedAddress:
+						previousLocation.formattedAddress || prev.formattedAddress || "",
+					addressComponents:
+						previousLocation.addressComponents || prev.addressComponents || [],
 				}));
 				return;
 			}
 
-			geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-				if (status === "OK" && results?.length) {
-					const best = results[0];
-					setBusinessLocation((prev) => ({
-						...prev,
-						label:
-							best.formatted_address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-						latitude: String(lat),
-						longitude: String(lng),
-						placeId: best.place_id || prev.placeId || "",
-					}));
-					return;
-				}
-
+			try {
+				const resolved = await reverseGeocodeLocation({ lat, lng });
+				lastResolvedBusinessLocationRef.current = resolved;
+				setBusinessLocation((prev) => ({
+					...prev,
+					label:
+						resolved.displayAddress || resolved.formattedAddress || prev.label,
+					latitude: String(lat),
+					longitude: String(lng),
+					placeId: resolved.placeId || prev.placeId || "",
+					area: resolved.area || "",
+					city: resolved.city || "",
+					state: resolved.state || "",
+					pincode: resolved.pincode || "",
+					street: resolved.street || "",
+					displayAddress: resolved.displayAddress || "",
+					formattedAddress: resolved.formattedAddress || "",
+					addressComponents: resolved.addressComponents || [],
+				}));
+			} catch {
 				setBusinessLocation((prev) => ({
 					...prev,
 					label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
 					latitude: String(lat),
 					longitude: String(lng),
-					placeId: "",
+					placeId: prev.placeId || "",
+					area: prev.area || "",
+					city: prev.city || "",
+					state: prev.state || "",
+					pincode: prev.pincode || "",
+					street: prev.street || "",
+					displayAddress: prev.displayAddress || "",
+					formattedAddress: prev.formattedAddress || "",
 				}));
-			});
+			}
 		};
 
 		if (!mapListenersBoundRef.current) {
@@ -395,14 +467,38 @@ export default function BusinessRegistration() {
 	};
 
 	const selectFallbackSuggestion = (suggestion) => {
+		setLocationConfirmed(false);
 		setBusinessLocation({
 			label: suggestion.label,
 			latitude: String(suggestion.lat),
 			longitude: String(suggestion.lng),
 			placeId: `osm:${suggestion.id}`,
+			area: "",
+			city: "",
+			state: "",
+			pincode: "",
+			street: "",
+			displayAddress: suggestion.label,
+			formattedAddress: suggestion.label,
+			addressComponents: [],
 		});
 		setFallbackQuery(suggestion.label);
 		setFallbackSuggestions([]);
+	};
+
+	const confirmBusinessLocation = () => {
+		if (
+			!hasValidCoordinates(
+				businessLocation.latitude,
+				businessLocation.longitude,
+			)
+		) {
+			toast.error("Select a valid business location first");
+			return;
+		}
+
+		setLocationConfirmed(true);
+		toast.success("Business location confirmed");
 	};
 
 	const selectBusinessCategory = (value) => {
@@ -486,6 +582,9 @@ export default function BusinessRegistration() {
 		if (!String(businessLocation.label || "").trim()) {
 			return toast.error("Business location label is required");
 		}
+		if (!locationConfirmed) {
+			return toast.error("Please confirm the selected business location");
+		}
 		if (!acceptTerms) {
 			return toast.error("Please accept terms and conditions");
 		}
@@ -508,6 +607,19 @@ export default function BusinessRegistration() {
 			payload.append("businessLatitude", String(businessLocation.latitude));
 			payload.append("businessLongitude", String(businessLocation.longitude));
 			payload.append("businessPlaceId", businessLocation.placeId || "");
+			payload.append("businessArea", businessLocation.area || "");
+			payload.append("businessCity", businessLocation.city || "");
+			payload.append("businessState", businessLocation.state || "");
+			payload.append("businessPincode", businessLocation.pincode || "");
+			payload.append("businessStreet", businessLocation.street || "");
+			payload.append(
+				"businessDisplayAddress",
+				businessLocation.displayAddress || selectedLocation,
+			);
+			payload.append(
+				"businessFormattedAddress",
+				businessLocation.formattedAddress || selectedLocation,
+			);
 			payload.append("businessLocationUrl", businessLocationUrl);
 			payload.append("businessLogo", logoFile);
 
@@ -753,6 +865,7 @@ export default function BusinessRegistration() {
 												<input
 													value={fallbackQuery}
 													onChange={(event) => {
+														setLocationConfirmed(false);
 														setFallbackQuery(event.target.value);
 														setBusinessLocation((prev) => ({
 															...prev,
@@ -760,6 +873,14 @@ export default function BusinessRegistration() {
 															latitude: "",
 															longitude: "",
 															placeId: "",
+															area: "",
+															city: "",
+															state: "",
+															pincode: "",
+															street: "",
+															displayAddress: event.target.value,
+															formattedAddress: event.target.value,
+															addressComponents: [],
 														}));
 													}}
 													placeholder="Search exact business location"
@@ -811,6 +932,31 @@ export default function BusinessRegistration() {
 												Pick a valid address to preview map
 											</div>
 										)}
+									</div>
+									<div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[#E0E0E0] bg-[#FAFAFA] px-4 py-3">
+										<div>
+											<p className="text-[0.7rem] font-bold uppercase tracking-[0.1em] text-[#666666]">
+												Location status
+											</p>
+											<p className="mt-1 text-sm text-[#333333]">
+												{locationConfirmed
+													? "Confirmed for registration"
+													: "Drag the pin, then confirm the final business location"}
+											</p>
+										</div>
+										<button
+											type="button"
+											onClick={confirmBusinessLocation}
+											disabled={
+												!hasValidCoordinates(
+													businessLocation.latitude,
+													businessLocation.longitude,
+												)
+											}
+											className="rounded-full bg-[#111111] px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											Confirm Location
+										</button>
 									</div>
 									<p className="mt-2 text-xs text-brand-muted">
 										Search the exact business location, then click on map to

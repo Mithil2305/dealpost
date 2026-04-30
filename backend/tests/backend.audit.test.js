@@ -69,6 +69,7 @@ vi.mock("../src/controllers/category.controller.js", () => ({
 vi.mock("../src/controllers/config.controller.js", () => ({
 	getPublicConfig: namedHandler("getPublicConfig"),
 	getFirebaseDiagnostics: namedHandler("getFirebaseDiagnostics"),
+	reverseGeocode: namedHandler("reverseGeocode"),
 }));
 
 vi.mock("../src/controllers/conversation.controller.js", () => ({
@@ -185,6 +186,11 @@ const endpointMatrix = [
 
 	// config
 	{ method: "get", path: "/api/config/public", handler: "getPublicConfig" },
+	{
+		method: "post",
+		path: "/api/config/location/reverse-geocode",
+		handler: "reverseGeocode",
+	},
 
 	// users
 	{ method: "get", path: "/api/users/123", handler: "getUserProfile" },

@@ -296,7 +296,7 @@ export default function Home() {
 	const [allCategories, setAllCategories] = useState([]);
 	const [showAllCategories, setShowAllCategories] = useState(false);
 	const [userLocation, setUserLocation] = useState(readStoredUserLocation);
-	const [locationRadiusKm] = useState(getStoredLocationRadius);
+	const [locationRadiusKm, setLocationRadiusKm] = useState(getStoredLocationRadius);
 	const [loadMoreRadiusKm, setLoadMoreRadiusKm] = useState(
 		getStoredLocationRadius,
 	);
@@ -909,6 +909,35 @@ export default function Home() {
 			>
 				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_220px]">
 					<div className="min-w-0">
+				{/* Location Filter Section */}
+				{userLocation.label && (
+					<section className="mb-4 flex flex-col gap-3 rounded-xl bg-[#F5F5F5] p-4">
+						<div className="flex items-center gap-2">
+							<MapPin size={18} className="text-[#1677ff]" />
+							<span className="text-sm font-semibold text-[#333333]">
+								{currentLocationLabel}
+							</span>
+						</div>
+						<div className="flex flex-wrap gap-2">
+							{LOCATION_RADIUS_OPTIONS_KM.map((radiusOption) => (
+								<button
+									key={radiusOption}
+									type="button"
+									onClick={() => setLocationRadiusKm(radiusOption)}
+									className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+										radiusOption === locationRadiusKm
+											? "bg-[#1677ff] text-white shadow-md"
+											: "bg-white text-[#666666] border border-[#E0E0E0] hover:bg-[#F9F9F9]"
+									}`}
+									aria-pressed={radiusOption === locationRadiusKm}
+								>
+									{radiusOption}km
+								</button>
+							))}
+						</div>
+					</section>
+				)}
+
 						{/* Categories Row */}
 						<div
 							ref={categoryMenuRef}
@@ -1120,36 +1149,37 @@ export default function Home() {
 										{currentHeroSlide === index ? (
 											<>
 												{/* Gradient Overlay for better text readability */}
-												<div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/82 via-black/30 to-transparent px-4 pb-4 sm:justify-center sm:bg-gradient-to-r sm:from-black/80 sm:via-black/55 sm:to-transparent sm:px-6 sm:pb-0 md:px-10 lg:px-14">
-													<div className="max-w-[16rem] sm:max-w-xl">
-														<span className="mb-2 inline-block rounded-full bg-[#FFD600] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-black shadow-sm sm:mb-4 sm:px-3 sm:text-xs">
+												<div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-4 sm:justify-center sm:bg-gradient-to-r sm:from-black/80 sm:via-black/50 sm:to-transparent sm:px-8 md:px-10 lg:px-14">
+													<div className="w-full max-w-[90%] sm:max-w-xl md:max-w-2xl">
+														<span className="hidden sm:inline-block mb-2 rounded-full bg-[#FFD600] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-black shadow-sm sm:mb-4 sm:text-xs">
 															Featured Event
 														</span>
-														<h2 className="mb-2 text-xl font-bold leading-tight text-white sm:mb-3 sm:text-2xl md:text-3xl lg:text-4xl">
+
+														<h2 className="mb-2 text-lg font-bold leading-tight text-white sm:mb-3 sm:text-2xl md:text-3xl lg:text-4xl">
 															{slide.title}
 														</h2>
-														<p className="mb-3 max-w-md text-[11px] font-medium leading-snug text-white/90 sm:mb-5 sm:text-xs md:text-sm">
+
+														<p className="mb-3 text-[12px] leading-snug text-white/90 sm:mb-5 sm:text-sm md:text-base">
 															{slide.subtitle}
 														</p>
-														<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+
+														<div className="flex items-center gap-3">
 															<Link
 																to={slide.ctaLink}
-																className="group/btn inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-bold text-black shadow-md transition-colors hover:bg-[#FFD600] sm:w-auto sm:px-6 sm:text-sm"
+																className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-bold text-black shadow-md transition hover:bg-[#FFD600] sm:px-6 sm:text-sm"
 															>
 																{slide.ctaText}
-																<ArrowRight
-																	size={18}
-																	className="transition-transform group-hover/btn:translate-x-1"
-																/>
+																<ArrowRight size={18} />
 															</Link>
+
 															<button
 																type="button"
 																onClick={() =>
 																	launchCompareForTopDeal(featuredDeal)
 																}
-																className="hidden rounded-full border border-[#FFD600]/80 bg-[#FFD600] px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-black transition hover:bg-[#f2c700] sm:inline-flex"
+																className="hidden sm:inline-flex rounded-full border border-[#FFD600]/80 bg-[#FFD600] px-5 py-2 text-xs font-bold text-black transition hover:bg-[#f2c700]"
 															>
-																Compare Now
+																Compare
 															</button>
 														</div>
 													</div>

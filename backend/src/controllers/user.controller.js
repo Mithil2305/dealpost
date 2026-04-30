@@ -4,6 +4,16 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { isValidGstin, normalizeGstin } from "../utils/gstin.js";
 import { uploadToR2 } from "../utils/r2Upload.js";
 
+const structuredLocationFields = [
+	"businessArea",
+	"businessCity",
+	"businessState",
+	"businessPincode",
+	"businessStreet",
+	"businessDisplayAddress",
+	"businessFormattedAddress",
+];
+
 // ---------------------------------------------------------------------------
 // GET /api/users/:id  — public profile
 // ---------------------------------------------------------------------------
@@ -50,6 +60,13 @@ export const updateProfile = asyncHandler(async (req, res) => {
 		businessLongitude,
 		businessPlaceId,
 		businessLocationUrl,
+		businessArea,
+		businessCity,
+		businessState,
+		businessPincode,
+		businessStreet,
+		businessDisplayAddress,
+		businessFormattedAddress,
 		accountType,
 		businessName,
 		gstOrMsme,
@@ -91,6 +108,12 @@ export const updateProfile = asyncHandler(async (req, res) => {
 
 	if (businessPlaceId !== undefined) {
 		req.user.businessPlaceId = String(businessPlaceId).trim() || null;
+	}
+
+	for (const field of structuredLocationFields) {
+		if (req.body[field] !== undefined) {
+			req.user[field] = String(req.body[field] || "").trim() || null;
+		}
 	}
 
 	if (businessLocationUrl !== undefined) {
@@ -153,6 +176,13 @@ export const updateProfile = asyncHandler(async (req, res) => {
 		req.user.businessBanner = "";
 		req.user.businessLatitude = null;
 		req.user.businessLongitude = null;
+		req.user.businessArea = null;
+		req.user.businessCity = null;
+		req.user.businessState = null;
+		req.user.businessPincode = null;
+		req.user.businessStreet = null;
+		req.user.businessDisplayAddress = null;
+		req.user.businessFormattedAddress = null;
 		req.user.businessPlaceId = null;
 		req.user.businessLocationUrl = "";
 	}
@@ -266,6 +296,13 @@ export const deleteMyAccount = asyncHandler(async (req, res) => {
 	req.user.businessBanner = "";
 	req.user.businessLatitude = null;
 	req.user.businessLongitude = null;
+	req.user.businessArea = null;
+	req.user.businessCity = null;
+	req.user.businessState = null;
+	req.user.businessPincode = null;
+	req.user.businessStreet = null;
+	req.user.businessDisplayAddress = null;
+	req.user.businessFormattedAddress = null;
 	req.user.businessPlaceId = null;
 	req.user.businessLocationUrl = "";
 	req.user.location = null;

@@ -813,6 +813,14 @@ export const createListing = asyncHandler(async (req, res) => {
 		latitude,
 		longitude,
 		placeId,
+		area,
+		city,
+		state,
+		pincode,
+		street,
+		displayAddress,
+		formattedAddress,
+		addressComponents,
 	} = req.body;
 
 	const normalizedListingType = normalizeListingType(listingType);
@@ -953,6 +961,25 @@ export const createListing = asyncHandler(async (req, res) => {
 	}
 	if (placeId) {
 		locationPayload.placeId = String(placeId).trim();
+	}
+	if (area !== undefined) locationPayload.area = String(area || "").trim();
+	if (city !== undefined) locationPayload.city = String(city || "").trim();
+	if (state !== undefined) locationPayload.state = String(state || "").trim();
+	if (pincode !== undefined) {
+		locationPayload.pincode = String(pincode || "").trim();
+	}
+	if (street !== undefined)
+		locationPayload.street = String(street || "").trim();
+	if (displayAddress !== undefined) {
+		locationPayload.displayAddress = String(displayAddress || "").trim();
+	}
+	if (formattedAddress !== undefined) {
+		locationPayload.formattedAddress = String(formattedAddress || "").trim();
+	}
+	if (addressComponents !== undefined) {
+		locationPayload.addressComponents = Array.isArray(addressComponents)
+			? addressComponents
+			: parseMaybeJson(addressComponents, []);
 	}
 
 	const listing = await models.Listing.create({
@@ -1102,6 +1129,14 @@ export const updateListing = asyncHandler(async (req, res) => {
 		latitude,
 		longitude,
 		placeId,
+		area,
+		city,
+		state,
+		pincode,
+		street,
+		displayAddress,
+		formattedAddress,
+		addressComponents,
 		condition,
 		specs,
 		images: incomingImages,
@@ -1206,7 +1241,15 @@ export const updateListing = asyncHandler(async (req, res) => {
 		location !== undefined ||
 		latitude !== undefined ||
 		longitude !== undefined ||
-		placeId !== undefined
+		placeId !== undefined ||
+		area !== undefined ||
+		city !== undefined ||
+		state !== undefined ||
+		pincode !== undefined ||
+		street !== undefined ||
+		displayAddress !== undefined ||
+		formattedAddress !== undefined ||
+		addressComponents !== undefined
 	) {
 		const parsedLatitude = toFiniteNumber(latitude);
 		const parsedLongitude = toFiniteNumber(longitude);
@@ -1225,6 +1268,24 @@ export const updateListing = asyncHandler(async (req, res) => {
 		if (placeId !== undefined) {
 			if (placeId) nextLocation.placeId = String(placeId).trim();
 			else delete nextLocation.placeId;
+		}
+
+		if (area !== undefined) nextLocation.area = String(area || "").trim();
+		if (city !== undefined) nextLocation.city = String(city || "").trim();
+		if (state !== undefined) nextLocation.state = String(state || "").trim();
+		if (pincode !== undefined)
+			nextLocation.pincode = String(pincode || "").trim();
+		if (street !== undefined) nextLocation.street = String(street || "").trim();
+		if (displayAddress !== undefined) {
+			nextLocation.displayAddress = String(displayAddress || "").trim();
+		}
+		if (formattedAddress !== undefined) {
+			nextLocation.formattedAddress = String(formattedAddress || "").trim();
+		}
+		if (addressComponents !== undefined) {
+			nextLocation.addressComponents = Array.isArray(addressComponents)
+				? addressComponents
+				: parseMaybeJson(addressComponents, []);
 		}
 
 		listing.location = nextLocation;

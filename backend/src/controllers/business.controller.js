@@ -3,6 +3,16 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { normalizeGstin } from "../utils/gstin.js";
 import { uploadToR2 } from "../utils/r2Upload.js";
 
+const structuredLocationFields = [
+	"businessArea",
+	"businessCity",
+	"businessState",
+	"businessPincode",
+	"businessStreet",
+	"businessDisplayAddress",
+	"businessFormattedAddress",
+];
+
 const toBusinessPayload = (business) => ({
 	id: business.id,
 	ownerId: business.ownerId,
@@ -19,6 +29,15 @@ const toBusinessPayload = (business) => ({
 		business.businessLongitude !== undefined
 			? Number(business.businessLongitude)
 			: null,
+	businessArea: business.businessArea || "",
+	businessCity: business.businessCity || "",
+	businessState: business.businessState || "",
+	businessPincode: business.businessPincode || "",
+	businessStreet: business.businessStreet || "",
+	businessDisplayAddress:
+		business.businessDisplayAddress || business.location || "",
+	businessFormattedAddress:
+		business.businessFormattedAddress || business.location || "",
 	businessPlaceId: business.businessPlaceId || null,
 	businessLocationUrl: business.businessLocationUrl || "",
 	location: business.location || "Not specified",
@@ -43,6 +62,14 @@ const toLegacyBusinessPayload = (user) => ({
 		user.businessLongitude !== null && user.businessLongitude !== undefined
 			? Number(user.businessLongitude)
 			: null,
+	businessArea: user.businessArea || "",
+	businessCity: user.businessCity || "",
+	businessState: user.businessState || "",
+	businessPincode: user.businessPincode || "",
+	businessStreet: user.businessStreet || "",
+	businessDisplayAddress: user.businessDisplayAddress || user.location || "",
+	businessFormattedAddress:
+		user.businessFormattedAddress || user.location || "",
 	businessPlaceId: user.businessPlaceId || null,
 	businessLocationUrl: user.businessLocationUrl || "",
 	location: user.location || "Not specified",
@@ -215,6 +242,13 @@ export const createBusiness = asyncHandler(async (req, res) => {
 		businessLongitude,
 		businessPlaceId,
 		businessLocationUrl,
+		businessArea,
+		businessCity,
+		businessState,
+		businessPincode,
+		businessStreet,
+		businessDisplayAddress,
+		businessFormattedAddress,
 	} = req.body;
 
 	if (!String(businessName || "").trim()) {
@@ -265,6 +299,17 @@ export const createBusiness = asyncHandler(async (req, res) => {
 		location: String(location || "").trim(),
 		businessLatitude: latitude,
 		businessLongitude: longitude,
+		businessArea: String(businessArea || "").trim(),
+		businessCity: String(businessCity || "").trim(),
+		businessState: String(businessState || "").trim(),
+		businessPincode: String(businessPincode || "").trim(),
+		businessStreet: String(businessStreet || "").trim(),
+		businessDisplayAddress: String(
+			businessDisplayAddress || location || "",
+		).trim(),
+		businessFormattedAddress: String(
+			businessFormattedAddress || businessDisplayAddress || location || "",
+		).trim(),
 		businessPlaceId: String(businessPlaceId || "").trim() || null,
 		businessLocationUrl: String(businessLocationUrl || "").trim(),
 		businessLogo: logoUpload.url,
@@ -302,10 +347,23 @@ export const updateBusiness = asyncHandler(async (req, res) => {
 		"location",
 		"businessPlaceId",
 		"businessLocationUrl",
+		"businessArea",
+		"businessCity",
+		"businessState",
+		"businessPincode",
+		"businessStreet",
+		"businessDisplayAddress",
+		"businessFormattedAddress",
 	];
 	for (const field of fields) {
 		if (req.body[field] !== undefined) {
 			business[field] = String(req.body[field] || "").trim();
+		}
+	}
+
+	for (const field of structuredLocationFields) {
+		if (req.body[field] !== undefined) {
+			business[field] = String(req.body[field] || "").trim() || null;
 		}
 	}
 

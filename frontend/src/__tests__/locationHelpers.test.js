@@ -6,6 +6,8 @@ import {
 	getStoredLocationCoords,
 	hasValidCoordinates,
 	LOCATION_UPDATED_EVENT,
+	formatStructuredAddress,
+	parseAddressComponents,
 	persistStoredLocation,
 } from "../utils/locationHelpers";
 
@@ -21,6 +23,27 @@ describe("locationHelpers", () => {
 		expect(hasValidCoordinates("12.9716", "77.5946")).toBe(true);
 		expect(hasValidCoordinates(null, 77.5946)).toBe(false);
 		expect(hasValidCoordinates("bad", "data")).toBe(false);
+	});
+
+	it("parses and formats structured address components", () => {
+		const structured = parseAddressComponents([
+			{ long_name: "Anna Nagar West", types: ["sublocality_level_1"] },
+			{ long_name: "Chennai", types: ["locality"] },
+			{ long_name: "Tamil Nadu", types: ["administrative_area_level_1"] },
+			{ long_name: "600040", types: ["postal_code"] },
+			{ long_name: "7th Street", types: ["route"] },
+		]);
+
+		expect(structured).toEqual({
+			area: "Anna Nagar West",
+			city: "Chennai",
+			state: "Tamil Nadu",
+			pincode: "600040",
+			street: "7th Street",
+		});
+		expect(formatStructuredAddress(structured)).toBe(
+			"Anna Nagar West, Chennai",
+		);
 	});
 
 	it("persists coordinates and dispatches location update event", () => {

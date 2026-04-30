@@ -63,7 +63,15 @@ export const env = {
 
 	// Google Maps (browser key should be restricted by referrer in Google Cloud)
 	GOOGLE_MAPS_BROWSER_API_KEY: process.env.GOOGLE_MAPS_BROWSER_API_KEY || "",
+	GOOGLE_MAPS_SERVER_API_KEY:
+		process.env.GOOGLE_MAPS_SERVER_API_KEY ||
+		process.env.GOOGLE_MAPS_BROWSER_API_KEY ||
+		"",
 	GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
+	GOOGLE_MAPS_GEOCODING_CACHE_TTL_MS: getNumber(
+		process.env.GOOGLE_MAPS_GEOCODING_CACHE_TTL_MS,
+		10 * 60 * 1000,
+	),
 
 	// Firebase Admin (for verifying Firebase ID tokens server-side)
 	FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "",

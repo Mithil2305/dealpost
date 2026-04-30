@@ -176,6 +176,58 @@ async function ensureUserBusinessColumns() {
 		});
 	}
 
+	if (!columns.business_area && !columns.businessArea) {
+		await queryInterface.addColumn("users", "business_area", {
+			type: DataTypes.STRING,
+			allowNull: true,
+		});
+	}
+
+	if (!columns.business_city && !columns.businessCity) {
+		await queryInterface.addColumn("users", "business_city", {
+			type: DataTypes.STRING,
+			allowNull: true,
+		});
+	}
+
+	if (!columns.business_state && !columns.businessState) {
+		await queryInterface.addColumn("users", "business_state", {
+			type: DataTypes.STRING,
+			allowNull: true,
+		});
+	}
+
+	if (!columns.business_pincode && !columns.businessPincode) {
+		await queryInterface.addColumn("users", "business_pincode", {
+			type: DataTypes.STRING,
+			allowNull: true,
+		});
+	}
+
+	if (!columns.business_street && !columns.businessStreet) {
+		await queryInterface.addColumn("users", "business_street", {
+			type: DataTypes.STRING,
+			allowNull: true,
+		});
+	}
+
+	if (!columns.business_display_address && !columns.businessDisplayAddress) {
+		await queryInterface.addColumn("users", "business_display_address", {
+			type: DataTypes.STRING,
+			allowNull: true,
+		});
+	}
+
+	if (
+		!columns.business_formatted_address &&
+		!columns.businessFormattedAddress
+	) {
+		await queryInterface.addColumn("users", "business_formatted_address", {
+			type: DataTypes.STRING,
+			allowNull: true,
+		});
+	}
+
 	if (!columns.business_place_id && !columns.businessPlaceId) {
 		await queryInterface.addColumn("users", "business_place_id", {
 			type: DataTypes.STRING,

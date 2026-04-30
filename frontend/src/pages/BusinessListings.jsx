@@ -368,8 +368,8 @@ export default function BusinessListings() {
 				</section>
 
 				<section className="mt-5 rounded-3xl border border-brand-border bg-white p-4 shadow-sm">
-					<div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto]">
-						<div className="flex h-11 items-center rounded-xl bg-brand-bg px-3">
+					<div className="flex flex-col gap-3 lg:grid lg:grid-cols-[1fr_auto_auto_auto]">
+						<div className="flex h-11 w-full items-center rounded-xl bg-brand-bg px-3">
 							<Search size={16} className="text-brand-muted" />
 							<input
 								value={query}
@@ -379,12 +379,12 @@ export default function BusinessListings() {
 							/>
 						</div>
 
-						<div className="flex items-center gap-2 rounded-xl bg-brand-bg px-3">
-							<Filter size={15} className="text-brand-muted" />
+						<div className="flex h-11 w-full items-center gap-2 rounded-xl bg-brand-bg px-3">
+							<Filter size={15} className="text-brand-muted shrink-0" />
 							<select
 								value={cityFilter}
 								onChange={(event) => setCityFilter(event.target.value)}
-								className="h-11 bg-transparent pr-8 text-sm outline-none"
+								className="h-11 w-full bg-transparent pr-8 text-sm outline-none"
 							>
 								{locations.map((item) => (
 									<option key={item} value={item}>
@@ -397,7 +397,7 @@ export default function BusinessListings() {
 						<button
 							type="button"
 							onClick={() => setOnlyWithListings((prev) => !prev)}
-							className={`h-11 rounded-xl px-4 text-sm font-semibold transition ${
+							className={`h-11 w-full rounded-xl px-4 text-sm font-semibold transition ${
 								onlyWithListings
 									? "bg-brand-yellow text-brand-dark"
 									: "bg-brand-bg text-brand-muted"
@@ -406,7 +406,7 @@ export default function BusinessListings() {
 							With listings only
 						</button>
 
-						<div className="flex h-11 items-center justify-center rounded-xl bg-[#111111] px-4 text-sm font-semibold text-white">
+						<div className="flex h-11 w-full items-center justify-center rounded-xl bg-[#111111] px-4 text-sm font-semibold text-white lg:max-w-[180px]">
 							{filteredStores.length} result
 						</div>
 					</div>
@@ -422,7 +422,7 @@ export default function BusinessListings() {
 						))}
 					</div>
 				) : filteredStores.length ? (
-					<div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+					<div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
 						{filteredStores.map((item, index) => {
 							const {
 								store,
@@ -455,109 +455,136 @@ export default function BusinessListings() {
 									<div className="relative bg-[#111111] p-5 text-white">
 										<div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-brand-yellow/30 blur-2xl" />
 										<div className="relative z-10 flex items-start justify-between gap-3">
-											<div className="flex items-center gap-2">
-												<div className="grid h-10 w-10 place-items-center rounded-xl bg-white/10">
+											<div className="flex min-w-0 items-center gap-2">
+												<div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10">
 													<Store size={18} className="text-brand-yellow" />
 												</div>
-												<div>
-													<h2 className="text-xl font-display font-bold">
+												<div className="min-w-0">
+													<h2 className="text-lg sm:text-xl font-display font-bold leading-tight line-clamp-2">
 														{name}
 													</h2>
 													<p className="mt-0.5 inline-flex items-center gap-1 text-xs uppercase tracking-[0.14em] text-white/65">
 														<BadgeCheck
 															size={12}
-															className="text-brand-yellow"
+															className="text-brand-yellow shrink-0"
 														/>
-														Business Account
+														<span className="truncate">Business Account</span>
 													</p>
 												</div>
 											</div>
-											<span className="rounded-full bg-brand-yellow px-3 py-1 text-xs font-semibold text-brand-dark">
-												{storeListings.length} Listings
+											<span className="shrink-0 whitespace-nowrap rounded-full bg-brand-yellow px-3 py-1 text-xs font-semibold text-brand-dark">	{storeListings.length} Listings
 											</span>
 										</div>
 									</div>
 
-									<div className="space-y-4 p-5">
-										<div className="grid grid-cols-3 gap-2 text-center">
-											<div className="rounded-xl bg-brand-bg px-2 py-3">
-												<p className="text-[10px] uppercase tracking-[0.12em] text-brand-muted">
-													Store Rank
-												</p>
-												<p className="mt-1 text-lg font-bold">#{index + 1}</p>
-											</div>
-											<div className="rounded-xl bg-brand-bg px-2 py-3">
-												<p className="text-[10px] uppercase tracking-[0.12em] text-brand-muted">
-													Listings
-												</p>
-												<p className="mt-1 text-lg font-bold">
-													{storeListings.length}
-												</p>
-											</div>
-											<div className="rounded-xl bg-brand-bg px-2 py-3">
-												<p className="text-[10px] uppercase tracking-[0.12em] text-brand-muted">
-													Total Value
-												</p>
-												<p className="mt-1 text-lg font-bold">
-													{formatInr(totalValue)}
-												</p>
-											</div>
-										</div>
+									<div className="space-y-5 p-5">
 
-										<div className="space-y-2 text-sm text-brand-muted">
-											<p className="inline-flex items-center gap-2">
-												<MapPin size={14} /> {location}
-											</p>
-											<p className="inline-flex items-center gap-2">
-												<Building2 size={14} />
-												Category: {categoryLabel || "General"}
-											</p>
-										</div>
-									</div>
+  {/* ===== METRICS ===== */}
+  <div className="grid grid-cols-3 gap-2 text-center">
+    
+    <div className="rounded-xl bg-brand-bg px-2 py-3">
+      <p className="text-[10px] uppercase tracking-[0.12em] text-brand-muted">
+        Store Rank
+      </p>
+      <p className="mt-1 text-base sm:text-lg font-bold">
+        #{index + 1}
+      </p>
+    </div>
 
-									<div className="mx-5 mb-5 space-y-2 rounded-2xl bg-brand-bg p-3">
-										<p className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-brand-muted">
-											<Building2 size={12} />
-											Latest Listings
-										</p>
-										{storeListings.length ? (
-											storeListings.slice(0, 3).map((item, itemIndex) => {
-												return (
-													<div
-														key={
-															(item?._id ||
-																item?.id ||
-																item?.productId ||
-																itemIndex) + String(itemIndex)
-														}
-														className="group flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm"
-													>
-														<div className="min-w-0 flex-1">
-															<p className="line-clamp-1 font-medium">
-																{item?.title || "Untitled Listing"}
-															</p>
-															<p className="text-xs text-brand-muted">
-																{item?.category || "General"}
-															</p>
-														</div>
-														<div className="ml-3 flex items-center gap-2">
-															<span className="font-mono font-semibold text-brand-dark">
-																{formatInr(item?.price)}
-															</span>
-															<ArrowUpRight
-																size={14}
-																className="text-brand-muted transition group-hover:text-brand-dark"
-															/>
-														</div>
-													</div>
-												);
-											})
-										) : (
-											<p className="rounded-xl bg-white px-3 py-2 text-sm text-brand-muted">
-												No listings yet.
-											</p>
-										)}
-									</div>
+    <div className="rounded-xl bg-brand-bg px-2 py-3">
+      <p className="text-[10px] uppercase tracking-[0.12em] text-brand-muted">
+        Listings
+      </p>
+      <p className="mt-1 text-base sm:text-lg font-bold">
+        {storeListings.length}
+      </p>
+    </div>
+
+    <div className="rounded-xl bg-brand-bg px-2 py-3">
+      <p className="text-[10px] uppercase tracking-[0.12em] text-brand-muted">
+        Total Value
+      </p>
+      <p className="mt-1 text-sm sm:text-base font-bold break-words">
+        {formatInr(totalValue)}
+      </p>
+    </div>
+
+  </div>
+
+  {/* ===== LOCATION ===== */}
+  <div className="space-y-2 text-sm text-brand-muted">
+    
+    <p className="flex items-start gap-2">
+      <MapPin size={14} className="mt-0.5 shrink-0" />
+      <span className="break-words">{location}</span>
+    </p>
+
+    <p className="flex items-start gap-2">
+      <Building2 size={14} className="mt-0.5 shrink-0" />
+      <span className="break-words">
+        Category: {categoryLabel || "General"}
+      </span>
+    </p>
+
+  </div>
+</div>
+
+
+{/* ===== LISTINGS ===== */}
+<div className="mx-4 mb-4 space-y-3 rounded-2xl bg-brand-bg p-3 sm:mx-5 sm:mb-5">
+
+  <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-brand-muted">
+    <Building2 size={12} />
+    Latest Listings
+  </p>
+
+  {storeListings.length ? (
+    storeListings.slice(0, 3).map((item, itemIndex) => (
+      
+      <div
+        key={
+          (item?._id ||
+            item?.id ||
+            item?.productId ||
+            itemIndex) + String(itemIndex)
+        }
+        className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2"
+      >
+
+        {/* LEFT CONTENT */}
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-1 text-sm font-medium">
+            {item?.title || "Untitled Listing"}
+          </p>
+
+          <p className="text-xs text-brand-muted line-clamp-2 leading-tight">
+            {item?.category || "General"}
+          </p>
+        </div>
+
+        {/* RIGHT SIDE (PRICE + ICON) */}
+        <div className="flex flex-col items-end shrink-0">
+
+          <span className="text-sm font-semibold text-brand-dark whitespace-nowrap">
+            {formatInr(item?.price)}
+          </span>
+
+          <ArrowUpRight
+            size={14}
+            className="mt-1 text-brand-muted"
+          />
+
+        </div>
+
+      </div>
+    ))
+  ) : (
+    <p className="rounded-xl bg-white px-3 py-2 text-sm text-brand-muted">
+      No listings yet.
+    </p>
+  )}
+
+</div>
 									<div className="px-5 pb-5">
 										<span className="inline-flex items-center gap-1 text-xs font-semibold text-[#8B7322]">
 											View details <ArrowUpRight size={12} />

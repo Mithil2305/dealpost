@@ -25,46 +25,19 @@ import {
 	fetchOpenStreetSuggestions,
 	getStoredLocationCoords,
 	getStoredLocationLabel,
+	getStoredLocationDetails,
 	hasValidCoordinates,
 	loadGoogleMapsFromPublicConfig,
 	mountDeferredPlaceAutocompleteElement,
 	mapAutocompletePlaceToLocation,
 	persistStoredLocation,
+	reverseGeocodeLocation,
 } from "../utils/locationHelpers";
 
 const ALERTS_CACHE_TTL_MS = 15000;
 const UNREAD_FETCH_COOLDOWN_MS = 5000;
 const MAPS_LOAD_RETRY_COOLDOWN_MS = 30000;
 let cachedAlerts = { ts: 0, rows: [] };
-
-function getReadableLocationLabel(placeLike) {
-	if (!placeLike) return "";
-	if (typeof placeLike.formattedAddress === "string") {
-		return placeLike.formattedAddress;
-	}
-
-	const components = placeLike.address_components || [];
-	const findComponent = (types) =>
-		components.find((item) => types.every((type) => item.types?.includes(type)))
-			?.long_name;
-
-	const area =
-		findComponent(["sublocality", "sublocality_level_1"]) ||
-		findComponent(["neighborhood"]) ||
-		findComponent(["route"]) ||
-		findComponent(["locality"]);
-
-	const city =
-		findComponent(["locality"]) ||
-		findComponent(["administrative_area_level_2"]) ||
-		findComponent(["administrative_area_level_1"]);
-
-	if (area && city && area !== city) {
-		return `${area}, ${city}`;
-	}
-
-	return area || city || placeLike.formatted_address || placeLike.name || "";
-}
 
 function BrandLogo() {
 	return (
@@ -215,6 +188,7 @@ export default function Navbar({
 	const initialLocation =
 		getStoredLocationLabel() || user?.location || "Chennai, India";
 	const initialCoords = getStoredLocationCoords();
+	const initialLocationDetails = getStoredLocationDetails();
 
 	const [isLocationOpen, setIsLocationOpen] = useState(false);
 	const [locationInput, setLocationInput] = useState(initialLocation);
@@ -229,6 +203,9 @@ export default function Navbar({
 		hasValidCoordinates(initialCoords.lat, initialCoords.lng)
 			? initialLocation.trim()
 			: "",
+	);
+	const [selectedLocationDetails, setSelectedLocationDetails] = useState(
+		initialLocationDetails,
 	);
 	const [fallbackSuggestions, setFallbackSuggestions] = useState([]);
 	const [fallbackSearching, setFallbackSearching] = useState(false);
@@ -368,6 +345,7 @@ export default function Navbar({
 							: null,
 					});
 					setSelectedPlaceId(mapped.placeId);
+					setSelectedLocationDetails(mapped);
 					setConfirmedLocationInput(String(mapped.address || "").trim());
 				},
 			});
@@ -421,6 +399,7 @@ export default function Navbar({
 							: null,
 					});
 					setSelectedPlaceId(mapped.placeId);
+					setSelectedLocationDetails(mapped);
 					setConfirmedLocationInput(String(mapped.address || "").trim());
 				},
 			});
@@ -477,49 +456,20 @@ export default function Navbar({
 		};
 	}, [mapsFailed, locationInput]);
 
-	const reverseGeocodeByCoords = useCallback(async (lat, lng) => {
+	const reverseGeocodeByCoords = useCallback(async (lat, lng, placeId = "") => {
 		if (!hasValidCoordinates(lat, lng)) return null;
-		if (!window.google?.maps?.Geocoder) return null;
 
-		const numericLat = Number(lat);
-		const numericLng = Number(lng);
-
-		const geocoder = new window.google.maps.Geocoder();
-		const googleResult = await new Promise((resolve) => {
-			geocoder.geocode(
-				{ location: { lat: numericLat, lng: numericLng }, language: "en" },
-				(results, status) => {
-					if (status !== "OK" || !results?.length) {
-						resolve(null);
-						return;
-					}
-
-					const preferredResult =
-						results.find((item) =>
-							item.types?.some((type) =>
-								[
-									"sublocality",
-									"sublocality_level_1",
-									"neighborhood",
-									"route",
-									"locality",
-								].includes(type),
-							),
-						) || results[0];
-
-					const label = getReadableLocationLabel(preferredResult);
-					resolve({
-						label:
-							label ||
-							preferredResult?.formatted_address ||
-							`${numericLat.toFixed(5)}, ${numericLng.toFixed(5)}`,
-						placeId: preferredResult?.place_id || "",
-					});
-				},
-			);
-		});
-
-		return googleResult;
+		try {
+			const resolved = await reverseGeocodeLocation({ lat, lng, placeId });
+			setSelectedLocationDetails(resolved);
+			return {
+				label: resolved.displayAddress || resolved.formattedAddress || "",
+				placeId: resolved.placeId || "",
+				...resolved,
+			};
+		} catch {
+			return null;
+		}
 	}, []);
 
 	/* ── Close desktop location picker on outside click ── */
@@ -751,6 +701,14 @@ export default function Navbar({
 		setDisplayLocation(next);
 		persistStoredLocation({
 			location: next,
+			displayAddress: selectedLocationDetails?.displayAddress || next,
+			formattedAddress:
+				selectedLocationDetails?.formattedAddress || selectedLocationDetails?.displayAddress || next,
+			area: selectedLocationDetails?.area || "",
+			city: selectedLocationDetails?.city || "",
+			state: selectedLocationDetails?.state || "",
+			pincode: selectedLocationDetails?.pincode || "",
+			street: selectedLocationDetails?.street || "",
 			lat: coordsToPersist.lat,
 			lng: coordsToPersist.lng,
 			placeId: placeIdToPersist,
@@ -763,13 +721,19 @@ export default function Navbar({
 					lat: coordsToPersist.lat,
 					lng: coordsToPersist.lng,
 					placeId: placeIdToPersist || "",
+					...selectedLocationDetails,
 				},
 			}),
 		);
 
 		if (isAuthenticated) {
 			try {
-				const { data } = await api.put("/users/me", { location: next });
+				const { data } = await api.put("/users/me", {
+					location:
+						selectedLocationDetails?.displayAddress ||
+						selectedLocationDetails?.formattedAddress ||
+						next,
+				});
 				setCurrentUser(data?.user || user);
 			} catch {
 				// Keep local selection even if profile update fails.
@@ -797,12 +761,25 @@ export default function Navbar({
 						setSelectedCoordinates({ lat: null, lng: null });
 						setLocationInput(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
 						setSelectedPlaceId("");
+						setSelectedLocationDetails({
+							lat: null,
+							lng: null,
+							area: "",
+							city: "",
+							state: "",
+							pincode: "",
+							street: "",
+							displayAddress: "",
+							formattedAddress: "",
+							placeId: "",
+						});
 						setConfirmedLocationInput("");
 						return;
 					}
 
 					setLocationInput(reverse.label);
 					setSelectedPlaceId(String(reverse.placeId || ""));
+					setSelectedLocationDetails(reverse);
 					setConfirmedLocationInput(String(reverse.label || "").trim());
 				} finally {
 					setIsDetectingLocation(false);
@@ -824,6 +801,18 @@ export default function Navbar({
 		setLocationInput(suggestion.label);
 		setSelectedCoordinates({ lat: suggestion.lat, lng: suggestion.lng });
 		setSelectedPlaceId(`osm:${suggestion.id}`);
+		setSelectedLocationDetails({
+			lat: suggestion.lat,
+			lng: suggestion.lng,
+			area: "",
+			city: "",
+			state: "",
+			pincode: "",
+			street: "",
+			displayAddress: suggestion.label,
+			formattedAddress: suggestion.label,
+			placeId: `osm:${suggestion.id}`,
+		});
 		setConfirmedLocationInput(String(suggestion.label || "").trim());
 		setFallbackSuggestions([]);
 	};

@@ -4,6 +4,7 @@ import {
 	isFirebaseAdminConfigured,
 } from "../config/firebaseAdmin.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { reverseGeocodeLocation } from "../services/locationGeocoding.js";
 
 export const getPublicConfig = asyncHandler(async (req, res) => {
 	res.setHeader(
@@ -16,6 +17,17 @@ export const getPublicConfig = asyncHandler(async (req, res) => {
 			? env.GOOGLE_MAPS_BROWSER_API_KEY || ""
 			: "",
 	});
+});
+
+export const reverseGeocode = asyncHandler(async (req, res) => {
+	const lat = req.body?.lat ?? req.query?.lat;
+	const lng = req.body?.lng ?? req.query?.lng;
+	const placeId = req.body?.placeId ?? req.query?.placeId ?? "";
+
+	const location = await reverseGeocodeLocation({ lat, lng, placeId });
+
+	res.setHeader("Cache-Control", "private, max-age=300");
+	res.json({ location });
 });
 
 // Diagnostic endpoint to verify Firebase setup (dev only)
