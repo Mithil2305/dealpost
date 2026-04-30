@@ -128,6 +128,36 @@ async function ensureListingAuctionColumns() {
 	}
 }
 
+async function ensureBusinessColumns() {
+	const queryInterface = sequelize.getQueryInterface();
+	const columns = await queryInterface.describeTable("businesses");
+
+	const additions = [
+		["business_area", { type: DataTypes.STRING, allowNull: true }],
+		["business_city", { type: DataTypes.STRING, allowNull: true }],
+		["business_state", { type: DataTypes.STRING, allowNull: true }],
+		["business_pincode", { type: DataTypes.STRING, allowNull: true }],
+		["business_street", { type: DataTypes.STRING, allowNull: true }],
+		["business_display_address", { type: DataTypes.STRING, allowNull: true }],
+		["business_formatted_address", { type: DataTypes.STRING, allowNull: true }],
+		["business_place_id", { type: DataTypes.STRING, allowNull: true }],
+		[
+			"business_location_url",
+			{
+				type: DataTypes.STRING,
+				allowNull: false,
+				defaultValue: "",
+			},
+		],
+	];
+
+	for (const [col, definition] of additions) {
+		if (!columns[col]) {
+			await queryInterface.addColumn("businesses", col, definition);
+		}
+	}
+}
+
 async function ensureUserBusinessColumns() {
 	const queryInterface = sequelize.getQueryInterface();
 	const columns = await queryInterface.describeTable("users");
@@ -298,6 +328,7 @@ export async function connectDB() {
 	await ensureListingIdentityColumns();
 	await ensureListingAuctionColumns();
 	await ensureUserBusinessColumns();
+	await ensureBusinessColumns();
 	await ensureListingIndexes();
 	console.log("MySQL connected and models synced");
 }
