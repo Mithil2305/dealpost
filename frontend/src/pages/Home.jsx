@@ -296,7 +296,9 @@ export default function Home() {
 	const [allCategories, setAllCategories] = useState([]);
 	const [showAllCategories, setShowAllCategories] = useState(false);
 	const [userLocation, setUserLocation] = useState(readStoredUserLocation);
-	const [locationRadiusKm, setLocationRadiusKm] = useState(getStoredLocationRadius);
+	const [locationRadiusKm, setLocationRadiusKm] = useState(
+		getStoredLocationRadius,
+	);
 	const [loadMoreRadiusKm, setLoadMoreRadiusKm] = useState(
 		getStoredLocationRadius,
 	);
@@ -909,35 +911,6 @@ export default function Home() {
 			>
 				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_220px]">
 					<div className="min-w-0">
-				{/* Location Filter Section */}
-				{userLocation.label && (
-					<section className="mb-4 flex flex-col gap-3 rounded-xl bg-[#F5F5F5] p-4">
-						<div className="flex items-center gap-2">
-							<MapPin size={18} className="text-[#1677ff]" />
-							<span className="text-sm font-semibold text-[#333333]">
-								{currentLocationLabel}
-							</span>
-						</div>
-						<div className="flex flex-wrap gap-2">
-							{LOCATION_RADIUS_OPTIONS_KM.map((radiusOption) => (
-								<button
-									key={radiusOption}
-									type="button"
-									onClick={() => setLocationRadiusKm(radiusOption)}
-									className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-										radiusOption === locationRadiusKm
-											? "bg-[#1677ff] text-white shadow-md"
-											: "bg-white text-[#666666] border border-[#E0E0E0] hover:bg-[#F9F9F9]"
-									}`}
-									aria-pressed={radiusOption === locationRadiusKm}
-								>
-									{radiusOption}km
-								</button>
-							))}
-						</div>
-					</section>
-				)}
-
 						{/* Categories Row */}
 						<div
 							ref={categoryMenuRef}
@@ -1115,116 +1088,102 @@ export default function Home() {
 						</div>
 
 						{/* Hero Section */}
-						<section
-							className="hero-lcp-shell mt-4 relative w-full h-[190px] sm:h-[220px] md:h-[260px] lg:h-[300px] rounded-[20px] sm:rounded-[24px] md:rounded-[28px] overflow-hidden group shadow-lg"
-							aria-label="Featured promotions"
-							onKeyDown={onHeroSliderKeyDown}
-							tabIndex={0}
-							role="region"
-							aria-roledescription="carousel"
-							aria-live="polite"
-						>
-							{/* Slides Container */}
-							<div
-								className="flex w-full h-full transition-transform duration-700 ease-in-out"
-								style={{ transform: `translateX(-${currentHeroSlide * 100}%)` }}
+						<div className="relative mt-4">
+							<section
+								className="hero-lcp-shell relative w-full h-[190px] sm:h-[220px] md:h-[260px] lg:h-[300px] rounded-[20px] sm:rounded-[24px] md:rounded-[28px] overflow-hidden group shadow-lg"
+								aria-label="Featured promotions"
+								onKeyDown={onHeroSliderKeyDown}
+								tabIndex={0}
+								role="region"
+								aria-roledescription="carousel"
+								aria-live="polite"
 							>
-								{HERO_SLIDES.map((slide, index) => (
-									<div
-										key={slide.id}
-										className="w-full h-full flex-shrink-0 relative"
-										aria-hidden={currentHeroSlide !== index}
-									>
-										<ResponsiveImage
-											src={slide.image}
-											webpSrcSet={slide.webpSrcSet}
-											alt={slide.title}
-											width={1600}
-											height={900}
-											sizes="100vw"
-											loading={index === 0 ? "eager" : "lazy"}
-											fetchPriority={index === 0 ? "high" : undefined}
-											className="h-full w-full object-cover"
-										/>
-										{currentHeroSlide === index ? (
-											<>
-												{/* Gradient Overlay for better text readability */}
-												<div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-4 sm:justify-center sm:bg-gradient-to-r sm:from-black/80 sm:via-black/50 sm:to-transparent sm:px-8 md:px-10 lg:px-14">
-													<div className="w-full max-w-[90%] sm:max-w-xl md:max-w-2xl">
-														<span className="hidden sm:inline-block mb-2 rounded-full bg-[#FFD600] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-black shadow-sm sm:mb-4 sm:text-xs">
-															Featured Event
-														</span>
+								{/* Slides Container */}
+								<div
+									className="flex w-full h-full transition-transform duration-700 ease-in-out"
+									style={{
+										transform: `translateX(-${currentHeroSlide * 100}%)`,
+									}}
+								>
+									{HERO_SLIDES.map((slide, index) => (
+										<div
+											key={slide.id}
+											className="w-full h-full flex-shrink-0 relative"
+											aria-hidden={currentHeroSlide !== index}
+										>
+											<ResponsiveImage
+												src={slide.image}
+												webpSrcSet={slide.webpSrcSet}
+												alt={slide.title}
+												width={1600}
+												height={900}
+												sizes="100vw"
+												loading={index === 0 ? "eager" : "lazy"}
+												fetchPriority={index === 0 ? "high" : undefined}
+												className="h-full w-full object-cover"
+											/>
+											{currentHeroSlide === index ? (
+												<>
+													{/* Gradient Overlay for better text readability */}
+													<div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-4 sm:justify-center sm:bg-gradient-to-r sm:from-black/80 sm:via-black/50 sm:to-transparent sm:px-8 md:px-10 lg:px-14">
+														<div className="w-full max-w-[90%] sm:max-w-xl md:max-w-2xl">
+															<span className="hidden sm:inline-block mb-2 rounded-full bg-[#FFD600] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-black shadow-sm sm:mb-4 sm:text-xs">
+																Featured Event
+															</span>
 
-														<h2 className="mb-2 text-lg font-bold leading-tight text-white sm:mb-3 sm:text-2xl md:text-3xl lg:text-4xl">
-															{slide.title}
-														</h2>
+															<h2 className="mb-2 text-lg font-bold leading-tight text-white sm:mb-3 sm:text-2xl md:text-3xl lg:text-4xl">
+																{slide.title}
+															</h2>
 
-														<p className="mb-3 text-[12px] leading-snug text-white/90 sm:mb-5 sm:text-sm md:text-base">
-															{slide.subtitle}
-														</p>
+															<p className="mb-3 text-[12px] leading-snug text-white/90 sm:mb-5 sm:text-sm md:text-base">
+																{slide.subtitle}
+															</p>
 
-														<div className="flex items-center gap-3">
-															<Link
-																to={slide.ctaLink}
-																className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-bold text-black shadow-md transition hover:bg-[#FFD600] sm:px-6 sm:text-sm"
-															>
-																{slide.ctaText}
-																<ArrowRight size={18} />
-															</Link>
+															<div className="flex items-center gap-3">
+																<Link
+																	to={slide.ctaLink}
+																	className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-bold text-black shadow-md transition hover:bg-[#FFD600] sm:px-6 sm:text-sm"
+																>
+																	{slide.ctaText}
+																	<ArrowRight size={18} />
+																</Link>
 
-															<button
-																type="button"
-																onClick={() =>
-																	launchCompareForTopDeal(featuredDeal)
-																}
-																className="hidden sm:inline-flex rounded-full border border-[#FFD600]/80 bg-[#FFD600] px-5 py-2 text-xs font-bold text-black transition hover:bg-[#f2c700]"
-															>
-																Compare
-															</button>
+																<button
+																	type="button"
+																	onClick={() =>
+																		launchCompareForTopDeal(featuredDeal)
+																	}
+																	className="hidden sm:inline-flex rounded-full border border-[#FFD600]/80 bg-[#FFD600] px-5 py-2 text-xs font-bold text-black transition hover:bg-[#f2c700]"
+																>
+																	Compare
+																</button>
+															</div>
 														</div>
 													</div>
-												</div>
-											</>
-										) : null}
-									</div>
-								))}
-							</div>
+												</>
+											) : null}
+										</div>
+									))}
+								</div>
 
-							{/* Navigation Arrows */}
-							<button
-								type="button"
-								onClick={prevHeroSlide}
-								aria-label="Previous featured slide"
-								className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-md opacity-0 transition-all duration-300 hover:bg-white hover:text-black group-hover:opacity-100 sm:flex"
-							>
-								<ChevronLeft size={20} />
-							</button>
-							<button
-								type="button"
-								onClick={nextHeroSlide}
-								aria-label="Next featured slide"
-								className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-md opacity-0 transition-all duration-300 hover:bg-white hover:text-black group-hover:opacity-100 sm:flex"
-							>
-								<ChevronRight size={20} />
-							</button>
-
-							{/* Pagination Dots */}
-							<div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-4 sm:gap-2">
-								{HERO_SLIDES.map((_, index) => (
-									<button
-										key={index}
-										type="button"
-										onClick={() => setCurrentHeroSlide(index)}
-										className={`rounded-full transition-all duration-300 ${
-											currentHeroSlide === index
-												? "h-2 w-7 bg-[#FFD600] sm:h-2.5 sm:w-8"
-												: "h-2 w-2 bg-white/50 hover:bg-white/80 sm:h-2.5 sm:w-2.5"
-										}`}
-										aria-label={`Go to slide ${index + 1}`}
-									/>
-								))}
-							</div>
-
+								{/* Navigation Arrows */}
+								<button
+									type="button"
+									onClick={prevHeroSlide}
+									aria-label="Previous featured slide"
+									className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-md opacity-0 transition-all duration-300 hover:bg-white hover:text-black group-hover:opacity-100 sm:flex"
+								>
+									<ChevronLeft size={20} />
+								</button>
+								<button
+									type="button"
+									onClick={nextHeroSlide}
+									aria-label="Next featured slide"
+									className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-md opacity-0 transition-all duration-300 hover:bg-white hover:text-black group-hover:opacity-100 sm:flex"
+								>
+									<ChevronRight size={20} />
+								</button>
+							</section>
 							{auctionHighlights.length > 0 && (
 								<div className="absolute right-3 top-3 hidden max-w-[280px] rounded-2xl border border-white/20 bg-black/45 p-3 text-white backdrop-blur-md md:block">
 									<div className="mb-2 flex items-center justify-between">
@@ -1267,7 +1226,24 @@ export default function Home() {
 									</div>
 								</div>
 							)}
-						</section>
+						</div>
+
+						{/* Hero Pagination Dots */}
+						<div className="flex justify-center items-center gap-1.5 mt-2.5 sm:gap-2">
+							{HERO_SLIDES.map((_, index) => (
+								<button
+									key={index}
+									type="button"
+									onClick={() => setCurrentHeroSlide(index)}
+									className={`rounded-full transition-all duration-300 ${
+										currentHeroSlide === index
+											? "h-2 w-7 bg-[#FFD600] sm:h-2.5 sm:w-8"
+											: "h-2 w-2 bg-black/20 hover:bg-black/40 sm:h-2.5 sm:w-2.5"
+									}`}
+									aria-label={`Go to slide ${index + 1}`}
+								/>
+							))}
+						</div>
 
 						{/* Fresh Recommendations */}
 						<section
