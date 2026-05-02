@@ -1035,9 +1035,6 @@ export default function Home() {
 																				>
 																					{group.label}
 																				</span>
-																				<span className="shrink-0 text-[10px] font-bold text-[#777]">
-																					{group.items.length || 1}
-																				</span>
 																			</div>
 																		</div>
 																		<div className="mt-1 hidden space-y-1 pl-1 group-hover:block group-focus-within:block">

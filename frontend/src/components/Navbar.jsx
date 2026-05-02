@@ -102,7 +102,7 @@ function LocationPicker({
 							}}
 							placeholder={
 								mapsFailed
-									? "Type location (Google unavailable)"
+									? "Type location"
 									: "Loading location search..."
 							}
 							className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#FFD600]"
@@ -1503,9 +1503,6 @@ export default function Navbar({
 																				title={group.label}
 																			>
 																				{group.label}
-																			</span>
-																			<span className="shrink-0 text-[10px] font-bold text-gray-500">
-																				{group.items.length || 1}
 																			</span>
 																		</div>
 																	</summary>
