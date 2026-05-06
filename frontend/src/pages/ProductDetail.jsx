@@ -453,12 +453,6 @@ export default function ProductDetail() {
 												Verified
 											</span>
 										)}
-
-										{listing?.productId ? (
-											<span className="rounded-full bg-black/85 px-3 py-1 text-[10px] font-semibold tracking-[0.08em] text-white">
-												{listing.productId}
-											</span>
-										) : null}
 									</div>
 								</div>
 

@@ -783,22 +783,22 @@ export default function AdminDashboard() {
 
 	return (
 		<div className="min-h-screen bg-[#F5F7FB] text-gray-900">
-			<div className="mx-auto flex max-w-[1500px]">
+			<div className="mx-auto flex max-w-[1500px] relative">
 				<AdminSidebar
 					admin={user}
 					activeSection={activeSection}
 					onSectionChange={setActiveSection}
 				/>
 
-				<main id="main-content" className="min-h-screen flex-1 p-5 sm:p-7">
-					<header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+				<main id="main-content" className="min-h-screen flex-1 p-3 sm:p-5 lg:p-7 lg:ml-0">
+					<header className="mb-4 sm:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-12 lg:pt-0">
 						<div>
-							<h1 className="text-4xl font-display font-bold sm:text-5xl">
+							<h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-display font-bold">
 								Admin Dashboard
 							</h1>
 						</div>
 						<div className="flex items-center gap-2">
-							<button className="rounded-full bg-[#FFF5D1] px-4 py-2 text-sm font-bold text-[#5C4D00]">
+							<button className="rounded-full bg-[#FFF5D1] px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold text-[#5C4D00]">
 								{activeSection[0].toUpperCase() + activeSection.slice(1)}
 							</button>
 						</div>
@@ -807,20 +807,20 @@ export default function AdminDashboard() {
 					{activeSection === "dashboard" && (
 						<>
 							{loadingStats ? (
-								<div className="grid gap-4 lg:grid-cols-3">
+								<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
 									{Array.from({ length: 3 }).map((_, index) => (
 										<div
 											key={index}
-											className="h-32 animate-pulse rounded-3xl border border-gray-200 bg-white"
+											className="h-24 sm:h-32 animate-pulse rounded-2xl sm:rounded-3xl border border-gray-200 bg-white"
 										/>
 									))}
 								</div>
 							) : (
-								<section className="grid gap-4 lg:grid-cols-3">
+								<section className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
 									{statCards.map((card) => (
 										<article
 											key={card.title}
-											className={`rounded-3xl border p-5 ${
+											className={`rounded-2xl sm:rounded-3xl border p-4 sm:p-5 ${
 												card.warning
 													? "border-[#E9C54F] bg-[#FFF5D1] text-[#5C4D00]"
 													: "border-gray-200 bg-white"
@@ -831,11 +831,11 @@ export default function AdminDashboard() {
 											>
 												{card.title}
 											</p>
-											<p className="mt-2 font-mono text-5xl font-semibold text-gray-900">
+											<p className="mt-2 font-mono text-3xl sm:text-4xl lg:text-5xl font-semibold text-gray-900">
 												{card.value || 0}
 											</p>
 											<p
-												className={`mt-3 text-sm ${card.warning ? "text-[#5C4D00]/75" : "text-[#A47C00]"}`}
+												className={`mt-3 text-xs sm:text-sm ${card.warning ? "text-[#5C4D00]/75" : "text-[#A47C00]"}`}
 											>
 												{card.warning && (
 													<TriangleAlert size={13} className="mr-1 inline" />
@@ -850,38 +850,131 @@ export default function AdminDashboard() {
 					)}
 
 					{(activeSection === "dashboard" || activeSection === "reports") && (
-						<section className="mt-6 rounded-3xl border border-gray-200 bg-white">
-							<div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
-								<h2 className="text-2xl font-display font-bold text-gray-900">
+						<section className="mt-4 sm:mt-6 rounded-2xl sm:rounded-3xl border border-gray-200 bg-white">
+							<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-200 px-4 sm:px-5 py-3 sm:py-4">
+								<h2 className="text-xl sm:text-2xl font-display font-bold text-gray-900">
 									Moderation Reports
 								</h2>
 								<div className="flex flex-wrap items-center gap-2">
 									<select
 										value={reportStatus}
 										onChange={(event) => setReportStatus(event.target.value)}
-										className="h-10 rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700"
+										className="h-9 sm:h-10 rounded-full border border-gray-200 bg-white px-3 text-xs sm:text-sm text-gray-700"
 									>
 										<option value="pending">Pending</option>
 										<option value="reviewed">Reviewed</option>
 										<option value="dismissed">Dismissed</option>
 										<option value="all">All</option>
 									</select>
-									<div className="flex items-center rounded-full border border-gray-200 bg-white px-3">
+									<div className="flex items-center rounded-full border border-gray-200 bg-white px-2 sm:px-3">
 										<Search size={14} className="text-gray-400" />
 										<input
 											value={reportSearch}
 											onChange={(event) => setReportSearch(event.target.value)}
 											placeholder="Search reports"
-											className="h-10 w-40 bg-transparent px-2 text-sm outline-none"
+											className="h-9 sm:h-10 w-24 sm:w-40 bg-transparent px-2 text-xs sm:text-sm outline-none"
 										/>
 									</div>
-									<button className="grid h-10 w-10 place-items-center rounded-full border border-gray-200 bg-white text-gray-600">
+									<button className="grid h-9 sm:h-10 w-9 sm:w-10 place-items-center rounded-full border border-gray-200 bg-white text-gray-600">
 										<SlidersHorizontal size={16} />
 									</button>
 								</div>
 							</div>
 
-							<div className="overflow-x-auto">
+							{/* Mobile: Card layout */}
+							<div className="sm:hidden px-4 py-3 space-y-3">
+								{loadingReports ? (
+									<div className="text-center py-7 text-gray-500">
+										Loading reports...
+									</div>
+								) : filteredReports.length ? (
+									filteredReports.map((report) => {
+										const listingId = report?.listing?.id;
+										const sellerId = report?.seller?.id;
+										const reportId = report?.id;
+										const reportActionBusy = actionKey.includes(
+											`report-${reportId}`,
+										);
+
+										return (
+											<div key={reportId} className="border border-gray-200 rounded-xl p-3 space-y-3">
+												<div className="flex items-start gap-3">
+													<img
+														src={
+															report?.listing?.images?.[0]?.url ||
+															report?.listing?.image ||
+															"https://placehold.co/70x70?text=Ad"
+														}
+														alt={report?.listing?.title || "Listing"}
+														className="h-12 w-12 rounded-lg object-cover shrink-0"
+													/>
+													<div className="min-w-0 flex-1">
+														<p className="font-semibold text-sm text-gray-900 truncate">
+															{report?.listing?.title || "Untitled"}
+														</p>
+														<p className="text-xs text-gray-500">
+															Reported on {formatDate(report?.createdAt)}
+														</p>
+													</div>
+												</div>
+												<div className="space-y-2">
+													<div>
+														<p className="text-xs font-semibold text-gray-600">Seller</p>
+														<p className="text-sm text-gray-900">{report?.seller?.name || "Unknown"}</p>
+														<p className="text-xs text-gray-500 truncate">{report?.seller?.email || "-"}</p>
+													</div>
+													<div className="flex flex-wrap gap-2">
+														<span className="rounded-full bg-[#FFF1F1] px-2 py-1 text-xs text-[#A33B3B]">
+															{report?.reason || "Suspicious activity"}
+														</span>
+														<span className="rounded-full bg-[#F5F5F5] px-2 py-1 text-xs font-semibold capitalize text-gray-700">
+															{report?.status || "pending"}
+														</span>
+													</div>
+													<div className="flex flex-wrap gap-2 pt-2">
+														<button
+															type="button"
+															disabled={reportActionBusy}
+															onClick={() => updateReportStatus(reportId, "reviewed")}
+															className="inline-flex h-8 items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 text-xs font-semibold text-green-700 disabled:opacity-60"
+														>
+															<CheckCircle2 size={12} /> Review
+														</button>
+														<button
+															type="button"
+															disabled={reportActionBusy}
+															onClick={() => dismissListing(listingId)}
+															className="grid h-8 w-8 place-items-center rounded-full border border-gray-200 bg-white text-[#D45050] disabled:opacity-60"
+														>
+															<X size={12} />
+														</button>
+														<button
+															type="button"
+															disabled={actionKey === `ban-user-${sellerId}`}
+															onClick={() => banUser(sellerId)}
+															className="inline-flex h-8 items-center gap-1 rounded-full bg-[#D84C4C] px-2 text-xs font-semibold text-white disabled:opacity-60"
+														>
+															{actionKey === `ban-user-${sellerId}` ? (
+																<LoaderCircle size={12} className="animate-spin" />
+															) : (
+																<Ban size={12} />
+															)}
+															Ban
+														</button>
+													</div>
+												</div>
+											</div>
+										);
+									})
+								) : (
+									<div className="text-center py-7 text-gray-500">
+										No reports found.
+									</div>
+								)}
+							</div>
+
+							{/* Desktop: Table layout */}
+							<div className="hidden sm:block overflow-x-auto">
 								<table className="min-w-full text-left text-sm">
 									<thead className="text-xs uppercase tracking-[0.12em] text-gray-500">
 										<tr>
@@ -1006,23 +1099,23 @@ export default function AdminDashboard() {
 								</table>
 							</div>
 
-							<div className="flex items-center justify-end gap-3 px-5 py-4 text-sm text-gray-600">
+							<div className="flex items-center justify-end gap-3 px-4 sm:px-5 py-3 sm:py-4 text-sm text-gray-600">
 								<button
 									type="button"
 									disabled={reportPage === 1 || loadingReports}
 									onClick={() => setReportPage((prev) => Math.max(prev - 1, 1))}
-									className="disabled:opacity-50"
+									className="disabled:opacity-50 text-xs sm:text-sm"
 								>
 									Previous
 								</button>
-								<span className="rounded-full bg-[#FFF5D1] px-3 py-1 text-xs font-semibold text-[#5C4D00]">
+								<span className="rounded-full bg-[#FFF5D1] px-2 sm:px-3 py-1 text-xs font-semibold text-[#5C4D00]">
 									Page {reportPage} / {reportPages}
 								</span>
 								<button
 									type="button"
 									disabled={reportPage >= reportPages || loadingReports}
 									onClick={() => setReportPage((prev) => prev + 1)}
-									className="disabled:opacity-50"
+									className="disabled:opacity-50 text-xs sm:text-sm"
 								>
 									Next
 								</button>
@@ -1031,10 +1124,10 @@ export default function AdminDashboard() {
 					)}
 
 					{activeSection === "users" && (
-						<section className="rounded-3xl border border-gray-200 bg-white p-5">
-							<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-								<h2 className="text-2xl font-display font-bold">Users</h2>
-								<div className="flex items-center rounded-full border border-gray-200 bg-white px-3">
+						<section className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white p-4 sm:p-5">
+							<div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+								<h2 className="text-xl sm:text-2xl font-display font-bold">Users</h2>
+								<div className="flex items-center rounded-full border border-gray-200 bg-white px-2 sm:px-3">
 									<Search size={14} className="text-gray-400" />
 									<input
 										value={userSearch}
@@ -1044,12 +1137,63 @@ export default function AdminDashboard() {
 										}}
 										onBlur={fetchUsers}
 										placeholder="Search user by name/email"
-										className="h-10 w-64 bg-transparent px-2 text-sm outline-none"
+										className="h-9 sm:h-10 w-32 sm:w-64 bg-transparent px-2 text-xs sm:text-sm outline-none"
 									/>
 								</div>
 							</div>
 
-							<div className="overflow-x-auto">
+							{/* Mobile: Card layout */}
+							<div className="sm:hidden space-y-3">
+								{loadingUsers ? (
+									<div className="text-center py-6 text-gray-500">
+										Loading users...
+									</div>
+								) : users.length ? (
+									users.map((entry) => (
+										<div key={entry.id} className="border border-gray-200 rounded-xl p-3 space-y-3">
+											<div className="flex items-start justify-between gap-3">
+												<div className="min-w-0 flex-1">
+													<p className="font-semibold text-gray-900 truncate">{entry.name}</p>
+													<p className="text-sm text-gray-600 truncate">{entry.email}</p>
+												</div>
+												<span
+													className={`rounded-full px-2 py-1 text-xs font-semibold shrink-0 ${entry.isActive ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}
+												>
+													{entry.isActive ? "Active" : "Banned"}
+												</span>
+											</div>
+											<div className="flex items-center justify-between">
+												<span className="text-xs text-gray-500 capitalize">{entry.role}</span>
+												<div className="flex gap-2">
+													<button
+														type="button"
+														disabled={actionKey === `toggle-user-${entry.id}`}
+														onClick={() => toggleUserStatus(entry.id)}
+														className="rounded-full border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-700 disabled:opacity-60"
+													>
+														{entry.isActive ? "Deact" : "Act"}
+													</button>
+													<button
+														type="button"
+														disabled={actionKey === `ban-user-${entry.id}` || !entry.isActive}
+														onClick={() => banUser(entry.id)}
+														className="rounded-full bg-[#D84C4C] px-2 py-1 text-xs font-semibold text-white disabled:opacity-60"
+													>
+														Ban
+													</button>
+												</div>
+											</div>
+										</div>
+									))
+								) : (
+									<div className="text-center py-6 text-gray-500">
+										No users found.
+									</div>
+								)}
+							</div>
+
+							{/* Desktop: Table layout */}
+							<div className="hidden sm:block overflow-x-auto">
 								<table className="min-w-full text-left text-sm">
 									<thead className="text-xs uppercase tracking-[0.12em] text-gray-500">
 										<tr>
@@ -1090,9 +1234,7 @@ export default function AdminDashboard() {
 														<div className="flex justify-end gap-2">
 															<button
 																type="button"
-																disabled={
-																	actionKey === `toggle-user-${entry.id}`
-																}
+																disabled={actionKey === `toggle-user-${entry.id}`}
 																onClick={() => toggleUserStatus(entry.id)}
 																className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 disabled:opacity-60"
 															>
@@ -1100,10 +1242,7 @@ export default function AdminDashboard() {
 															</button>
 															<button
 																type="button"
-																disabled={
-																	actionKey === `ban-user-${entry.id}` ||
-																	!entry.isActive
-																}
+																disabled={actionKey === `ban-user-${entry.id}` || !entry.isActive}
 																onClick={() => banUser(entry.id)}
 																className="rounded-full bg-[#D84C4C] px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
 															>
@@ -1123,23 +1262,24 @@ export default function AdminDashboard() {
 									</tbody>
 								</table>
 							</div>
+							
 							<div className="mt-4 flex items-center justify-end gap-3 text-sm text-gray-600">
 								<button
 									type="button"
 									disabled={userPage === 1 || loadingUsers}
 									onClick={() => setUserPage((prev) => Math.max(prev - 1, 1))}
-									className="disabled:opacity-50"
+									className="disabled:opacity-50 text-xs sm:text-sm"
 								>
 									Previous
 								</button>
-								<span>
+								<span className="text-xs sm:text-sm">
 									Page {userPage} / {userPages}
 								</span>
 								<button
 									type="button"
 									disabled={userPage >= userPages || loadingUsers}
 									onClick={() => setUserPage((prev) => prev + 1)}
-									className="disabled:opacity-50"
+									className="disabled:opacity-50 text-xs sm:text-sm"
 								>
 									Next
 								</button>

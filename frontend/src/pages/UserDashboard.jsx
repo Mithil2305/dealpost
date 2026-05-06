@@ -1029,10 +1029,10 @@ export default function UserDashboard() {
 			<Navbar />
 			<main
 				id="main-content"
-				className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-8 sm:px-6 lg:px-8"
+				className="mx-auto w-full max-w-[1280px] flex-1 px-3 sm:px-4 py-4 sm:py-6 lg:px-8 lg:py-8"
 			>
-				<div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-					<aside className="rounded-3xl border border-gray-200 bg-white p-4 lg:sticky lg:top-24 lg:h-fit">
+				<div className="grid gap-4 lg:gap-6 lg:grid-cols-[280px_1fr]">
+					<aside className="rounded-2xl lg:rounded-3xl border border-gray-200 bg-white p-3 sm:p-4 lg:sticky lg:top-24 lg:h-fit">
 						<p className="px-3 pb-3 text-xs font-bold uppercase tracking-[0.16em] text-gray-400">
 							Dashboard
 						</p>
@@ -1046,7 +1046,9 @@ export default function UserDashboard() {
 										: "text-gray-700 hover:bg-gray-50"
 								}`}
 							>
-								<LayoutDashboard size={16} /> Overview
+								<LayoutDashboard size={16} /> 
+								<span className="hidden sm:inline">Overview</span>
+								<span className="sm:hidden">Overview</span>
 							</button>
 							<button
 								type="button"
@@ -1057,7 +1059,9 @@ export default function UserDashboard() {
 										: "text-gray-700 hover:bg-gray-50"
 								}`}
 							>
-								<UserRoundCog size={16} /> Edit Profile
+								<UserRoundCog size={16} /> 
+								<span className="hidden sm:inline">Edit Profile</span>
+								<span className="sm:hidden">Profile</span>
 							</button>
 							<button
 								type="button"
@@ -1068,7 +1072,9 @@ export default function UserDashboard() {
 										: "text-gray-700 hover:bg-gray-50"
 								}`}
 							>
-								<KeyRound size={16} /> Security
+								<KeyRound size={16} /> 
+								<span className="hidden sm:inline">Security</span>
+								<span className="sm:hidden">Security</span>
 							</button>
 							{hasBusinessAccount ? (
 								<button
@@ -1080,7 +1086,9 @@ export default function UserDashboard() {
 											: "text-gray-700 hover:bg-gray-50"
 									}`}
 								>
-									<Building2 size={16} /> Business Info
+									<Building2 size={16} /> 
+									<span className="hidden sm:inline">Business Info</span>
+									<span className="sm:hidden">Business</span>
 								</button>
 							) : null}
 							<button
@@ -1092,7 +1100,9 @@ export default function UserDashboard() {
 										: "text-gray-700 hover:bg-gray-50"
 								}`}
 							>
-								<Megaphone size={16} /> Sponsored Ads
+								<Megaphone size={16} /> 
+								<span className="hidden sm:inline">Sponsored Ads</span>
+								<span className="sm:hidden">Sponsored</span>
 							</button>
 							<Link
 								to="/messages"
@@ -1132,10 +1142,10 @@ export default function UserDashboard() {
 					<section className="space-y-6">
 						{activeTab === "overview" ? (
 							<>
-								<div className="rounded-3xl border border-gray-200 bg-white p-6">
-									<div className="flex flex-wrap items-start justify-between gap-4">
+								<div className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white p-4 sm:p-6">
+									<div className="flex flex-col gap-4">
 										<div>
-											<h1 className="text-3xl font-display font-bold text-black">
+											<h1 className="text-2xl sm:text-3xl font-display font-bold text-black">
 												User Dashboard
 											</h1>
 											<p className="mt-2 text-sm text-gray-500">
@@ -1143,24 +1153,24 @@ export default function UserDashboard() {
 												place.
 											</p>
 										</div>
-										<div className="flex gap-2">
+										<div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
 											<Link
 												to="/post-ad"
-												className="inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white"
+												className="inline-flex items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white"
 											>
 												<PlusCircle size={16} /> Post Deal
 											</Link>
 											<Link
 												to="/my-listings"
-												className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700"
+												className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700"
 											>
 												<Megaphone size={16} /> Manage Deals
 											</Link>
 										</div>
 									</div>
-									<div className="mt-5 rounded-2xl border border-[#FFE49A] bg-[#FFF9E5] p-4 text-sm text-[#5C4D00]">
+									<div className="mt-4 sm:mt-5 rounded-2xl border border-[#FFE49A] bg-[#FFF9E5] p-3 sm:p-4 text-sm text-[#5C4D00]">
 										<div className="flex items-start gap-2">
-											<AlertTriangle size={16} className="mt-0.5" />
+											<AlertTriangle size={16} className="mt-0.5 shrink-0" />
 											<p>
 												Keep your profile and location updated for better buyer
 												discovery.
@@ -1169,36 +1179,36 @@ export default function UserDashboard() {
 									</div>
 								</div>
 
-								<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-									<div className="rounded-2xl border border-gray-200 bg-white p-4">
+								<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+									<div className="rounded-2xl border border-gray-200 bg-white p-3 sm:p-4">
 										<p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">
 											Total Listings
 										</p>
-										<p className="mt-2 text-3xl font-display font-bold text-black">
+										<p className="mt-2 text-2xl sm:text-3xl font-display font-bold text-black">
 											{dashboardLoading ? "-" : listingStats.total}
 										</p>
 									</div>
-									<div className="rounded-2xl border border-gray-200 bg-white p-4">
+									<div className="rounded-2xl border border-gray-200 bg-white p-3 sm:p-4">
 										<p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">
 											Active Ads
 										</p>
-										<p className="mt-2 text-3xl font-display font-bold text-black">
+										<p className="mt-2 text-2xl sm:text-3xl font-display font-bold text-black">
 											{dashboardLoading ? "-" : listingStats.active}
 										</p>
 									</div>
-									<div className="rounded-2xl border border-gray-200 bg-white p-4">
+									<div className="rounded-2xl border border-gray-200 bg-white p-3 sm:p-4">
 										<p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">
 											Saved Products
 										</p>
-										<p className="mt-2 text-3xl font-display font-bold text-black">
+										<p className="mt-2 text-2xl sm:text-3xl font-display font-bold text-black">
 											{dashboardLoading ? "-" : likedListings.length}
 										</p>
 									</div>
-									<div className="rounded-2xl border border-gray-200 bg-white p-4">
+									<div className="rounded-2xl border border-gray-200 bg-white p-3 sm:p-4">
 										<p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">
 											Conversations
 										</p>
-										<p className="mt-2 text-3xl font-display font-bold text-black">
+										<p className="mt-2 text-2xl sm:text-3xl font-display font-bold text-black">
 											{dashboardLoading ? "-" : messageCount}
 										</p>
 									</div>
@@ -1212,9 +1222,9 @@ export default function UserDashboard() {
 									</div>
 								</div>
 
-								<div className="rounded-3xl border border-gray-200 bg-white p-6">
+								<div className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white p-4 sm:p-6">
 									<div className="mb-4 flex items-center justify-between">
-										<h2 className="text-xl font-display font-bold text-black">
+										<h2 className="text-lg sm:text-xl font-display font-bold text-black">
 											Recent Listings
 										</h2>
 										<Link
@@ -1228,7 +1238,7 @@ export default function UserDashboard() {
 									{dashboardLoading ? (
 										<p className="text-sm text-gray-500">Loading listings...</p>
 									) : recentListings.length ? (
-										<div className="grid gap-3 md:grid-cols-2">
+										<div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
 											{recentListings.map((listing) => {
 												const listingId =
 													listing?.productId || listing?._id || listing?.id;
@@ -1241,7 +1251,7 @@ export default function UserDashboard() {
 														className="rounded-2xl border border-gray-200 p-3"
 													>
 														<div className="flex items-start justify-between gap-3">
-															<div className="min-w-0">
+															<div className="min-w-0 flex-1">
 																<p className="line-clamp-1 text-sm font-semibold text-gray-900">
 																	{listing?.title || "Untitled listing"}
 																</p>
@@ -1250,7 +1260,7 @@ export default function UserDashboard() {
 																</p>
 															</div>
 															<span
-																className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+																className={`rounded-full px-2 py-1 text-[10px] font-semibold shrink-0 ${
 																	status === "sold"
 																		? "bg-green-50 text-green-700"
 																		: status === "pending"
@@ -1261,7 +1271,7 @@ export default function UserDashboard() {
 																{status}
 															</span>
 														</div>
-														<div className="mt-3 flex gap-2">
+														<div className="mt-3 flex flex-wrap gap-2">
 															<Link
 																to={`/listing/${listingId}`}
 																className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700"
@@ -1280,7 +1290,7 @@ export default function UserDashboard() {
 											})}
 										</div>
 									) : (
-										<div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+										<div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 sm:p-6 text-center">
 											<p className="text-sm font-semibold text-gray-700">
 												You have no listings yet.
 											</p>
@@ -1304,9 +1314,9 @@ export default function UserDashboard() {
 						{activeTab === "security" ? (
 							<form
 								onSubmit={updatePassword}
-								className="space-y-4 rounded-3xl border border-gray-200 bg-white p-6"
+								className="space-y-4 rounded-2xl sm:rounded-3xl border border-gray-200 bg-white p-4 sm:p-6"
 							>
-								<h2 className="text-2xl font-display font-bold text-black">
+								<h2 className="text-xl sm:text-2xl font-display font-bold text-black">
 									Security
 								</h2>
 								<input

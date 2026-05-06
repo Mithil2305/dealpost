@@ -2,8 +2,10 @@ import {
 	Bell,
 	ChevronDown,
 	Crosshair,
+	Edit,
 	ExternalLink,
 	Heart,
+	LayoutDashboard,
 	Menu,
 	MapPin,
 	MessageSquare,
@@ -1621,7 +1623,7 @@ export default function Navbar({
 										alt={user?.name || "User"}
 										className="h-10 w-10 rounded-full object-cover border border-gray-200 shrink-0"
 									/>
-									<div className="min-w-0">
+									<div className="min-w-0 flex-1">
 										<p className="text-sm font-bold text-black truncate">
 											{user?.name || "User"}
 										</p>
@@ -1629,20 +1631,18 @@ export default function Navbar({
 											{user?.email || ""}
 										</p>
 									</div>
+									<button
+										type="button"
+										onClick={() => {
+											navigate("/profile");
+											setIsMobileNavOpen(false);
+										}}
+										className="grid h-8 w-8 place-items-center rounded-lg text-gray-500 hover:text-black hover:bg-gray-100 transition-colors"
+										aria-label="Edit profile"
+									>
+										<Edit size={16} />
+									</button>
 								</div>
-							)}
-
-							{isAuthenticated && (
-								<button
-									type="button"
-									onClick={() => {
-										navigate("/profile");
-										setIsMobileNavOpen(false);
-									}}
-									className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold text-gray-700"
-								>
-									Edit Profile
-								</button>
 							)}
 
 							{/* Location picker */}
@@ -1733,6 +1733,21 @@ export default function Navbar({
 								</button>
 							</div>
 
+							{/* Dashboard button styled like alerts button */}
+							{isAuthenticated && (
+								<button
+									type="button"
+									onClick={() => {
+										navigate(profileDashboardRoute);
+										setIsMobileNavOpen(false);
+									}}
+									className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold text-gray-700"
+								>
+									<LayoutDashboard size={16} />
+									Dashboard
+								</button>
+							)}
+
 							{/* Nav links */}
 							<nav aria-label="Mobile sections" className="space-y-0.5">
 								<p className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-400 px-3 pb-1 pt-1">
@@ -1756,16 +1771,6 @@ export default function Navbar({
 							{/* Auth actions */}
 							{isAuthenticated ? (
 								<div className="pt-2 border-t border-gray-100 space-y-1">
-									<button
-										type="button"
-										onClick={() => {
-											navigate(profileDashboardRoute);
-											setIsMobileNavOpen(false);
-										}}
-										className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-gray-800 hover:bg-gray-100"
-									>
-										Dashboard
-									</button>
 									<button
 										type="button"
 										onClick={() => {
