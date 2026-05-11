@@ -174,6 +174,57 @@ const formatPrice = (value) => {
 	}).format(numeric);
 };
 
+// Format location to show landmark + city (e.g., "Mylapore, Chennai")
+const formatShortLocation = (location) => {
+	if (!location || typeof location !== "string") return location || "";
+	
+	const parts = location.split(",").map(p => p.trim()).filter(Boolean);
+	if (parts.length < 2) return location;
+	
+	// Try to find city (look for common city patterns or take 2nd to last)
+	const indianCities = ["Chennai", "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Lucknow", "Kanpur", "Nagpur", "Indore", "Thane", "Bhopal", "Visakhapatnam", "Vadodara", "Firozabad", "Ludhiana", "Rajkot", "Agra", "Siliguri", "Durgapur", "Chandigarh", "Coimbatore"];
+	
+	let cityIndex = -1;
+	for (let i = parts.length - 1; i >= 0; i--) {
+		const part = parts[i];
+		if (indianCities.some(city => part.toLowerCase().includes(city.toLowerCase()))) {
+			cityIndex = i;
+			break;
+		}
+	}
+	
+	// If no known city found, use second to last as city (before pincode/state)
+	if (cityIndex === -1) {
+		// Skip pincode (numbers) and country at the end
+		let endIndex = parts.length - 1;
+		if (/^india$/i.test(parts[endIndex])) endIndex--;
+		if (/^\d{6}$/.test(parts[endIndex])) endIndex--;
+		if (/^(tamil nadu|maharashtra|karnataka|andhra pradesh|telangana|west bengal|gujarat|rajasthan|uttar pradesh|madhya pradesh|kerala|bihar|odisha|jharkhand|assam|punjab|haryana|chhattisgarh|uttarakhand|goa|tripura|meghalaya|manipur|nagaland|arunachal pradesh|mizoram|sikkim)$/i.test(parts[endIndex])) endIndex--;
+		
+		cityIndex = Math.max(0, endIndex);
+	}
+	
+	// Find landmark (first meaningful part or one before city)
+	let landmarkIndex = 0;
+	for (let i = 0; i < cityIndex && i < parts.length; i++) {
+		const part = parts[i];
+		// Skip zone numbers, generic terms
+		if (/^zone\s*\d+$/i.test(part)) continue;
+		if (/^india$/i.test(part)) continue;
+		landmarkIndex = i;
+		break;
+	}
+	
+	const landmark = parts[landmarkIndex];
+	const city = parts[cityIndex];
+	
+	if (landmark && city && landmark !== city) {
+		return `${landmark}, ${city}`;
+	}
+	
+	return location;
+};
+
 const timeAgo = (value) => {
 	if (!value) return "Just now";
 	const then = new Date(value);
@@ -1361,14 +1412,14 @@ export default function Home() {
 												to={`/listing/${item.productId || item.id}`}
 												className="group flex flex-col overflow-hidden rounded-2xl border border-[#D9D9D9] bg-white transition hover:shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
 											>
-												<div className="relative aspect-[4/3] w-full overflow-hidden bg-[#F4F5F7]">
+												<div className="relative w-full overflow-hidden bg-[#F4F5F7]">
 													<ResponsiveImage
 														src={item.image}
 														alt={item.title}
 														width={640}
 														height={480}
 														sizes="(min-width: 768px) 250px, 50vw"
-														className="h-full w-full object-cover"
+														className="w-full h-auto object-contain"
 														onError={(event) => {
 															event.currentTarget.src =
 																FALLBACK_IMAGES.listingCard;
@@ -1414,7 +1465,7 @@ export default function Home() {
 													</p>
 													<div className="mt-2 flex items-center justify-between gap-3 text-[0.72rem] font-medium uppercase tracking-[0.03em] text-[#778195]">
 														<span className="line-clamp-1">
-															{item.location}
+															{formatShortLocation(item.location)}
 														</span>
 														<span className="shrink-0">{item.time}</span>
 													</div>
@@ -1497,14 +1548,14 @@ export default function Home() {
 													to={`/listing/${item.productId || item.id}`}
 													className="min-w-[220px] max-w-[220px] rounded-2xl border border-[#EAEAEA] bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5"
 												>
-													<div className="aspect-[4/3] overflow-hidden rounded-xl bg-[#F3F3F3]">
+													<div className="overflow-hidden rounded-xl bg-[#F3F3F3]">
 														<ResponsiveImage
 															src={item.image}
 															alt={item.title}
 															width={440}
 															height={330}
 															sizes="220px"
-															className="h-full w-full object-cover"
+															className="w-full h-auto object-contain"
 														/>
 													</div>
 													<p className="mt-3 text-lg font-bold text-[#1E1E38]">
