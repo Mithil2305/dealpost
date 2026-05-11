@@ -231,23 +231,26 @@ export function formatCompactLocation(value) {
 
 	// If structured object (normalized), prefer area/city
 	if (typeof value === "object") {
-		const area = String(
-			value?.area || value?.displayAddress || value?.name || "",
-		).trim();
-		const city = String(
-			value?.city || value?.formattedAddress || value?.state || "",
-		).trim();
+		// Skip GeoJSON-like objects with no useful text
+		if (value.type === "Point" && Array.isArray(value.coordinates)) {
+			return "";
+		}
+
+		// Use actual structured fields if available
+		const area = String(value?.area || "").trim();
+		const city = String(value?.city || "").trim();
 		if (area && city && area.toLowerCase() !== city.toLowerCase()) {
 			return `${area}, ${city}`;
 		}
 		if (area) return area;
 		if (city) return city;
 
-		// Try formattedAddress or displayAddress
-		const fallback = String(
-			value?.displayAddress || value?.formattedAddress || "",
+		// For objects with a full address string in name/address/formattedAddress,
+		// pass through compactFromString instead of treating name as area
+		const fullAddress = String(
+			value?.displayAddress || value?.formattedAddress || value?.address || value?.name || "",
 		).trim();
-		if (fallback) return compactFromString(fallback);
+		if (fullAddress) return compactFromString(fullAddress);
 		return "";
 	}
 
@@ -258,6 +261,18 @@ export function formatCompactLocation(value) {
 	return String(value);
 }
 
+const ADMIN_TOKEN_RE = /\b(zone|sector|phase|block|taluk|tehsil|mandal|state|province|district|division|country|region|subdivision)\b/i;
+const COUNTRY_RE = /\b(india|bharat|republic of india)\b/i;
+const PINCODE_RE = /^\d{4,}$/i;
+
+function shouldRemoveToken(token) {
+	if (!token) return true;
+	if (ADMIN_TOKEN_RE.test(token)) return true;
+	if (PINCODE_RE.test(token)) return true;
+	if (COUNTRY_RE.test(token)) return true;
+	return false;
+}
+
 function compactFromString(raw) {
 	const s = String(raw || "").trim();
 	if (!s) return "";
@@ -266,26 +281,17 @@ function compactFromString(raw) {
 		.map((p) => p.trim())
 		.filter(Boolean);
 
-	// Remove tokens that are clearly non-useful: zone, state, country, long digit sequences (pincodes)
-	const filtered = parts.filter((p) => {
-		if (!p) return false;
-		if (/\b(zone)\b/i.test(p)) return false;
-		if (/\b(state|province|district|division)\b/i.test(p)) return false;
-		if (/^\d{4,}$/i.test(p)) return false;
-		if (/\b(india|bharat)\b/i.test(p)) return false;
-		return true;
-	});
+	if (!parts.length) return s;
+
+	// Remove administrative tokens: zone, state, country, pincodes, etc.
+	const filtered = parts.filter((p) => !shouldRemoveToken(p));
 
 	const area = parts[0] || "";
-	// Choose a city candidate: first filtered token after the first, or last meaningful token
+	// Choose a city candidate: first filtered token after area
 	let city = "";
 	for (let i = 1; i < parts.length; i++) {
 		const token = parts[i];
-		if (
-			!/\b(zone|state|province|district)\b/i.test(token) &&
-			!/^\d{4,}$/.test(token) &&
-			!/\b(india|bharat)\b/i.test(token)
-		) {
+		if (!shouldRemoveToken(token)) {
 			city = token;
 			break;
 		}
@@ -293,7 +299,9 @@ function compactFromString(raw) {
 	if (!city && filtered.length >= 2) {
 		city = filtered[1] || filtered[0];
 	}
-	if (!city && parts.length >= 2) city = parts[parts.length - 1];
+	if (!city && parts.length >= 2) {
+		city = parts[parts.length - 1];
+	}
 
 	if (area && city && area.toLowerCase() !== city.toLowerCase()) {
 		return `${area}, ${city}`;
@@ -301,8 +309,8 @@ function compactFromString(raw) {
 	if (area) return area;
 	if (city) return city;
 
-	// Fallback: return the shortest token
-	const shortest = parts.slice().sort((a, b) => a.length - b.length)[0] || s;
+	// Fallback: return the shortest meaningful token
+	const shortest = filtered.slice().sort((a, b) => a.length - b.length)[0] || s;
 	return shortest;
 }
 

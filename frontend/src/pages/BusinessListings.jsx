@@ -17,6 +17,7 @@ import Navbar from "../components/Navbar";
 import Modal from "../components/ui/Modal";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
+import { formatCompactLocation } from "../utils/locationHelpers";
 
 const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
 	style: "currency",
@@ -221,7 +222,7 @@ export default function BusinessListings() {
 		return stores.map((store) => {
 			const storeListings = getStoreListings(store);
 			const name = store?.businessName || store?.name || "Unnamed Business";
-			const location = store?.location || "Not specified";
+			const location = formatCompactLocation(store?.location) || "Not specified";
 			const categoryLabel = getSubCategoryOnly(store?.category || "General");
 			const description =
 				String(store?.description || "").trim() || "No description available";

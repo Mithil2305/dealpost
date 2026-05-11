@@ -24,6 +24,7 @@ import ResponsiveImage from "../components/ui/ResponsiveImage.jsx";
 import { useAuth } from "../context/useAuth";
 import { pickArray } from "../utils/api";
 import { getListingLikedCount, updateListingLikeStatus } from "../utils/likes";
+import { formatCompactLocation } from "../utils/locationHelpers";
 
 const ProductCard = lazy(() => import("../components/ProductCard.jsx"));
 
@@ -198,7 +199,7 @@ export default function ProductDetail() {
 						id: listingId,
 						title: listing?.title,
 						price: listing?.price,
-						location: listing?.location?.name || listing?.location || "",
+						location: formatCompactLocation(listing?.location) || "",
 						image:
 							listing?.images?.[0]?.url ||
 							listing?.images?.[0] ||
@@ -573,9 +574,7 @@ export default function ProductDetail() {
 											</p>
 											<div className="mt-1.5 flex items-center gap-2 text-sm font-medium">
 												<MapPin size={15} />{" "}
-												{listing?.location?.name ||
-													listing?.location ||
-													"Not specified"}
+												{formatCompactLocation(listing?.location) || "Not specified"}
 											</div>
 										</div>
 

@@ -22,6 +22,7 @@ import ResponsiveImage from "../components/ui/ResponsiveImage.jsx";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/useAuth";
 import { markConversationSeen } from "../utils/messageNotifications";
+import { formatCompactLocation } from "../utils/locationHelpers";
 
 import Navbar from "../components/Navbar";
 
@@ -495,7 +496,7 @@ export default function Messages() {
 												)}
 												{activeListing?.location && (
 													<span className="truncate">
-														{activeListing.location}
+														{formatCompactLocation(activeListing.location)}
 													</span>
 												)}
 											</div>
