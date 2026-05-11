@@ -14,6 +14,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { formatCompactLocation } from "../utils/locationHelpers";
 import Button from "../components/ui/Button";
 import DealGrid from "../components/ui/DealGrid";
 import FeedSkeleton from "../components/ui/FeedSkeleton.jsx";
@@ -123,17 +124,7 @@ const timeAgo = (value) => {
 
 const getLocationLabel = (value) => {
 	if (!value) return "Location unavailable";
-	if (typeof value === "string") return value;
-	if (typeof value === "object") {
-		return (
-			value?.name ||
-			value?.label ||
-			value?.city ||
-			value?.district ||
-			"Location unavailable"
-		);
-	}
-	return String(value);
+	return formatCompactLocation(value) || "Location unavailable";
 };
 
 export default function Explore() {
@@ -601,316 +592,321 @@ export default function Explore() {
 							size="lg"
 						>
 							<div className="space-y-4 lg:hidden">
-							<div className="mb-2 flex items-center justify-between">
-								<p className="text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
-									Main Category
-								</p>
-								{pendingFilters.category.length > 0 && (
-									<button
-										type="button"
-										onClick={() => {
-											setPendingFilters((prev) => ({ ...prev, category: [] }));
-										}}
-										className="text-[11px] font-semibold text-[#8b7008] hover:text-[#6f5805]"
-									>
-										Clear
-									</button>
-								)}
-							</div>
-							<div className="rounded-2xl border border-brand-border bg-[#FAFAFA] p-2.5">
-								<div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-									{mainCategoryOptions.map((label) => {
-										const selected = pendingFilters.category.includes(label);
-										const groups = subCategoryGroupsByMain.get(label) || [];
-										const showSubItems = expandedMainCategory === label;
-										const childCount = groups.reduce(
-											(sum, group) => sum + Math.max(group.items.length, 1),
-											0,
-										);
-										return (
-											<div key={label} className="rounded-xl">
-												<div
-													className={`flex cursor-pointer items-center gap-2 rounded-xl border px-2.5 py-2 text-sm transition ${
-														selected
-															? "border-[#FFD600] bg-[#FFF7D6] text-black"
-															: "border-transparent bg-white text-brand-dark hover:border-brand-border"
-													}`}
-												>
-													<label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
-														<input
-															type="checkbox"
-															checked={selected}
-															onChange={() =>
-																toggleArrayFilter("category", label)
-															}
-															className="sr-only"
-														/>
-														<span
-															className={`grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border ${
-																selected
-																	? "border-[#111111] bg-[#111111] text-white"
-																	: "border-[#D5D5D5] bg-white text-transparent"
-															}`}
-														>
-															<Check size={12} />
-														</span>
-														<span className="line-clamp-1">{label}</span>
-													</label>
-													{!!groups.length && (
-														<button
-															type="button"
-															onClick={() =>
-																setExpandedMainCategory((prev) =>
-																	prev === label ? "" : label,
-																)
-															}
-															className="grid h-7 w-7 place-items-center rounded-md border border-brand-border bg-white text-[#6F6F6F] hover:text-black"
-															aria-label={`Toggle ${label} subcategories`}
-															aria-expanded={showSubItems}
-														>
-															{showSubItems ? (
-																<ChevronDown size={14} />
-															) : (
-																<ChevronRight size={14} />
-															)}
-														</button>
-													)}
-												</div>
-
-												{!!groups.length && showSubItems && (
-													<div className="mt-1.5 rounded-xl border border-brand-border bg-white p-1.5">
-														<p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-muted">
-															Subcategories ({childCount})
-														</p>
-														<div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
-															{groups.map((group) => {
-																const isGroupSelected =
-																	pendingFilters.category.includes(group.value);
-																const hasLeafItems = group.items.length > 0;
-																const isGroupExpanded = Boolean(
-																	expandedSubCategoryGroups[group.value],
-																);
-
-																return (
-																	<div
-																		key={group.value}
-																		className="rounded-lg border border-[#E7E7E7] bg-[#FCFCFC] px-2 py-1.5"
-																	>
-																		<div className="flex items-center gap-2">
-																			<label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
-																				<input
-																					type="checkbox"
-																					checked={isGroupSelected}
-																					onChange={() =>
-																						toggleArrayFilter(
-																							"category",
-																							group.value,
-																						)
-																					}
-																					className="sr-only"
-																				/>
-																				<span
-																					className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border ${isGroupSelected ? "border-[#111111] bg-[#111111] text-white" : "border-[#D5D5D5] bg-white text-transparent"}`}
-																				>
-																					<Check size={10} />
-																				</span>
-																				<span className="line-clamp-2 text-xs font-medium leading-snug text-brand-dark">
-																					{group.label}
-																				</span>
-																			</label>
-																			{hasLeafItems && (
-																				<button
-																					type="button"
-																					onClick={() =>
-																						toggleSubCategoryGroupExpanded(
-																							group.value,
-																						)
-																					}
-																					className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-brand-border bg-white text-[#6F6F6F] hover:text-black"
-																					aria-label={`Toggle ${group.label} items`}
-																					aria-expanded={isGroupExpanded}
-																				>
-																					{isGroupExpanded ? (
-																						<ChevronDown size={13} />
-																					) : (
-																						<ChevronRight size={13} />
-																					)}
-																				</button>
-																			)}
-																		</div>
-
-																		{hasLeafItems && isGroupExpanded && (
-																			<div className="mt-1 space-y-1 pl-1">
-																				{group.items.map((option) => {
-																					const isSubSelected =
-																						pendingFilters.category.includes(
-																							option.value,
-																						);
-																					return (
-																						<label
-																							key={option.value}
-																							className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-xs transition ${
-																								isSubSelected
-																									? "border-[#FFD600] bg-[#FFF7D6] text-black"
-																									: "border-transparent bg-white text-brand-dark hover:border-brand-border"
-																							}`}
-																						>
-																							<input
-																								type="checkbox"
-																								checked={isSubSelected}
-																								onChange={() =>
-																									toggleArrayFilter(
-																										"category",
-																										option.value,
-																									)
-																								}
-																								className="sr-only"
-																							/>
-																							<span
-																								className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border ${isSubSelected ? "border-[#111111] bg-[#111111] text-white" : "border-[#D5D5D5] bg-white text-transparent"}`}
-																							>
-																								<Check size={10} />
-																							</span>
-																							<span className="break-words leading-snug">
-																								{option.label}
-																							</span>
-																						</label>
-																					);
-																				})}
-																			</div>
-																		)}
-																	</div>
-																);
-															})}
-														</div>
-													</div>
-												)}
-											</div>
-										);
-									})}
-								</div>
-							</div>
-
-							<div>
-								<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
-									Listing Type
-								</p>
-								<select
-									className="input-shell"
-									value={pendingFilters.listingType}
-									onChange={(event) =>
-										setPendingFilters((prev) => ({
-											...prev,
-											listingType: event.target.value,
-										}))
-									}
-								>
-									<option value="">All Listings</option>
-									<option value="fixed">Fixed Price</option>
-									<option value="auction">Auctions</option>
-								</select>
-							</div>
-
-							<div>
-								<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
-									Price Range
-								</p>
-								<div className="grid grid-cols-2 gap-2">
-									<input
-										className="input-shell"
-										placeholder="Min"
-										value={pendingFilters.minPrice}
-										onChange={(event) =>
-											setPendingFilters((prev) => ({
-												...prev,
-												minPrice: event.target.value,
-											}))
-										}
-									/>
-									<input
-										className="input-shell"
-										placeholder="Max"
-										value={pendingFilters.maxPrice}
-										onChange={(event) =>
-											setPendingFilters((prev) => ({
-												...prev,
-												maxPrice: event.target.value,
-											}))
-										}
-									/>
-								</div>
-							</div>
-
-							<div>
-								<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
-									Condition
-								</p>
-								{["New", "Used"].map((value) => (
-									<label
-										key={value}
-										className="mb-1 flex items-center gap-2 text-sm"
-									>
-										<input
-											type="radio"
-											name="condition-mobile"
-											checked={pendingFilters.condition === value}
-											onChange={() =>
+								<div className="mb-2 flex items-center justify-between">
+									<p className="text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
+										Main Category
+									</p>
+									{pendingFilters.category.length > 0 && (
+										<button
+											type="button"
+											onClick={() => {
 												setPendingFilters((prev) => ({
 													...prev,
-													condition: value,
+													category: [],
+												}));
+											}}
+											className="text-[11px] font-semibold text-[#8b7008] hover:text-[#6f5805]"
+										>
+											Clear
+										</button>
+									)}
+								</div>
+								<div className="rounded-2xl border border-brand-border bg-[#FAFAFA] p-2.5">
+									<div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+										{mainCategoryOptions.map((label) => {
+											const selected = pendingFilters.category.includes(label);
+											const groups = subCategoryGroupsByMain.get(label) || [];
+											const showSubItems = expandedMainCategory === label;
+											const childCount = groups.reduce(
+												(sum, group) => sum + Math.max(group.items.length, 1),
+												0,
+											);
+											return (
+												<div key={label} className="rounded-xl">
+													<div
+														className={`flex cursor-pointer items-center gap-2 rounded-xl border px-2.5 py-2 text-sm transition ${
+															selected
+																? "border-[#FFD600] bg-[#FFF7D6] text-black"
+																: "border-transparent bg-white text-brand-dark hover:border-brand-border"
+														}`}
+													>
+														<label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+															<input
+																type="checkbox"
+																checked={selected}
+																onChange={() =>
+																	toggleArrayFilter("category", label)
+																}
+																className="sr-only"
+															/>
+															<span
+																className={`grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border ${
+																	selected
+																		? "border-[#111111] bg-[#111111] text-white"
+																		: "border-[#D5D5D5] bg-white text-transparent"
+																}`}
+															>
+																<Check size={12} />
+															</span>
+															<span className="line-clamp-1">{label}</span>
+														</label>
+														{!!groups.length && (
+															<button
+																type="button"
+																onClick={() =>
+																	setExpandedMainCategory((prev) =>
+																		prev === label ? "" : label,
+																	)
+																}
+																className="grid h-7 w-7 place-items-center rounded-md border border-brand-border bg-white text-[#6F6F6F] hover:text-black"
+																aria-label={`Toggle ${label} subcategories`}
+																aria-expanded={showSubItems}
+															>
+																{showSubItems ? (
+																	<ChevronDown size={14} />
+																) : (
+																	<ChevronRight size={14} />
+																)}
+															</button>
+														)}
+													</div>
+
+													{!!groups.length && showSubItems && (
+														<div className="mt-1.5 rounded-xl border border-brand-border bg-white p-1.5">
+															<p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-muted">
+																Subcategories ({childCount})
+															</p>
+															<div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+																{groups.map((group) => {
+																	const isGroupSelected =
+																		pendingFilters.category.includes(
+																			group.value,
+																		);
+																	const hasLeafItems = group.items.length > 0;
+																	const isGroupExpanded = Boolean(
+																		expandedSubCategoryGroups[group.value],
+																	);
+
+																	return (
+																		<div
+																			key={group.value}
+																			className="rounded-lg border border-[#E7E7E7] bg-[#FCFCFC] px-2 py-1.5"
+																		>
+																			<div className="flex items-center gap-2">
+																				<label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+																					<input
+																						type="checkbox"
+																						checked={isGroupSelected}
+																						onChange={() =>
+																							toggleArrayFilter(
+																								"category",
+																								group.value,
+																							)
+																						}
+																						className="sr-only"
+																					/>
+																					<span
+																						className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border ${isGroupSelected ? "border-[#111111] bg-[#111111] text-white" : "border-[#D5D5D5] bg-white text-transparent"}`}
+																					>
+																						<Check size={10} />
+																					</span>
+																					<span className="line-clamp-2 text-xs font-medium leading-snug text-brand-dark">
+																						{group.label}
+																					</span>
+																				</label>
+																				{hasLeafItems && (
+																					<button
+																						type="button"
+																						onClick={() =>
+																							toggleSubCategoryGroupExpanded(
+																								group.value,
+																							)
+																						}
+																						className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-brand-border bg-white text-[#6F6F6F] hover:text-black"
+																						aria-label={`Toggle ${group.label} items`}
+																						aria-expanded={isGroupExpanded}
+																					>
+																						{isGroupExpanded ? (
+																							<ChevronDown size={13} />
+																						) : (
+																							<ChevronRight size={13} />
+																						)}
+																					</button>
+																				)}
+																			</div>
+
+																			{hasLeafItems && isGroupExpanded && (
+																				<div className="mt-1 space-y-1 pl-1">
+																					{group.items.map((option) => {
+																						const isSubSelected =
+																							pendingFilters.category.includes(
+																								option.value,
+																							);
+																						return (
+																							<label
+																								key={option.value}
+																								className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-xs transition ${
+																									isSubSelected
+																										? "border-[#FFD600] bg-[#FFF7D6] text-black"
+																										: "border-transparent bg-white text-brand-dark hover:border-brand-border"
+																								}`}
+																							>
+																								<input
+																									type="checkbox"
+																									checked={isSubSelected}
+																									onChange={() =>
+																										toggleArrayFilter(
+																											"category",
+																											option.value,
+																										)
+																									}
+																									className="sr-only"
+																								/>
+																								<span
+																									className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border ${isSubSelected ? "border-[#111111] bg-[#111111] text-white" : "border-[#D5D5D5] bg-white text-transparent"}`}
+																								>
+																									<Check size={10} />
+																								</span>
+																								<span className="break-words leading-snug">
+																									{option.label}
+																								</span>
+																							</label>
+																						);
+																					})}
+																				</div>
+																			)}
+																		</div>
+																	);
+																})}
+															</div>
+														</div>
+													)}
+												</div>
+											);
+										})}
+									</div>
+								</div>
+
+								<div>
+									<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
+										Listing Type
+									</p>
+									<select
+										className="input-shell"
+										value={pendingFilters.listingType}
+										onChange={(event) =>
+											setPendingFilters((prev) => ({
+												...prev,
+												listingType: event.target.value,
+											}))
+										}
+									>
+										<option value="">All Listings</option>
+										<option value="fixed">Fixed Price</option>
+										<option value="auction">Auctions</option>
+									</select>
+								</div>
+
+								<div>
+									<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
+										Price Range
+									</p>
+									<div className="grid grid-cols-2 gap-2">
+										<input
+											className="input-shell"
+											placeholder="Min"
+											value={pendingFilters.minPrice}
+											onChange={(event) =>
+												setPendingFilters((prev) => ({
+													...prev,
+													minPrice: event.target.value,
 												}))
 											}
 										/>
-										{value}
-									</label>
-								))}
-							</div>
-
-							<div>
-								<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
-									Location Radius
-								</p>
-								<input
-									type="range"
-									min="5"
-									max="100"
-									step="5"
-									value={Number(pendingFilters.radius) || 25}
-									onChange={(event) =>
-										setPendingFilters((prev) => ({
-											...prev,
-											radius: event.target.value,
-										}))
-									}
-									className="w-full accent-[#D6AE00]"
-								/>
-								<div className="mt-2 flex items-center justify-between text-[11px] text-brand-muted">
-									<span>5 km</span>
-									<span className="font-semibold text-brand-dark">
-										{Number(pendingFilters.radius) || 25} km
-									</span>
-									<span>100 km</span>
+										<input
+											className="input-shell"
+											placeholder="Max"
+											value={pendingFilters.maxPrice}
+											onChange={(event) =>
+												setPendingFilters((prev) => ({
+													...prev,
+													maxPrice: event.target.value,
+												}))
+											}
+										/>
+									</div>
 								</div>
-							</div>
 
-							<div className="grid gap-3 sm:grid-cols-2">
-								<Button
-									variant="outline"
-									onClick={() => {
-										setPendingFilters(defaultFilters);
-									}}
-								>
-									Clear All
-								</Button>
-								<Button
-									onClick={() => {
-										applyPendingFilters();
-										setShowFilters(false);
-									}}
-								>
-									Apply
-								</Button>
-							</div>
+								<div>
+									<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
+										Condition
+									</p>
+									{["New", "Used"].map((value) => (
+										<label
+											key={value}
+											className="mb-1 flex items-center gap-2 text-sm"
+										>
+											<input
+												type="radio"
+												name="condition-mobile"
+												checked={pendingFilters.condition === value}
+												onChange={() =>
+													setPendingFilters((prev) => ({
+														...prev,
+														condition: value,
+													}))
+												}
+											/>
+											{value}
+										</label>
+									))}
+								</div>
+
+								<div>
+									<p className="mb-2 text-xs font-bold tracking-[0.12em] text-brand-muted uppercase">
+										Location Radius
+									</p>
+									<input
+										type="range"
+										min="5"
+										max="100"
+										step="5"
+										value={Number(pendingFilters.radius) || 25}
+										onChange={(event) =>
+											setPendingFilters((prev) => ({
+												...prev,
+												radius: event.target.value,
+											}))
+										}
+										className="w-full accent-[#D6AE00]"
+									/>
+									<div className="mt-2 flex items-center justify-between text-[11px] text-brand-muted">
+										<span>5 km</span>
+										<span className="font-semibold text-brand-dark">
+											{Number(pendingFilters.radius) || 25} km
+										</span>
+										<span>100 km</span>
+									</div>
+								</div>
+
+								<div className="grid gap-3 sm:grid-cols-2">
+									<Button
+										variant="outline"
+										onClick={() => {
+											setPendingFilters(defaultFilters);
+										}}
+									>
+										Clear All
+									</Button>
+									<Button
+										onClick={() => {
+											applyPendingFilters();
+											setShowFilters(false);
+										}}
+									>
+										Apply
+									</Button>
+								</div>
 							</div>
 						</Modal>
 					</Suspense>

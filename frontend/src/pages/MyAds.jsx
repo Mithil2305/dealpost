@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { formatCompactLocation } from "../utils/locationHelpers";
 import { useAuth } from "../context/useAuth";
 
 const TABS = [
@@ -45,13 +46,7 @@ const timeAgo = (value) => {
 
 const getLocationLabel = (value) => {
 	if (!value) return "Unknown";
-	if (typeof value === "string") return value;
-	if (typeof value === "object") {
-		return (
-			value?.name || value?.label || value?.city || value?.district || "Unknown"
-		);
-	}
-	return String(value);
+	return formatCompactLocation(value) || "Unknown";
 };
 
 export default function MyAds() {

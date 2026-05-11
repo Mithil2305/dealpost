@@ -4,11 +4,12 @@ function joinClasses(...parts) {
 
 export default function Skeleton({
 	className = "",
-	as: Element = "div",
+	as = "div",
 	rounded = "rounded-2xl",
 }) {
+	const Tag = as;
 	return (
-		<Element
+		<Tag
 			className={joinClasses(
 				"skeleton-wave bg-[length:200%_100%] bg-[linear-gradient(110deg,#f1f3f5_8%,#fafbfc_18%,#f1f3f5_33%)]",
 				rounded,

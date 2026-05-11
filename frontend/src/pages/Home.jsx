@@ -37,6 +37,7 @@ import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Navbar from "../components/Navbar";
+import { formatCompactLocation } from "../utils/locationHelpers";
 import FeedSkeleton from "../components/ui/FeedSkeleton.jsx";
 import ResponsiveImage from "../components/ui/ResponsiveImage.jsx";
 import { useAuth } from "../context/useAuth";
@@ -177,33 +178,71 @@ const formatPrice = (value) => {
 // Format location to show landmark + city (e.g., "Mylapore, Chennai")
 const formatShortLocation = (location) => {
 	if (!location || typeof location !== "string") return location || "";
-	
-	const parts = location.split(",").map(p => p.trim()).filter(Boolean);
+
+	const parts = location
+		.split(",")
+		.map((p) => p.trim())
+		.filter(Boolean);
 	if (parts.length < 2) return location;
-	
+
 	// Try to find city (look for common city patterns or take 2nd to last)
-	const indianCities = ["Chennai", "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Lucknow", "Kanpur", "Nagpur", "Indore", "Thane", "Bhopal", "Visakhapatnam", "Vadodara", "Firozabad", "Ludhiana", "Rajkot", "Agra", "Siliguri", "Durgapur", "Chandigarh", "Coimbatore"];
-	
+	const indianCities = [
+		"Chennai",
+		"Mumbai",
+		"Delhi",
+		"Bangalore",
+		"Hyderabad",
+		"Kolkata",
+		"Pune",
+		"Ahmedabad",
+		"Jaipur",
+		"Lucknow",
+		"Kanpur",
+		"Nagpur",
+		"Indore",
+		"Thane",
+		"Bhopal",
+		"Visakhapatnam",
+		"Vadodara",
+		"Firozabad",
+		"Ludhiana",
+		"Rajkot",
+		"Agra",
+		"Siliguri",
+		"Durgapur",
+		"Chandigarh",
+		"Coimbatore",
+	];
+
 	let cityIndex = -1;
 	for (let i = parts.length - 1; i >= 0; i--) {
 		const part = parts[i];
-		if (indianCities.some(city => part.toLowerCase().includes(city.toLowerCase()))) {
+		if (
+			indianCities.some((city) =>
+				part.toLowerCase().includes(city.toLowerCase()),
+			)
+		) {
 			cityIndex = i;
 			break;
 		}
 	}
-	
+
 	// If no known city found, use second to last as city (before pincode/state)
 	if (cityIndex === -1) {
 		// Skip pincode (numbers) and country at the end
 		let endIndex = parts.length - 1;
 		if (/^india$/i.test(parts[endIndex])) endIndex--;
 		if (/^\d{6}$/.test(parts[endIndex])) endIndex--;
-		if (/^(tamil nadu|maharashtra|karnataka|andhra pradesh|telangana|west bengal|gujarat|rajasthan|uttar pradesh|madhya pradesh|kerala|bihar|odisha|jharkhand|assam|punjab|haryana|chhattisgarh|uttarakhand|goa|tripura|meghalaya|manipur|nagaland|arunachal pradesh|mizoram|sikkim)$/i.test(parts[endIndex])) endIndex--;
-		
+		if (
+			/^(tamil nadu|maharashtra|karnataka|andhra pradesh|telangana|west bengal|gujarat|rajasthan|uttar pradesh|madhya pradesh|kerala|bihar|odisha|jharkhand|assam|punjab|haryana|chhattisgarh|uttarakhand|goa|tripura|meghalaya|manipur|nagaland|arunachal pradesh|mizoram|sikkim)$/i.test(
+				parts[endIndex],
+			)
+		)
+			endIndex--;
+
 		cityIndex = Math.max(0, endIndex);
 	}
-	
+
 	// Find landmark (first meaningful part or one before city)
 	let landmarkIndex = 0;
 	for (let i = 0; i < cityIndex && i < parts.length; i++) {
@@ -214,14 +253,14 @@ const formatShortLocation = (location) => {
 		landmarkIndex = i;
 		break;
 	}
-	
+
 	const landmark = parts[landmarkIndex];
 	const city = parts[cityIndex];
-	
+
 	if (landmark && city && landmark !== city) {
 		return `${landmark}, ${city}`;
 	}
-	
+
 	return location;
 };
 
@@ -265,17 +304,7 @@ const getMainCategoryFromPath = (value) => {
 
 const getLocationLabel = (value) => {
 	if (!value) return "Location unavailable";
-	if (typeof value === "string") return value;
-	if (typeof value === "object") {
-		return (
-			value?.name ||
-			value?.label ||
-			value?.city ||
-			value?.district ||
-			"Location unavailable"
-		);
-	}
-	return String(value);
+	return formatCompactLocation(value) || "Location unavailable";
 };
 
 const readStoredUserLocation = () => {
@@ -347,7 +376,7 @@ export default function Home() {
 	const [allCategories, setAllCategories] = useState([]);
 	const [showAllCategories, setShowAllCategories] = useState(false);
 	const [userLocation, setUserLocation] = useState(readStoredUserLocation);
-	const [locationRadiusKm, setLocationRadiusKm] = useState(
+	const [locationRadiusKm] = useState(
 		getStoredLocationRadius,
 	);
 	const [loadMoreRadiusKm, setLoadMoreRadiusKm] = useState(

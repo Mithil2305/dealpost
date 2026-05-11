@@ -34,6 +34,7 @@ import {
 	mapAutocompletePlaceToLocation,
 	persistStoredLocation,
 	reverseGeocodeLocation,
+	formatCompactLocation,
 	LOCATION_UPDATED_EVENT,
 } from "../utils/locationHelpers";
 
@@ -104,9 +105,7 @@ function LocationPicker({
 								setLocationInput(event.target.value);
 							}}
 							placeholder={
-								mapsFailed
-									? "Type location"
-									: "Loading location search..."
+								mapsFailed ? "Type location" : "Loading location search..."
 							}
 							className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:border-[#FFD600]"
 						/>
@@ -462,7 +461,17 @@ export default function Navbar({
 	/* ── Listen for auto-location updates ── */
 	useEffect(() => {
 		const handleLocationUpdate = (event) => {
-			const { location, lat, lng, area, city, state, pincode, street, placeId } = event.detail || {};
+			const {
+				location,
+				lat,
+				lng,
+				area,
+				city,
+				state,
+				pincode,
+				street,
+				placeId,
+			} = event.detail || {};
 			if (location) {
 				setLocationInput(location);
 				setDisplayLocation(location);
@@ -739,7 +748,9 @@ export default function Navbar({
 			location: next,
 			displayAddress: selectedLocationDetails?.displayAddress || next,
 			formattedAddress:
-				selectedLocationDetails?.formattedAddress || selectedLocationDetails?.displayAddress || next,
+				selectedLocationDetails?.formattedAddress ||
+				selectedLocationDetails?.displayAddress ||
+				next,
 			area: selectedLocationDetails?.area || "",
 			city: selectedLocationDetails?.city || "",
 			state: selectedLocationDetails?.state || "",
@@ -1086,7 +1097,7 @@ export default function Navbar({
 										{item?.title || "Listing"}
 									</p>
 									<p className="truncate text-xs text-gray-500">
-										{item?.location?.name || item?.location || ""}
+										{formatCompactLocation(item?.location || item) || ""}
 									</p>
 								</div>
 								<ExternalLink size={14} className="shrink-0 text-gray-400" />
@@ -1343,9 +1354,9 @@ export default function Navbar({
 												{alertItem?.title || "New listing"}
 											</p>
 											<p className="line-clamp-1 text-xs text-gray-500">
-												{alertItem?.location?.name ||
-													alertItem?.location ||
-													"Recently updated"}
+												{formatCompactLocation(
+													alertItem?.location || alertItem,
+												) || "Recently updated"}
 											</p>
 										</button>
 									))

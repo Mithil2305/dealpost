@@ -268,7 +268,7 @@ describe("frontend utility audit", () => {
 		expect(await loadGoogleMapsFromPublicConfig(apiClient)).toBe(true);
 		expect(loadGoogleMapsPlaces).toHaveBeenCalledWith("test-key");
 
-		global.fetch = vi
+		globalThis.fetch = vi
 			.fn()
 			.mockResolvedValueOnce({
 				ok: true,
@@ -449,8 +449,8 @@ describe("frontend utility audit", () => {
 			return originalCreateElement(tag);
 		});
 
-		global.URL.createObjectURL = vi.fn(() => "blob://image");
-		global.URL.revokeObjectURL = vi.fn();
+		globalThis.URL.createObjectURL = vi.fn(() => "blob://image");
+		globalThis.URL.revokeObjectURL = vi.fn();
 
 		class MockImage {
 			constructor() {
@@ -461,7 +461,7 @@ describe("frontend utility audit", () => {
 				setTimeout(() => this.onload?.(), 0);
 			}
 		}
-		global.Image = MockImage;
+		globalThis.Image = MockImage;
 
 		const { compressImageFile } = await importFresh(
 			"../utils/imageCompressor.js",

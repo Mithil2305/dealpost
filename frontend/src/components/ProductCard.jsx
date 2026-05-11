@@ -1,6 +1,7 @@
 import { Heart, Scale } from "lucide-react";
 import { Link } from "react-router-dom";
 import ResponsiveImage from "./ui/ResponsiveImage.jsx";
+import { formatCompactLocation } from "../utils/locationHelpers";
 
 const currency = new Intl.NumberFormat("en-IN", {
 	style: "currency",
@@ -36,11 +37,9 @@ export default function ProductCard({ listing }) {
 	const listingDetailId =
 		listing?.productId || listing?._id || listing?.id || "";
 	const compareSeed = listing?._id || listing?.id || listing?.productId || "";
-	const areaName =
-		String(listing?.location?.name || listing?.location || "")
-			.split(",")
-			.map((part) => part.trim())
-			.filter(Boolean)[0] || "Area unavailable";
+	const compactLocation =
+		formatCompactLocation(listing?.location || listing) || "";
+	const areaName = compactLocation || "Area unavailable";
 
 	return (
 		<article className="group flex h-full flex-col rounded-[18px] border border-[#F0F2F5] bg-white p-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(40,40,90,0.1)] sm:rounded-[24px] sm:p-3">

@@ -318,6 +318,29 @@ async function ensureListingIndexes() {
 	}
 }
 
+async function ensureListingImageColumns() {
+	const queryInterface = sequelize.getQueryInterface();
+	const columns = await queryInterface.describeTable("listings");
+
+	if (!columns.image_display_mode && !columns.imageDisplayMode) {
+		await queryInterface.addColumn("listings", "image_display_mode", {
+			type: DataTypes.ENUM("cover", "contain"),
+			allowNull: false,
+			defaultValue: "cover",
+		});
+	}
+
+	if (!columns.crop_data && !columns.cropData) {
+		await queryInterface.addColumn("listings", "crop_data", {
+			type: DataTypes.JSON,
+			allowNull: false,
+			defaultValue: [],
+			comment:
+				"Array of crop metadata for each image {useFullImage, crop, displayMode}",
+		});
+	}
+}
+
 export async function connectDB() {
 	await sequelize.authenticate();
 	await sequelize.sync();
@@ -329,6 +352,7 @@ export async function connectDB() {
 	await ensureListingAuctionColumns();
 	await ensureUserBusinessColumns();
 	await ensureBusinessColumns();
+	await ensureListingImageColumns();
 	await ensureListingIndexes();
 	console.log("MySQL connected and models synced");
 }

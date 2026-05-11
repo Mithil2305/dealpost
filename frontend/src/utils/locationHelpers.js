@@ -220,6 +220,92 @@ export function mapAutocompletePlaceToLocation(place, fallbackAddress = "") {
 	};
 }
 
+/**
+ * Format a compact, user-friendly location string from a location value.
+ * - Prefer area/locality + city
+ * - Strip zone/state/pincode/country when possible
+ * - Fallbacks: city, shortest meaningful token
+ */
+export function formatCompactLocation(value) {
+	if (!value) return "";
+
+	// If structured object (normalized), prefer area/city
+	if (typeof value === "object") {
+		const area = String(
+			value?.area || value?.displayAddress || value?.name || "",
+		).trim();
+		const city = String(
+			value?.city || value?.formattedAddress || value?.state || "",
+		).trim();
+		if (area && city && area.toLowerCase() !== city.toLowerCase()) {
+			return `${area}, ${city}`;
+		}
+		if (area) return area;
+		if (city) return city;
+
+		// Try formattedAddress or displayAddress
+		const fallback = String(
+			value?.displayAddress || value?.formattedAddress || "",
+		).trim();
+		if (fallback) return compactFromString(fallback);
+		return "";
+	}
+
+	if (typeof value === "string") {
+		return compactFromString(value);
+	}
+
+	return String(value);
+}
+
+function compactFromString(raw) {
+	const s = String(raw || "").trim();
+	if (!s) return "";
+	const parts = s
+		.split(",")
+		.map((p) => p.trim())
+		.filter(Boolean);
+
+	// Remove tokens that are clearly non-useful: zone, state, country, long digit sequences (pincodes)
+	const filtered = parts.filter((p) => {
+		if (!p) return false;
+		if (/\b(zone)\b/i.test(p)) return false;
+		if (/\b(state|province|district|division)\b/i.test(p)) return false;
+		if (/^\d{4,}$/i.test(p)) return false;
+		if (/\b(india|bharat)\b/i.test(p)) return false;
+		return true;
+	});
+
+	const area = parts[0] || "";
+	// Choose a city candidate: first filtered token after the first, or last meaningful token
+	let city = "";
+	for (let i = 1; i < parts.length; i++) {
+		const token = parts[i];
+		if (
+			!/\b(zone|state|province|district)\b/i.test(token) &&
+			!/^\d{4,}$/.test(token) &&
+			!/\b(india|bharat)\b/i.test(token)
+		) {
+			city = token;
+			break;
+		}
+	}
+	if (!city && filtered.length >= 2) {
+		city = filtered[1] || filtered[0];
+	}
+	if (!city && parts.length >= 2) city = parts[parts.length - 1];
+
+	if (area && city && area.toLowerCase() !== city.toLowerCase()) {
+		return `${area}, ${city}`;
+	}
+	if (area) return area;
+	if (city) return city;
+
+	// Fallback: return the shortest token
+	const shortest = parts.slice().sort((a, b) => a.length - b.length)[0] || s;
+	return shortest;
+}
+
 export async function loadGoogleMapsFromPublicConfig(apiClient) {
 	const { data } = await apiClient.get("/config/public");
 	const key = data?.googleMapsBrowserApiKey;

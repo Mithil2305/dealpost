@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { X, ZoomIn, ZoomOut } from "lucide-react";
 import Cropper from "react-easy-crop";
 import Button from "./ui/Button";
@@ -30,7 +30,7 @@ export default function ImageCropper({
 	const [zoom, setZoom] = useState(1);
 	const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 	const [displayMode, setDisplayMode] = useState(initialDisplayMode);
-	const [useFullImage, setUseFullImage] = useState(!initialCrop);
+	const [useFullImage] = useState(!initialCrop);
 	const [applyCropping, setApplyCropping] = useState(true);
 
 	const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {

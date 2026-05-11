@@ -24,7 +24,6 @@ export default function ImageDisplay({
 	className = "",
 	displayMode = "cover",
 }) {
-	const [imageLoaded, setImageLoaded] = useState(false);
 	const [imageDimensions, setImageDimensions] = useState(null);
 
 	// Determine if we should show full image or crop
@@ -36,9 +35,6 @@ export default function ImageDisplay({
 		if (!shouldUseCrop || !imageDimensions || !cropData.crop) {
 			return null;
 		}
-
-		const crop = cropData.crop;
-		const { naturalWidth, naturalHeight } = imageDimensions;
 
 		// crop.x and crop.y are percentages (0-100)
 		// crop.width and crop.height are percentages (0-100)
@@ -55,7 +51,6 @@ export default function ImageDisplay({
 				naturalHeight: e.target.naturalHeight,
 			});
 		}
-		setImageLoaded(true);
 	};
 
 	// Container style for cropped images
@@ -72,13 +67,6 @@ export default function ImageDisplay({
 
 		// Cropped image display
 		const crop = cropData.crop;
-		const { naturalWidth, naturalHeight } = imageDimensions;
-
-		// Calculate transform to show only the cropped area
-		const cropX = (crop.x / 100) * naturalWidth;
-		const cropY = (crop.y / 100) * naturalHeight;
-		const cropWidth = (crop.width / 100) * naturalWidth;
-		const cropHeight = (crop.height / 100) * naturalHeight;
 
 		return {
 			width: "100%",
