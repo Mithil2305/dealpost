@@ -5,6 +5,7 @@ import SkipToMain from "./components/a11y/SkipToMain.jsx";
 import RouteFallback from "./components/ui/RouteFallback.jsx";
 import { trackPageView } from "./utils/analytics.js";
 import { lazyPage } from "./utils/lazy.js";
+import { useAutoLocation } from "./hooks/useAutoLocation.js";
 
 const Home = lazyPage(() => import("./pages/Home.jsx"));
 const Login = lazyPage(() => import("./pages/Login.jsx"));
@@ -88,6 +89,11 @@ function AnalyticsTracker() {
 	return null;
 }
 
+function AutoLocationFetcher() {
+	useAutoLocation();
+	return null;
+}
+
 function App() {
 	const location = useLocation();
 
@@ -102,6 +108,7 @@ function App() {
 		<>
 			<ScrollToTop />
 			<AnalyticsTracker />
+			<AutoLocationFetcher />
 			<SkipToMain />
 			<Suspense fallback={<RouteFallback />}>
 				<Routes>
