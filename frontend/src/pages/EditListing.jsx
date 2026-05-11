@@ -1,4 +1,4 @@
-import { ImagePlus, MapPin, Rocket } from "lucide-react";
+import { ImagePlus, MapPin, Rocket, Edit2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate, useParams } from "react-router-dom";
@@ -7,6 +7,7 @@ import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import Button from "../components/ui/Button";
 import FormField from "../components/ui/FormField";
+import ImageCropper from "../components/ImageCropper";
 import { compressImageFile } from "../utils/imageCompressor";
 import { mountPlaceAutocompleteElement } from "../utils/googleMaps";
 import { pickArray } from "../utils/api";
@@ -108,6 +109,10 @@ export default function EditListing() {
 	const [previews, setPreviews] = useState([null, null, null]);
 	const autocompleteContainerRef = useRef(null);
 	const [curatedSpecs, setCuratedSpecs] = useState({});
+	const [imageDisplayMode, setImageDisplayMode] = useState("cover");
+	const [cropData, setCropData] = useState([null, null, null]); // Store crop metadata for each image
+	const [selectedImageIndex, setSelectedImageIndex] = useState(null); // Which image is being cropped
+	const [showCropper, setShowCropper] = useState(false); // Show/hide cropper modal
 	const [form, setForm] = useState({
 		title: "",
 		listingType: "fixed",
@@ -165,6 +170,9 @@ export default function EditListing() {
 				if (typeof specs === "object" && !Array.isArray(specs)) {
 					setCuratedSpecs(specs);
 				}
+
+				// Set image display mode
+				setImageDisplayMode(listing?.imageDisplayMode || "cover");
 
 				// Set existing images
 				const images = Array.isArray(listing?.images)
@@ -338,6 +346,26 @@ export default function EditListing() {
 			next[index] = file;
 			return next;
 		});
+		// Reset crop data for this image when a new file is selected
+		setCropData((prev) => {
+			const next = [...prev];
+			next[index] = null;
+			return next;
+		});
+	};
+
+	const openImageCropper = (index) => {
+		setSelectedImageIndex(index);
+		setShowCropper(true);
+	};
+
+	const handleCropChange = (cropInfo) => {
+		setCropData((prev) => {
+			const next = [...prev];
+			next[selectedImageIndex] = cropInfo;
+			return next;
+		});
+		setShowCropper(false);
 	};
 
 	const selectFallbackSuggestion = (suggestion) => {
@@ -486,6 +514,8 @@ export default function EditListing() {
 				longitude: form.longitude,
 				...(form.placeId ? { placeId: form.placeId } : {}),
 				images: finalImages.filter((img) => img?.url),
+				imageDisplayMode,
+				cropData: cropData.filter((crop) => crop !== null), // Include crop metadata
 			};
 
 			const { data } = await api.put(`/listings/${id}`, payload);
@@ -539,42 +569,126 @@ export default function EditListing() {
 								<ImagePlus size={20} /> Visual Identity
 							</h2>
 
+							{/* Image Display Mode Toggle */}
+							<div className="mt-4 rounded-2xl border border-[#E6D9A7] bg-[#FFF9E5] p-4">
+								<p className="text-xs font-bold uppercase tracking-[0.12em] text-[#8B7322]">
+									Image Display Mode
+								</p>
+								<p className="mt-1 text-xs text-[#7B6A26]">
+									Choose how your images appear on the site
+								</p>
+								<div className="mt-3 flex gap-2">
+									<button
+										type="button"
+										onClick={() => setImageDisplayMode("cover")}
+										className={`flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition ${
+											imageDisplayMode === "cover"
+												? "border-[#FFD600] bg-[#FFF8DB] text-[#8B7008]"
+												: "border-brand-border bg-white text-brand-muted hover:bg-brand-bg"
+										}`}
+									>
+										<div className="flex flex-col items-center gap-1">
+											<span className="text-xs font-bold uppercase tracking-[0.08em]">
+												Cropped
+											</span>
+											<span className="text-[10px] text-[#7B6A26]">
+												Fills the frame
+											</span>
+										</div>
+									</button>
+									<button
+										type="button"
+										onClick={() => setImageDisplayMode("contain")}
+										className={`flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition ${
+											imageDisplayMode === "contain"
+												? "border-[#FFD600] bg-[#FFF8DB] text-[#8B7008]"
+												: "border-brand-border bg-white text-brand-muted hover:bg-brand-bg"
+										}`}
+									>
+										<div className="flex flex-col items-center gap-1">
+											<span className="text-xs font-bold uppercase tracking-[0.08em]">
+												Full Image
+											</span>
+											<span className="text-[10px] text-[#7B6A26]">
+												Shows everything
+											</span>
+										</div>
+									</button>
+								</div>
+							</div>
+
 							<div className="mt-5 grid grid-cols-3 gap-3">
 								{[0, 1, 2].map((index) => {
 									const previewUrl =
 										previews[index] || existingImages[index]?.url || null;
+									const crop = cropData[index];
+									const isCropped = crop && !crop.useFullImage;
 									return (
-										<label
+										<div
 											key={index}
-											className={`relative flex h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed ${
-												index === 0
-													? "col-span-3 sm:col-span-1 sm:h-44"
-													: "h-32"
-											} border-[#decf98] bg-[#faf8ef] text-brand-muted`}
+											className={`relative group ${
+												index === 0 ? "col-span-3 sm:col-span-1" : ""
+											}`}
 										>
-											<input
-												type="file"
-												className="hidden"
-												accept="image/*"
-												onChange={(event) =>
-													onFileChange(index, event.target.files?.[0])
-												}
-											/>
-											{previewUrl ? (
-												<img
-													src={previewUrl}
-													alt="Upload preview"
-													className="absolute inset-0 h-full w-full rounded-2xl object-cover"
+											<label
+												className={`relative flex h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed ${
+													index === 0 ? "sm:h-44" : ""
+												} border-[#decf98] bg-[#faf8ef] text-brand-muted transition ${
+													previewUrl
+														? "border-[#decf98]"
+														: "hover:border-brand-yellow hover:bg-[#fffbf0]"
+												}`}
+											>
+												<input
+													type="file"
+													className="hidden"
+													accept="image/*"
+													onChange={(event) =>
+														onFileChange(index, event.target.files?.[0])
+													}
 												/>
-											) : (
-												<>
-													<ImagePlus size={20} />
-													<span className="mt-2 text-xs">
-														{index === 0 ? "Add Hero Image" : "Add Image"}
-													</span>
-												</>
+												{previewUrl ? (
+													<img
+														src={previewUrl}
+														alt="Upload preview"
+														className="absolute inset-0 h-full w-full rounded-2xl object-cover"
+													/>
+												) : (
+													<>
+														<ImagePlus size={20} />
+														<span className="mt-2 text-xs">
+															{index === 0 ? "Add Hero Image" : "Add Image"}
+														</span>
+													</>
+												)}
+											</label>
+
+											{/* Crop Button and Status */}
+											{previewUrl && (
+												<div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-black/0 group-hover:bg-black/40 transition-all duration-200">
+													<button
+														type="button"
+														onClick={() => openImageCropper(index)}
+														className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-brand-dark shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1 hover:bg-brand-yellow"
+													>
+														<Edit2 size={12} /> Crop
+													</button>
+												</div>
 											)}
-										</label>
+
+											{/* Crop Status Badge */}
+											{previewUrl && crop && (
+												<div
+													className={`absolute -top-2 -right-2 rounded-full text-xs font-bold px-2 py-1 ${
+														isCropped
+															? "bg-brand-yellow text-[#8B7008]"
+															: "bg-green-500 text-white"
+													} shadow-md z-10`}
+												>
+													{isCropped ? "Cropped" : "Full"}
+												</div>
+											)}
+										</div>
 									);
 								})}
 							</div>
@@ -886,6 +1000,21 @@ export default function EditListing() {
 						</article>
 					</section>
 				</form>
+
+				{/* Image Cropper Modal */}
+				{showCropper && selectedImageIndex !== null && (
+					<ImageCropper
+						src={
+							previews[selectedImageIndex] ||
+							existingImages[selectedImageIndex]?.url ||
+							""
+						}
+						onCropChange={handleCropChange}
+						initialCrop={cropData[selectedImageIndex]}
+						initialDisplayMode={imageDisplayMode}
+						onClose={() => setShowCropper(false)}
+					/>
+				)}
 			</main>
 			<Footer />
 		</div>

@@ -96,6 +96,17 @@ export function defineListing(sequelize) {
 				type: DataTypes.JSON,
 				defaultValue: {},
 			},
+			imageDisplayMode: {
+				type: DataTypes.ENUM("cover", "contain"),
+				allowNull: false,
+				defaultValue: "cover",
+			},
+			cropData: {
+				type: DataTypes.JSON,
+				defaultValue: [],
+				comment:
+					"Array of crop metadata for each image {useFullImage, crop, displayMode}",
+			},
 		},
 		{
 			tableName: "listings",

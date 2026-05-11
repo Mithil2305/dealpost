@@ -821,6 +821,8 @@ export const createListing = asyncHandler(async (req, res) => {
 		displayAddress,
 		formattedAddress,
 		addressComponents,
+		imageDisplayMode,
+		cropData,
 	} = req.body;
 
 	const normalizedListingType = normalizeListingType(listingType);
@@ -982,6 +984,10 @@ export const createListing = asyncHandler(async (req, res) => {
 			: parseMaybeJson(addressComponents, []);
 	}
 
+	const validDisplayMode = String(imageDisplayMode || "").toLowerCase();
+	const finalImageDisplayMode =
+		validDisplayMode === "contain" ? "contain" : "cover";
+
 	const listing = await models.Listing.create({
 		productId: null,
 		title: title.trim(),
@@ -1005,6 +1011,8 @@ export const createListing = asyncHandler(async (req, res) => {
 		specs: sanitizeSpecs(specs),
 		images,
 		sellerId: req.user.id,
+		imageDisplayMode: finalImageDisplayMode,
+		cropData: Array.isArray(cropData) ? cropData : [],
 	});
 
 	if (!listing.productId) {
@@ -1141,6 +1149,8 @@ export const updateListing = asyncHandler(async (req, res) => {
 		specs,
 		images: incomingImages,
 		status,
+		imageDisplayMode,
+		cropData,
 	} = req.body;
 
 	const nextListingType =
@@ -1292,6 +1302,15 @@ export const updateListing = asyncHandler(async (req, res) => {
 	}
 	if (specs !== undefined) {
 		listing.specs = sanitizeSpecs(specs);
+	}
+	if (imageDisplayMode !== undefined) {
+		const validMode = String(imageDisplayMode || "").toLowerCase();
+		if (validMode === "contain" || validMode === "cover") {
+			listing.imageDisplayMode = validMode;
+		}
+	}
+	if (cropData !== undefined) {
+		listing.cropData = Array.isArray(cropData) ? cropData : [];
 	}
 
 	if (

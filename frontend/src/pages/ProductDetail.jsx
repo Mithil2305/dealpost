@@ -15,6 +15,7 @@ import toast from "react-hot-toast";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../api/axios";
 import Footer from "../components/Footer";
+import ImageDisplay from "../components/ImageDisplay";
 import Navbar from "../components/Navbar";
 import Button from "../components/ui/Button";
 import FeedSkeleton from "../components/ui/FeedSkeleton.jsx";
@@ -40,6 +41,7 @@ export default function ProductDetail() {
 	const [listing, setListing] = useState(null);
 	const [activeTab, setActiveTab] = useState("description");
 	const [activeImage, setActiveImage] = useState("");
+	const [activeImageIndex, setActiveImageIndex] = useState(0);
 	const [loading, setLoading] = useState(true);
 	const [sendingMessage, setSendingMessage] = useState(false);
 	const [isLiked, setIsLiked] = useState(false);
@@ -68,6 +70,7 @@ export default function ProductDetail() {
 						entry?.image ||
 						"https://placehold.co/1000x700?text=Deal Post",
 				);
+				setActiveImageIndex(0);
 
 				try {
 					setLoadingRelated(true);
@@ -143,6 +146,20 @@ export default function ProductDetail() {
 		if (!images.length && listing?.image) images.push(listing.image);
 		return images;
 	}, [listing]);
+
+	// Helper to set active image and its index
+	const handleSelectImage = (image, index) => {
+		setActiveImage(image);
+		setActiveImageIndex(index);
+	};
+
+	// Get crop data for the current active image
+	const activeCropData = useMemo(() => {
+		if (!listing?.cropData || !Array.isArray(listing.cropData)) {
+			return null;
+		}
+		return listing.cropData[activeImageIndex] || null;
+	}, [listing?.cropData, activeImageIndex]);
 
 	const sendMessage = async () => {
 		if (!isAuthenticated) {
@@ -434,18 +451,17 @@ export default function ProductDetail() {
 						>
 							<div>
 								<div className="relative overflow-hidden rounded-[30px] border border-brand-border bg-white shadow-sm">
-									<ResponsiveImage
+									<ImageDisplay
 										src={
 											activeImage ||
 											"https://placehold.co/1200x820?text=Deal Post"
 										}
+										cropData={activeCropData}
 										alt={listing?.title || "Listing image"}
 										width={1200}
 										height={820}
-										sizes="(min-width: 1024px) 58vw, 100vw"
-										loading="eager"
-										fetchPriority="high"
-										className="h-[360px] w-full object-cover sm:h-[460px] lg:h-[560px]"
+										className="h-[360px] w-full sm:h-[460px] lg:h-[560px]"
+										displayMode={listing?.imageDisplayMode || "cover"}
 									/>
 									<div className="absolute left-4 top-4 flex flex-wrap gap-2">
 										{listing?.isVerified && (
@@ -461,7 +477,7 @@ export default function ProductDetail() {
 										<button
 											key={image + index}
 											type="button"
-											onClick={() => setActiveImage(image)}
+											onClick={() => handleSelectImage(image, index)}
 											aria-label={`View image ${index + 1}`}
 											className={`overflow-hidden rounded-2xl border transition ${activeImage === image ? "border-brand-yellow ring-1 ring-brand-yellow" : "border-brand-border hover:border-brand-muted"}`}
 										>
@@ -779,7 +795,9 @@ export default function ProductDetail() {
 							{loadingRelated ? (
 								<FeedSkeleton count={4} minCardWidth={250} />
 							) : relatedListings.length ? (
-								<Suspense fallback={<FeedSkeleton count={4} minCardWidth={250} />}>
+								<Suspense
+									fallback={<FeedSkeleton count={4} minCardWidth={250} />}
+								>
 									<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 										{relatedListings.map((item) => (
 											<ProductCard
