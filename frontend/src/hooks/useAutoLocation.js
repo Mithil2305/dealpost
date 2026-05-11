@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
-import { toast } from "react-hot-toast";
 import {
 	getStoredLocationCoords,
 	persistStoredLocation,
 	reverseGeocodeLocation,
 	hasValidCoordinates,
 } from "../utils/locationHelpers.js";
+import api from "../api/axios.js";
 
 const STORAGE_AUTO_LOCATION_KEY = "autoLocationFetched";
 const STORAGE_AUTO_LOCATION_TIMESTAMP_KEY = "autoLocationTimestamp";
@@ -41,7 +41,7 @@ function markAutoLocationFetched() {
 	localStorage.setItem(STORAGE_AUTO_LOCATION_TIMESTAMP_KEY, String(Date.now()));
 }
 
-export function useAutoLocation() {
+export function useAutoLocation({ isAuthenticated = false, setCurrentUser = null } = {}) {
 	const isFetchingRef = useRef(false);
 	const timeoutRef = useRef(null);
 
@@ -97,10 +97,19 @@ export function useAutoLocation() {
 
 								markAutoLocationFetched();
 
-								toast.success(`Location detected: ${locationData.displayAddress}`, {
-									duration: 4000,
-									icon: "📍",
-								});
+								// Save to database if user is authenticated
+								if (isAuthenticated) {
+									try {
+										const { data } = await api.put("/users/me", {
+											location: locationData.displayAddress,
+										});
+										if (setCurrentUser && data?.user) {
+											setCurrentUser(data.user);
+										}
+									} catch {
+										// Silently fail - local storage already has the location
+									}
+								}
 							}
 						} catch {
 							// Silently fail
@@ -123,7 +132,7 @@ export function useAutoLocation() {
 				clearTimeout(timeoutRef.current);
 			}
 		};
-	}, []);
+	}, [isAuthenticated, setCurrentUser]);
 }
 
 export default useAutoLocation;

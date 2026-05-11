@@ -34,6 +34,7 @@ import {
 	mapAutocompletePlaceToLocation,
 	persistStoredLocation,
 	reverseGeocodeLocation,
+	LOCATION_UPDATED_EVENT,
 } from "../utils/locationHelpers";
 
 const ALERTS_CACHE_TTL_MS = 15000;
@@ -457,6 +458,39 @@ export default function Navbar({
 			window.clearTimeout(timeoutId);
 		};
 	}, [mapsFailed, locationInput]);
+
+	/* ── Listen for auto-location updates ── */
+	useEffect(() => {
+		const handleLocationUpdate = (event) => {
+			const { location, lat, lng, area, city, state, pincode, street, placeId } = event.detail || {};
+			if (location) {
+				setLocationInput(location);
+				setDisplayLocation(location);
+				setConfirmedLocationInput(location.trim());
+				if (hasValidCoordinates(lat, lng)) {
+					setSelectedCoordinates({ lat, lng });
+				}
+				// Update full location details for saving
+				setSelectedLocationDetails({
+					lat,
+					lng,
+					area: area || "",
+					city: city || "",
+					state: state || "",
+					pincode: pincode || "",
+					street: street || "",
+					displayAddress: location,
+					formattedAddress: location,
+					placeId: placeId || "",
+				});
+			}
+		};
+
+		window.addEventListener(LOCATION_UPDATED_EVENT, handleLocationUpdate);
+		return () => {
+			window.removeEventListener(LOCATION_UPDATED_EVENT, handleLocationUpdate);
+		};
+	}, []);
 
 	const reverseGeocodeByCoords = useCallback(async (lat, lng, placeId = "") => {
 		if (!hasValidCoordinates(lat, lng)) return null;

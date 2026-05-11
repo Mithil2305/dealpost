@@ -90,7 +90,11 @@ function AnalyticsTracker() {
 }
 
 function AutoLocationFetcher() {
-	useAutoLocation();
+	const { isAuthenticated, setCurrentUser } = useAuth();
+	useAutoLocation({
+		isAuthenticated,
+		setCurrentUser,
+	});
 	return null;
 }
 

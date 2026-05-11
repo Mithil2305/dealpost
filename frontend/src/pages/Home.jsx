@@ -313,17 +313,34 @@ export default function Home() {
 	const deferredSearch = useDeferredValue(search);
 
 	// Fetch Data Effect
+	const [locationRefreshKey, setLocationRefreshKey] = useState(0);
+
 	useEffect(() => {
-		const syncLocation = () => {
-			setUserLocation(readStoredUserLocation());
+		const syncLocation = (event) => {
+			// Use event detail directly for immediate updates
+			const { location, lat, lng } = event?.detail || {};
+			if (location) {
+				setUserLocation({
+					label: location,
+					lat: lat || null,
+					lng: lng || null,
+				});
+				// Force immediate refresh
+				setLocationRefreshKey((prev) => prev + 1);
+			}
+		};
+
+		const handleFocus = () => {
+			const newLocation = readStoredUserLocation();
+			setUserLocation(newLocation);
 		};
 
 		window.addEventListener(LOCATION_UPDATED_EVENT, syncLocation);
-		window.addEventListener("focus", syncLocation);
+		window.addEventListener("focus", handleFocus);
 
 		return () => {
 			window.removeEventListener(LOCATION_UPDATED_EVENT, syncLocation);
-			window.removeEventListener("focus", syncLocation);
+			window.removeEventListener("focus", handleFocus);
 		};
 	}, []);
 
@@ -464,6 +481,7 @@ export default function Home() {
 		userLocation.label,
 		userLocation.lat,
 		userLocation.lng,
+		locationRefreshKey,
 	]);
 
 	// Liked Items Effect
