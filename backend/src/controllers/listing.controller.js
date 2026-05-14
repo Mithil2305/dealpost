@@ -7,6 +7,7 @@ import { createR2PresignedUpload, uploadToR2 } from "../utils/r2Upload.js";
 
 const MAX_SEARCH_LENGTH = 200;
 const MAX_PRICE = 100_000_000;
+const USER_LISTING_LIMIT = 5;
 const OWNER_ALLOWED_STATUSES = ["active", "sold", "pending"];
 const ADMIN_ALLOWED_STATUSES = ["active", "sold", "pending", "removed"];
 const VALID_SORTS = [
@@ -829,6 +830,21 @@ export const createListing = asyncHandler(async (req, res) => {
 	const isAuctionListing = normalizedListingType === "auction";
 	const isBusinessAccount =
 		String(req.user?.accountType || "").toLowerCase() === "business";
+	const isAdmin = ["admin", "developer"].includes(
+		String(req.user?.role || "").toLowerCase(),
+	);
+
+	if (!isAdmin) {
+		const existingCount = await models.Listing.count({
+			where: { sellerId: req.user.id },
+		});
+
+		if (existingCount >= USER_LISTING_LIMIT) {
+			return res.status(403).json({
+				message: `Listing limit reached. You can post up to ${USER_LISTING_LIMIT} listings.`,
+			});
+		}
+	}
 
 	if (isBusinessAccount) {
 		const sellerBusinessName = String(req.user?.businessName || "").trim();

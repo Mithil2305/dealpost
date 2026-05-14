@@ -87,6 +87,7 @@ const LOCATION_RADIUS_OPTIONS_KM = [5, 10, 25, 50];
 const LOCATION_RADIUS_EXPANSION_STEPS_KM = [5, 10, 25, 50, 75, 100, 150, 200];
 const LOCATION_RADIUS_STORAGE_KEY = "homeLocationRadiusKm";
 const HOME_LISTINGS_PAGE_SIZE = 40;
+const LAUNCH_TARGET_DATE = new Date("2026-05-28T00:00:00");
 const DISPLAY_CATEGORIES = [
 	"Cars",
 	"Bikes",
@@ -264,6 +265,46 @@ const formatShortLocation = (location) => {
 	return location;
 };
 
+const formatCountdownValue = (value) => String(value).padStart(2, "0");
+
+const getLaunchCountdown = () => {
+	const targetMs = LAUNCH_TARGET_DATE.getTime();
+	if (!Number.isFinite(targetMs)) {
+		return {
+			isLive: false,
+			days: 0,
+			hours: 0,
+			minutes: 0,
+			seconds: 0,
+		};
+	}
+
+	const diffMs = targetMs - Date.now();
+	if (diffMs <= 0) {
+		return {
+			isLive: true,
+			days: 0,
+			hours: 0,
+			minutes: 0,
+			seconds: 0,
+		};
+	}
+
+	const totalSeconds = Math.floor(diffMs / 1000);
+	const days = Math.floor(totalSeconds / 86400);
+	const hours = Math.floor((totalSeconds % 86400) / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+
+	return {
+		isLive: false,
+		days,
+		hours,
+		minutes,
+		seconds,
+	};
+};
+
 const timeAgo = (value) => {
 	if (!value) return "Just now";
 	const then = new Date(value);
@@ -376,9 +417,7 @@ export default function Home() {
 	const [allCategories, setAllCategories] = useState([]);
 	const [showAllCategories, setShowAllCategories] = useState(false);
 	const [userLocation, setUserLocation] = useState(readStoredUserLocation);
-	const [locationRadiusKm] = useState(
-		getStoredLocationRadius,
-	);
+	const [locationRadiusKm] = useState(getStoredLocationRadius);
 	const [loadMoreRadiusKm, setLoadMoreRadiusKm] = useState(
 		getStoredLocationRadius,
 	);
@@ -391,6 +430,10 @@ export default function Home() {
 	// Hero Slider State
 	const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
 	const deferredSearch = useDeferredValue(search);
+	const [launchCountdown, setLaunchCountdown] = useState(() =>
+		getLaunchCountdown(),
+	);
+	const [showLaunchPopup, setShowLaunchPopup] = useState(true);
 
 	// Fetch Data Effect
 	const [locationRefreshKey, setLocationRefreshKey] = useState(0);
@@ -598,6 +641,26 @@ export default function Home() {
 			setCurrentHeroSlide((prev) => (prev + 1) % HERO_SLIDES.length);
 		}, 6000); // Slide every 6 seconds
 		return () => clearInterval(timer);
+	}, []);
+
+	useEffect(() => {
+		let timerId = null;
+		const tick = () => {
+			const next = getLaunchCountdown();
+			setLaunchCountdown(next);
+			if (next.isLive && timerId) {
+				clearInterval(timerId);
+			}
+		};
+
+		tick();
+		timerId = setInterval(tick, 1000);
+
+		return () => {
+			if (timerId) {
+				clearInterval(timerId);
+			}
+		};
 	}, []);
 
 	useEffect(() => {
@@ -1003,10 +1066,100 @@ export default function Home() {
 			{/* Navbar would go here, assuming it's imported and handles its own layout */}
 			<Navbar showSearch search={search} onSearchChange={setSearch} />
 
+			{showLaunchPopup && !launchCountdown.isLive ? (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+					<div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+						<div className="flex items-start justify-between gap-4">
+							<div>
+								<p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#1677ff]">
+									We're
+								</p>
+								<h2 className="mt-1 text-2xl font-bold text-black">
+									launching on 28th May
+								</h2>
+								<p className="mt-1 text-sm text-[#666666]">
+									Stay tuned to explore.
+								</p>
+							</div>
+							<button
+								type="button"
+								onClick={() => setShowLaunchPopup(false)}
+								className="rounded-full border border-[#EAEAEA] px-3 py-1 text-xs font-bold text-[#666666] transition hover:text-black"
+							>
+								Close
+							</button>
+						</div>
+						<div className="mt-5 grid grid-cols-4 gap-3 text-center">
+							<div className="rounded-2xl bg-[#F7F7F7] px-2 py-3">
+								<p className="text-xl font-black text-black">
+									{formatCountdownValue(launchCountdown.days)}
+								</p>
+								<p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#666666]">
+									Days
+								</p>
+							</div>
+							<div className="rounded-2xl bg-[#F7F7F7] px-2 py-3">
+								<p className="text-xl font-black text-black">
+									{formatCountdownValue(launchCountdown.hours)}
+								</p>
+								<p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#666666]">
+									Hours
+								</p>
+							</div>
+							<div className="rounded-2xl bg-[#F7F7F7] px-2 py-3">
+								<p className="text-xl font-black text-black">
+									{formatCountdownValue(launchCountdown.minutes)}
+								</p>
+								<p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#666666]">
+									Minutes
+								</p>
+							</div>
+							<div className="rounded-2xl bg-[#F7F7F7] px-2 py-3">
+								<p className="text-xl font-black text-black">
+									{formatCountdownValue(launchCountdown.seconds)}
+								</p>
+								<p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#666666]">
+									Seconds
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			) : null}
+
 			<main
 				id="main-content"
 				className="mx-auto w-full max-w-[1780px] px-4 py-6 sm:px-6 lg:px-8 flex-1"
 			>
+				<div className="mb-5 rounded-2xl border border-[#FFE49C] bg-[#FFF7DB] px-4 py-3 shadow-sm">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+						<div>
+							<p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#8b6a00]">
+								Launch announcement
+							</p>
+							<h2 className="mt-1 text-lg font-bold text-black">
+								We are launching on 28 May
+							</h2>
+							<p className="text-sm text-[#6b5a1e]">
+								Bookmark the date and get ready to explore.
+							</p>
+						</div>
+						<div className="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#1a1a1a]">
+							<span className="rounded-full bg-white px-3 py-1 shadow-sm">
+								{formatCountdownValue(launchCountdown.days)}d
+							</span>
+							<span className="rounded-full bg-white px-3 py-1 shadow-sm">
+								{formatCountdownValue(launchCountdown.hours)}h
+							</span>
+							<span className="rounded-full bg-white px-3 py-1 shadow-sm">
+								{formatCountdownValue(launchCountdown.minutes)}m
+							</span>
+							<span className="rounded-full bg-white px-3 py-1 shadow-sm">
+								{formatCountdownValue(launchCountdown.seconds)}s
+							</span>
+						</div>
+					</div>
+				</div>
 				<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_220px]">
 					<div className="min-w-0">
 						{/* Categories Row */}
