@@ -1075,7 +1075,7 @@ export default function Home() {
 									We're
 								</p>
 								<h2 className="mt-1 text-2xl font-bold text-black">
-									launching on 28th May
+									launching on 17th June
 								</h2>
 								<p className="mt-1 text-sm text-[#666666]">
 									Stay tuned to explore.
@@ -1138,7 +1138,7 @@ export default function Home() {
 								Launch announcement
 							</p>
 							<h2 className="mt-1 text-lg font-bold text-black">
-								We are launching on 28 May
+								We are launching on 17 June
 							</h2>
 							<p className="text-sm text-[#6b5a1e]">
 								Bookmark the date and get ready to explore.
